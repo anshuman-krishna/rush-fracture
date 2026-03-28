@@ -39,6 +39,10 @@ func Migrate(db *sql.DB) error {
 			duration INTEGER NOT NULL DEFAULT 0,
 			best_combo INTEGER NOT NULL DEFAULT 0,
 			weapon_used TEXT NOT NULL DEFAULT '',
+			mutations TEXT NOT NULL DEFAULT '',
+			run_tags TEXT NOT NULL DEFAULT '',
+			boss_encountered INTEGER NOT NULL DEFAULT 0,
+			boss_defeated INTEGER NOT NULL DEFAULT 0,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (user_id) REFERENCES users(id)
 		);

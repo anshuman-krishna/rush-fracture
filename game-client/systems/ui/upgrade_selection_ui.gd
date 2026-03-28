@@ -11,7 +11,7 @@ var choices: Array[Dictionary] = []
 func show_choices(upgrade_choices: Array[Dictionary]) -> void:
 	choices = upgrade_choices
 	_build_buttons()
-	visible = true
+	_animate_in()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
@@ -33,7 +33,27 @@ func _build_buttons() -> void:
 		container.add_child(btn)
 
 
+func _animate_in() -> void:
+	modulate.a = 0.0
+	scale = Vector2(0.95, 0.95)
+	visible = true
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(self, "modulate:a", 1.0, 0.15)
+	tween.tween_property(self, "scale", Vector2.ONE, 0.15).set_ease(Tween.EASE_OUT)
+
+
+func _animate_out(callback: Callable) -> void:
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(self, "modulate:a", 0.0, 0.1)
+	tween.tween_property(self, "scale", Vector2(1.02, 1.02), 0.1)
+	tween.chain().tween_callback(func():
+		visible = false
+		callback.call()
+	)
+
+
 func _on_choice(upgrade: Dictionary) -> void:
-	visible = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	upgrade_selected.emit(upgrade)
+	_animate_out(func(): upgrade_selected.emit(upgrade))

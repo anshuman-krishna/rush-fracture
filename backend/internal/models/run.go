@@ -19,7 +19,9 @@ type Run struct {
 	Duration      int       `json:"duration"`
 	BestCombo     int       `json:"best_combo"`
 	WeaponUsed    string    `json:"weapon_used"`
-	Mutations     string    `json:"mutations"`
-	RunTags       string    `json:"run_tags"`
-	CreatedAt     time.Time `json:"created_at"`
+	Mutations      string    `json:"mutations"`
+	RunTags        string    `json:"run_tags"`
+	BossEncountered bool     `json:"boss_encountered"`
+	BossDefeated   bool      `json:"boss_defeated"`
+	CreatedAt      time.Time `json:"created_at"`
 }

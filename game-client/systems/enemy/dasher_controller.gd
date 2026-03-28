@@ -15,6 +15,8 @@ var is_dashing := false
 var dash_timer := 0.0
 var dash_cooldown_timer := 0.0
 var dash_direction := Vector3.ZERO
+var is_elite := false
+var _chain_dash_pending := false
 
 @onready var health: HealthComponent = $HealthComponent
 @onready var mesh: MeshInstance3D = $MeshInstance3D
@@ -47,6 +49,9 @@ func _physics_process(delta: float) -> void:
 		if dash_timer <= 0:
 			is_dashing = false
 			_try_contact_damage()
+			if is_elite and _chain_dash_pending:
+				_chain_dash_pending = false
+				_start_chain_dash()
 	elif distance < detection_range:
 		if distance > 8.0 and dash_cooldown_timer <= 0:
 			_start_dash()
@@ -65,6 +70,19 @@ func _start_dash() -> void:
 	is_dashing = true
 	dash_timer = dash_duration
 	dash_cooldown_timer = dash_cooldown
+	if is_elite:
+		_chain_dash_pending = true
+
+
+func _start_chain_dash() -> void:
+	# second dash after brief pause, re-targeted
+	await get_tree().create_timer(0.15).timeout
+	if is_dying or not target:
+		return
+	dash_direction = (target.global_position - global_position).normalized()
+	dash_direction.y = 0
+	is_dashing = true
+	dash_timer = dash_duration * 0.8
 
 
 func _try_contact_damage() -> void:

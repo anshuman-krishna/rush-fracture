@@ -2,14 +2,24 @@ extends Label
 
 var player: CharacterBody3D
 var run_manager: RunManager
+var _debug_visible := false
 
 
 func _ready() -> void:
 	add_theme_color_override("font_color", Color(0.0, 1.0, 0.3))
 	add_theme_font_size_override("font_size", 12)
+	visible = false
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F3:
+		_debug_visible = not _debug_visible
+		visible = _debug_visible
 
 
 func _process(_delta: float) -> void:
+	if not _debug_visible:
+		return
 	if not player:
 		var players := get_tree().get_nodes_in_group("player")
 		if players.size() > 0:
@@ -62,6 +72,19 @@ func _process(_delta: float) -> void:
 		var fracture := get_node_or_null("/root/Main/FractureManager") as FractureManager
 		if fracture and fracture.is_active:
 			lines.append("fracture: %s (%.1fs)" % [fracture.get_active_name(), fracture.get_time_remaining()])
+
+		# room controller info
+		var rc := get_node_or_null("/root/Main/RoomController") as RoomController
+		if rc and rc.current_palette:
+			lines.append("palette: active")
+
+		if rc and rc.active_boss:
+			var boss := rc.active_boss
+			var bh := boss.get_node_or_null("HealthComponent") as HealthComponent
+			if bh:
+				lines.append("boss: phase %d hp:%d/%d (%.0f%%)" % [
+					boss.get_phase(), bh.current_health, bh.max_health,
+					boss.get_health_ratio() * 100])
 
 		lines.append("---")
 		for i in data.room_sequence.size():

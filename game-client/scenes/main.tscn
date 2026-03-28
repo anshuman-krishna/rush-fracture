@@ -1,4 +1,4 @@
-[gd_scene load_steps=23 format=3 uid="uid://main"]
+[gd_scene load_steps=25 format=3 uid="uid://main"]
 
 [ext_resource type="Script" path="res://systems/player/player_controller.gd" id="1"]
 [ext_resource type="Script" path="res://systems/player/camera_controller.gd" id="2"]
@@ -19,6 +19,8 @@
 [ext_resource type="Script" path="res://systems/mutations/mutation_manager.gd" id="18"]
 [ext_resource type="Script" path="res://systems/run/difficulty_tracker.gd" id="19"]
 [ext_resource type="Script" path="res://systems/ui/mutation_selection_ui.gd" id="20"]
+[ext_resource type="Script" path="res://systems/audio/audio_manager.gd" id="21"]
+[ext_resource type="Script" path="res://systems/combat/game_feel.gd" id="22"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.4
@@ -64,6 +66,12 @@ script = ExtResource("18")
 
 [node name="DifficultyTracker" type="Node" parent="."]
 script = ExtResource("19")
+
+[node name="AudioManager" type="Node" parent="."]
+script = ExtResource("21")
+
+[node name="GameFeel" type="Node" parent="."]
+script = ExtResource("22")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="."]
 
@@ -363,6 +371,15 @@ offset_top = 240.0
 offset_bottom = 280.0
 theme_override_font_sizes/font_size = 18
 text = "restart"
+
+[node name="MenuButton" type="Button" parent="UI/RunSummary/Panel"]
+layout_mode = 2
+offset_top = 290.0
+offset_bottom = 320.0
+theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
+theme_override_colors/font_hover_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 14
+text = "main menu"
 
 [node name="DebugOverlay" type="Label" parent="UI"]
 offset_left = 10.0

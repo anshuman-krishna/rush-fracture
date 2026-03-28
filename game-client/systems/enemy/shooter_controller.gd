@@ -11,6 +11,7 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target: CharacterBody3D
 var attack_timer := 0.0
 var is_dying := false
+var is_elite := false
 
 @onready var health: HealthComponent = $HealthComponent
 @onready var mesh: MeshInstance3D = $MeshInstance3D
@@ -71,6 +72,18 @@ func _fire_at_target() -> void:
 	attack_timer = attack_cooldown
 	if target.has_method("take_damage"):
 		target.take_damage(attack_damage)
+	if is_elite:
+		_elite_burst_fire()
+
+
+func _elite_burst_fire() -> void:
+	# two extra rapid shots at reduced damage
+	for i in 2:
+		await get_tree().create_timer(0.15).timeout
+		if is_dying or not target:
+			return
+		if target.has_method("take_damage"):
+			target.take_damage(int(attack_damage * 0.6))
 
 
 func _face_target() -> void:

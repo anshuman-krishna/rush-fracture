@@ -8,15 +8,22 @@ extends Camera3D
 var target_fov := 90.0
 var shake_intensity := 0.0
 var shake_offset := Vector3.ZERO
+var recoil_offset := 0.0
+var recoil_recovery_speed := 12.0
 
 
 func _process(delta: float) -> void:
 	_update_fov(delta)
 	_update_shake(delta)
+	_update_recoil(delta)
 
 
 func add_shake(intensity: float) -> void:
 	shake_intensity = max(shake_intensity, intensity)
+
+
+func add_recoil(amount: float) -> void:
+	recoil_offset += amount
 
 
 func _update_fov(delta: float) -> void:
@@ -24,8 +31,8 @@ func _update_fov(delta: float) -> void:
 	if not player:
 		return
 
-	var speed := Vector2(player.velocity.x, player.velocity.z).length()
-	var speed_ratio := clamp(speed / 20.0, 0.0, 1.0)
+	var speed: float = player.velocity.length()
+	var speed_ratio: float = clamp(speed / 20.0, 0.0, 1.0)
 	target_fov = lerp(base_fov, max_fov, speed_ratio)
 	fov = lerp(fov, target_fov, fov_lerp_speed * delta)
 
@@ -42,3 +49,11 @@ func _update_shake(delta: float) -> void:
 	else:
 		shake_intensity = 0.0
 		position = Vector3.ZERO
+
+
+func _update_recoil(delta: float) -> void:
+	if abs(recoil_offset) > 0.001:
+		rotation.x = recoil_offset * 0.01
+		recoil_offset = lerp(recoil_offset, 0.0, recoil_recovery_speed * delta)
+	else:
+		recoil_offset = 0.0

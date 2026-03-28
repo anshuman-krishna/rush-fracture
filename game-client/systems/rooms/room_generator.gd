@@ -43,10 +43,10 @@ static func generate(seed_value: int = -1) -> Array[RunData.RoomData]:
 		sequence.append(_create_room(i, type, difficulty))
 		last_type = type
 
-	# final room is always a harder combat encounter
+	# final room is the boss encounter
 	var final_difficulty := BASE_DIFFICULTY + DIFFICULTY_STEP * (room_count - 1) + 0.3
 	sequence.append(_create_room(
-		room_count - 1, RoomDefinitions.RoomType.COMBAT, final_difficulty
+		room_count - 1, RoomDefinitions.RoomType.BOSS, final_difficulty
 	))
 
 	return sequence

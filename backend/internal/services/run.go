@@ -29,7 +29,7 @@ func (s *RunService) Start(userID string) (*models.Run, error) {
 	return run, nil
 }
 
-func (s *RunService) End(id string, score, level, enemiesKilled, duration, bestCombo int, weaponUsed string) (*models.Run, error) {
+func (s *RunService) End(id string, score, level, enemiesKilled, duration, bestCombo int, weaponUsed, mutations, runTags string, bossEncountered, bossDefeated bool) (*models.Run, error) {
 	run, err := s.repo.GetByID(id)
 	if err != nil {
 		return nil, err
@@ -46,6 +46,10 @@ func (s *RunService) End(id string, score, level, enemiesKilled, duration, bestC
 	run.Duration = duration
 	run.BestCombo = bestCombo
 	run.WeaponUsed = weaponUsed
+	run.Mutations = mutations
+	run.RunTags = runTags
+	run.BossEncountered = bossEncountered
+	run.BossDefeated = bossDefeated
 
 	if err := s.repo.Update(run); err != nil {
 		return nil, err

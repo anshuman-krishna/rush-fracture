@@ -50,13 +50,17 @@ func (c *RunController) End(w http.ResponseWriter, r *http.Request) {
 		Duration      int    `json:"duration"`
 		BestCombo     int    `json:"best_combo"`
 		WeaponUsed    string `json:"weapon_used"`
+		Mutations       string `json:"mutations"`
+		RunTags         string `json:"run_tags"`
+		BossEncountered bool   `json:"boss_encountered"`
+		BossDefeated    bool   `json:"boss_defeated"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	run, err := c.service.End(id, req.Score, req.Level, req.EnemiesKilled, req.Duration, req.BestCombo, req.WeaponUsed)
+	run, err := c.service.End(id, req.Score, req.Level, req.EnemiesKilled, req.Duration, req.BestCombo, req.WeaponUsed, req.Mutations, req.RunTags, req.BossEncountered, req.BossDefeated)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

@@ -6,6 +6,7 @@ signal restart_requested
 @onready var stats_label: Label = $Panel/StatsLabel
 @onready var tags_label: Label = $Panel/TagsLabel
 @onready var restart_button: Button = $Panel/RestartButton
+@onready var menu_button: Button = $Panel/MenuButton
 
 
 func _ready() -> void:
@@ -15,14 +16,27 @@ func _ready() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		restart_requested.emit()
 	)
+	menu_button.pressed.connect(func():
+		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	)
 
 
 func show_summary(data: RunData) -> void:
 	var is_win := data.status == RunData.RunStatus.COMPLETED
+	var beat_boss := false
+	for room in data.room_sequence:
+		if room.type == RoomDefinitions.RoomType.BOSS and room.status == RoomDefinitions.RoomStatus.CLEARED:
+			beat_boss = true
+			break
 
-	status_label.text = "run complete" if is_win else "run failed"
+	if beat_boss:
+		status_label.text = "boss defeated"
+	elif is_win:
+		status_label.text = "run complete"
+	else:
+		status_label.text = "run failed"
 	status_label.add_theme_color_override("font_color",
-		Color(0.2, 1.0, 0.3) if is_win else Color(1.0, 0.2, 0.15))
+		Color(1.0, 0.8, 0.0) if beat_boss else (Color(0.2, 1.0, 0.3) if is_win else Color(1.0, 0.2, 0.15)))
 
 	var time_str := "%d:%02d" % [int(data.elapsed_time) / 60, int(data.elapsed_time) % 60]
 
@@ -38,14 +52,24 @@ func show_summary(data: RunData) -> void:
 	lines.append("upgrades: %d" % data.chosen_upgrades.size())
 	lines.append("mutations: %d" % data.chosen_mutations.size())
 	lines.append("best combo: %d" % best_combo)
+
+	# show personal best markers
+	var saved := BestStats.load_stats()
+	if data.total_enemies_killed >= saved.best_kills and saved.best_kills > 0:
+		lines.append(">> new best kills!")
+	if best_combo >= saved.best_combo and saved.best_combo > 0:
+		lines.append(">> new best combo!")
+
 	stats_label.text = "\n".join(lines)
 
-	# run tags
 	if data.run_tags.size() > 0:
 		tags_label.text = " / ".join(data.run_tags)
 		tags_label.visible = true
 	else:
 		tags_label.visible = false
 
+	modulate.a = 0.0
 	visible = true
+	var tween := create_tween()
+	tween.tween_property(self, "modulate:a", 1.0, 0.3)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

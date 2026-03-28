@@ -6,6 +6,7 @@ extends Node3D
 
 signal all_enemies_dead
 signal enemy_killed
+signal boss_defeated
 
 @export var spawn_radius := 22.0
 @export var min_spawn_distance := 6.0
@@ -14,6 +15,9 @@ var active_room: RunData.RoomData
 var enemies_alive := 0
 var room_active := false
 var _enemy_scenes := {}
+var _boss_scene: PackedScene
+var active_boss: BossController
+var current_palette: RoomPalette
 
 @onready var arena_root: Node3D = $ArenaRoot
 @onready var enemy_root: Node3D = $EnemyRoot
@@ -22,18 +26,26 @@ var _enemy_scenes := {}
 
 func _ready() -> void:
 	_preload_enemy_scenes()
+	_preload_boss_scene()
 
 
 func enter_room(room: RunData.RoomData) -> void:
 	_clear_room()
 	active_room = room
 	room_active = false
+	current_palette = RoomPalette.pick_for_room(
+		room.id.get_slice("_", 1).to_int(), room.type)
 
 	_configure_arena(room)
+	_apply_palette()
 	_place_hazards(room)
 
 	await get_tree().create_timer(0.4).timeout
-	_spawn_enemies(room)
+
+	if room.type == RoomDefinitions.RoomType.BOSS:
+		_spawn_boss(room)
+	else:
+		_spawn_enemies(room)
 	room_active = true
 
 
@@ -42,6 +54,12 @@ func _preload_enemy_scenes() -> void:
 		var path := EnemyTypes.scene_path(type)
 		if ResourceLoader.exists(path):
 			_enemy_scenes[type] = load(path)
+
+
+func _preload_boss_scene() -> void:
+	var path := "res://scenes/enemies/boss_fracture_titan.tscn"
+	if ResourceLoader.exists(path):
+		_boss_scene = load(path)
 
 
 func _spawn_enemies(room: RunData.RoomData) -> void:
@@ -74,6 +92,29 @@ func _spawn_enemies(room: RunData.RoomData) -> void:
 		enemies_alive += 1
 
 
+func _spawn_boss(room: RunData.RoomData) -> void:
+	if not _boss_scene:
+		return
+
+	active_boss = _boss_scene.instantiate() as BossController
+	active_boss.global_position = Vector3(0, 1.0, -15.0)
+
+	# scale boss health by difficulty
+	var bh := active_boss.get_node_or_null("HealthComponent") as HealthComponent
+	if bh:
+		bh.max_health = int(bh.max_health * room.difficulty)
+		bh.current_health = bh.max_health
+		bh.died.connect(_on_enemy_died)
+
+	active_boss.boss_defeated.connect(_on_boss_defeated)
+	enemy_root.add_child(active_boss)
+	enemies_alive = 1
+
+
+func _on_boss_defeated() -> void:
+	boss_defeated.emit()
+
+
 func _scale_enemy(enemy: CharacterBody3D, difficulty: float, is_elite_unit: bool) -> void:
 	var health := enemy.get_node_or_null("HealthComponent") as HealthComponent
 	if health:
@@ -87,6 +128,8 @@ func _scale_enemy(enemy: CharacterBody3D, difficulty: float, is_elite_unit: bool
 			enemy.move_speed *= 1.3
 		if "attack_damage" in enemy:
 			enemy.attack_damage = int(enemy.attack_damage * 2.0)
+		if "is_elite" in enemy:
+			enemy.is_elite = true
 		enemy.scale = Vector3(1.5, 1.5, 1.5)
 		_apply_elite_visual(enemy)
 	else:
@@ -124,7 +167,7 @@ func _get_spawn_position() -> Vector3:
 
 func _configure_arena(room: RunData.RoomData) -> void:
 	_clear_obstacles()
-	if room.type == RoomDefinitions.RoomType.RECOVERY:
+	if room.type == RoomDefinitions.RoomType.RECOVERY or room.type == RoomDefinitions.RoomType.BOSS:
 		return
 
 	var obstacle_count := 0
@@ -138,6 +181,30 @@ func _configure_arena(room: RunData.RoomData) -> void:
 
 	for i in obstacle_count:
 		_place_obstacle(i, obstacle_count, room)
+
+
+func _apply_palette() -> void:
+	if not current_palette:
+		return
+
+	# floor material
+	var floor_node := get_node_or_null("/root/Main/Floor/FloorMesh") as MeshInstance3D
+	if floor_node:
+		var mat := floor_node.get_surface_override_material(0)
+		if not mat:
+			mat = StandardMaterial3D.new()
+			floor_node.set_surface_override_material(0, mat)
+		if mat is StandardMaterial3D:
+			mat.albedo_color = current_palette.floor_color
+			mat.emission_enabled = true
+			mat.emission = current_palette.floor_emission
+			mat.emission_energy_multiplier = 0.3
+
+	# directional light
+	var light := get_node_or_null("/root/Main/DirectionalLight3D") as DirectionalLight3D
+	if light:
+		light.light_color = current_palette.light_color
+		light.light_energy = current_palette.light_energy
 
 
 func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
@@ -156,8 +223,12 @@ func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
 	mesh.position.y = height / 2.0
 
 	var mat := StandardMaterial3D.new()
-	var shade := 0.08 + room.difficulty * 0.02
-	mat.albedo_color = Color(shade, shade, shade + 0.02, 1)
+	if current_palette:
+		var c := current_palette.obstacle_color
+		mat.albedo_color = Color(c.r + randf() * 0.03, c.g + randf() * 0.03, c.b + randf() * 0.03, 1)
+	else:
+		var shade := 0.08 + room.difficulty * 0.02
+		mat.albedo_color = Color(shade, shade, shade + 0.02, 1)
 	mesh.material_override = mat
 
 	var col := CollisionShape3D.new()
@@ -174,7 +245,7 @@ func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
 
 func _place_hazards(room: RunData.RoomData) -> void:
 	_clear_hazards()
-	if room.type == RoomDefinitions.RoomType.RECOVERY:
+	if room.type == RoomDefinitions.RoomType.RECOVERY or room.type == RoomDefinitions.RoomType.BOSS:
 		return
 
 	var hazard_count := 0
@@ -304,6 +375,10 @@ func spawn_duplicate_enemy() -> void:
 	enemies_alive += 1
 
 
+func clear_current_room() -> void:
+	_clear_room()
+
+
 func _clear_room() -> void:
 	_clear_obstacles()
 	_clear_hazards()
@@ -313,3 +388,4 @@ func _clear_room() -> void:
 	enemies_alive = 0
 	room_active = false
 	active_room = null
+	active_boss = null

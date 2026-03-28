@@ -10,6 +10,8 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target: CharacterBody3D
 var attack_timer := 0.0
 var is_dying := false
+var is_elite := false
+var slam_cooldown := 0.0
 
 @onready var health: HealthComponent = $HealthComponent
 @onready var mesh: MeshInstance3D = $MeshInstance3D
@@ -27,6 +29,7 @@ func _physics_process(delta: float) -> void:
 
 	_apply_gravity(delta)
 	attack_timer = max(0, attack_timer - delta)
+	slam_cooldown = max(0, slam_cooldown - delta)
 
 	if not target:
 		_find_target()
@@ -40,6 +43,9 @@ func _physics_process(delta: float) -> void:
 
 	if distance > attack_range:
 		_chase(delta)
+		# elite slam when close enough
+		if is_elite and distance <= 5.0 and slam_cooldown <= 0:
+			_elite_ground_slam()
 	else:
 		_try_attack()
 
@@ -62,6 +68,40 @@ func _try_attack() -> void:
 		if target.has_method("take_damage"):
 			target.take_damage(attack_damage)
 		attack_timer = attack_cooldown
+
+
+func _elite_ground_slam() -> void:
+	slam_cooldown = 6.0
+	var slam_radius := 5.0
+	var slam_damage := int(attack_damage * 0.8)
+	var players := get_tree().get_nodes_in_group("player")
+	for p in players:
+		if p is Node3D and global_position.distance_to(p.global_position) <= slam_radius:
+			if p.has_method("take_damage"):
+				p.take_damage(slam_damage)
+	_spawn_slam_ring(slam_radius)
+
+
+func _spawn_slam_ring(radius: float) -> void:
+	var ring := MeshInstance3D.new()
+	var disc := CylinderMesh.new()
+	disc.top_radius = 0.5
+	disc.bottom_radius = 0.5
+	disc.height = 0.1
+	ring.mesh = disc
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.4, 0.1, 0.0, 0.6)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.emission_enabled = true
+	mat.emission = Color(0.6, 0.15, 0.0)
+	ring.material_override = mat
+	ring.global_position = Vector3(global_position.x, 0.1, global_position.z)
+	get_tree().root.add_child(ring)
+	var tween := get_tree().create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(ring, "scale", Vector3(radius, 1, radius), 0.3)
+	tween.tween_property(mat, "albedo_color:a", 0.0, 0.4)
+	tween.chain().tween_callback(ring.queue_free)
 
 
 func _face_target() -> void:

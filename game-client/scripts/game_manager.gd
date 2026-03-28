@@ -14,6 +14,9 @@ extends Node
 @onready var combo_tracker: ComboTracker = $"../ComboTracker"
 @onready var mutation_manager: MutationManager = $"../MutationManager"
 @onready var difficulty_tracker: DifficultyTracker = $"../DifficultyTracker"
+@onready var audio: AudioManager = $"../AudioManager"
+@onready var game_feel: GameFeel = $"../GameFeel"
+@onready var camera: Camera3D = $"../Player/Head/Camera3D"
 @onready var run_hud = $"../UI/RunHUD"
 @onready var room_announce = $"../UI/RoomAnnounce"
 @onready var upgrade_ui = $"../UI/UpgradeSelection"
@@ -24,6 +27,8 @@ var awaiting_upgrade := false
 var awaiting_mutation := false
 var awaiting_transition := false
 var _pending_mutation_after_upgrade := false
+var _boss_active := false
+var _boss_defeated := false
 
 
 func _ready() -> void:
@@ -39,6 +44,7 @@ func _ready() -> void:
 
 	room_controller.all_enemies_dead.connect(_on_all_enemies_dead)
 	room_controller.enemy_killed.connect(_on_room_enemy_killed)
+	room_controller.boss_defeated.connect(_on_boss_defeated)
 
 	fracture_manager.fracture_started.connect(_on_fracture_started)
 	fracture_manager.fracture_ended.connect(_on_fracture_ended)
@@ -76,6 +82,11 @@ func _start_run() -> void:
 	fracture_manager.end_fracture()
 	combo_tracker.reset()
 	difficulty_tracker.reset()
+	_boss_active = false
+	_boss_defeated = false
+	_pending_mutation_after_upgrade = false
+	game_feel.reset()
+	audio.play("run_start", -3.0)
 	run_manager.start_run()
 
 
@@ -83,6 +94,18 @@ func _reset_player() -> void:
 	player.health = player.max_health
 	player.global_position = Vector3(0, 2, 0)
 	player.velocity = Vector3.ZERO
+
+
+func _on_death() -> void:
+	if damage_vignette:
+		damage_vignette.flash(3.0)
+	game_feel.camera_punch(camera, 12.0)
+	audio.play("player_damage", 0.0, 0.05)
+	# brief death slow-mo
+	Engine.time_scale = 0.3
+	var tween := create_tween().set_ignore_time_scale(true)
+	tween.tween_interval(0.4)
+	tween.tween_callback(func(): Engine.time_scale = 1.0)
 
 
 func _on_player_damaged(amount: int) -> void:
@@ -93,10 +116,14 @@ func _on_player_damaged(amount: int) -> void:
 		player.health = maxi(player.health - extra, 0)
 
 	difficulty_tracker.on_player_damaged(effective)
+	audio.play("player_damage", -2.0, 0.1)
 
+	var intensity := clamp(float(effective) / 30.0, 0.5, 2.0)
 	if damage_vignette:
-		damage_vignette.flash()
+		damage_vignette.flash(intensity)
+	game_feel.camera_punch(camera, effective * 0.3)
 	if player.health <= 0:
+		_on_death()
 		run_manager.fail_run()
 
 
@@ -107,6 +134,10 @@ func _on_weapon_kill() -> void:
 	combo_tracker.register_kill()
 	difficulty_tracker.on_enemy_killed()
 
+	audio.play("enemy_death", -4.0, 0.15)
+	game_feel.kill_freeze()
+	crosshair.show_kill()
+
 	if upgrade_manager.has_chain_reaction:
 		_spawn_kill_explosion()
 
@@ -114,6 +145,7 @@ func _on_weapon_kill() -> void:
 func _on_weapon_hit(hit_position: Vector3) -> void:
 	upgrade_manager.on_enemy_hit(hit_position)
 	mutation_manager.on_enemy_hit(hit_position)
+	audio.play("enemy_hit", -8.0, 0.2)
 
 
 func _on_weapon_switched(_weapon_name: String) -> void:
@@ -126,13 +158,26 @@ func _on_room_enemy_killed() -> void:
 			room_controller.spawn_duplicate_enemy()
 
 
+func _on_boss_phase_changed(_phase: int) -> void:
+	audio.play("boss_phase", 0.0)
+	game_feel.boss_phase_slowmo()
+	game_feel.camera_punch(camera, 8.0)
+
+
+func _on_boss_defeated() -> void:
+	_boss_defeated = true
+	_boss_active = false
+	room_announce.show_boss_defeated()
+	audio.play("boss_death", 0.0)
+	game_feel.boss_death_slowmo()
+
+
 func _on_all_enemies_dead() -> void:
 	run_manager.on_room_enemies_cleared()
 
 
 func _on_room_entered(room: RunData.RoomData) -> void:
 	var data := run_manager.data
-	room_announce.show_room_enter(room, data.current_room_index + 1, data.total_rooms())
 	_reset_player_position()
 
 	# apply dynamic difficulty subtly
@@ -143,8 +188,27 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 	if upgrade_manager.enemy_speed_bonus > 0:
 		room.metadata["enemy_speed_bonus"] = upgrade_manager.enemy_speed_bonus
 
+	if room.type == RoomDefinitions.RoomType.BOSS:
+		_boss_active = true
+		_boss_defeated = false
+		audio.play("boss_warning", 0.0)
+		room_announce.show_boss_warning()
+		await get_tree().create_timer(2.0).timeout
+		room_announce.show_room_enter(room, data.current_room_index + 1, data.total_rooms())
+	else:
+		room_announce.show_room_enter(room, data.current_room_index + 1, data.total_rooms())
+
 	room_controller.enter_room(room)
-	fracture_manager.try_trigger(room.difficulty)
+
+	# connect boss phase signal after spawn delay
+	if room.type == RoomDefinitions.RoomType.BOSS:
+		await get_tree().create_timer(0.5).timeout
+		if room_controller.active_boss:
+			room_controller.active_boss.phase_changed.connect(_on_boss_phase_changed)
+
+	# no fracture events during boss fight
+	if room.type != RoomDefinitions.RoomType.BOSS:
+		fracture_manager.try_trigger(room.difficulty)
 	difficulty_tracker.on_room_entered()
 
 
@@ -152,6 +216,13 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 	room_announce.show_room_clear()
 	fracture_manager.end_fracture()
 	difficulty_tracker.on_room_cleared()
+	audio.play("room_clear", -3.0)
+
+	if room.type == RoomDefinitions.RoomType.BOSS:
+		# boss reward: upgrade + mutation, then complete
+		_pending_mutation_after_upgrade = true
+		_show_upgrade_selection()
+		return
 
 	if room.reward_flag:
 		_show_upgrade_selection()
@@ -173,6 +244,13 @@ func _on_upgrade_selected(upgrade: Dictionary) -> void:
 	awaiting_upgrade = false
 	upgrade_manager.apply(upgrade)
 	run_manager.apply_upgrade(upgrade)
+	audio.play("upgrade_pick", -3.0)
+
+	# boss reward guarantees a mutation choice
+	if _pending_mutation_after_upgrade:
+		_pending_mutation_after_upgrade = false
+		_show_mutation_selection()
+		return
 
 	# check if mutation should follow upgrade
 	if _should_offer_mutation():
@@ -209,8 +287,11 @@ func _on_mutation_selected(mutation: Dictionary) -> void:
 	awaiting_mutation = false
 	mutation_manager.apply(mutation)
 	run_manager.data.chosen_mutations.append(mutation)
+	audio.play("upgrade_pick", -3.0)
 
-	if run_manager.data.is_final_room():
+	if _boss_defeated:
+		run_manager.complete_run()
+	elif run_manager.data.is_final_room():
 		run_manager.complete_run()
 	else:
 		_prompt_next_room()
@@ -218,7 +299,9 @@ func _on_mutation_selected(mutation: Dictionary) -> void:
 
 func _on_mutation_skipped() -> void:
 	awaiting_mutation = false
-	if run_manager.data.is_final_room():
+	if _boss_defeated:
+		run_manager.complete_run()
+	elif run_manager.data.is_final_room():
 		run_manager.complete_run()
 	else:
 		_prompt_next_room()
@@ -230,19 +313,29 @@ func _prompt_next_room() -> void:
 
 func _on_run_failed(data: RunData) -> void:
 	fracture_manager.end_fracture()
+	var best := combo_tracker.best_combo
 	combo_tracker.reset()
-	data.run_tags = RunTags.generate(data, combo_tracker.best_combo)
+	data.run_tags = RunTags.generate(data, best)
+	BestStats.update_from_run(data, best)
 	summary_ui.show_summary(data)
 
 
 func _on_run_completed(data: RunData) -> void:
 	fracture_manager.end_fracture()
+	var best := combo_tracker.best_combo
 	combo_tracker.reset()
-	data.run_tags = RunTags.generate(data, combo_tracker.best_combo)
+	data.run_tags = RunTags.generate(data, best)
+	BestStats.update_from_run(data, best)
 	summary_ui.show_summary(data)
 
 
 func _on_restart() -> void:
+	awaiting_upgrade = false
+	awaiting_mutation = false
+	awaiting_transition = false
+	upgrade_ui.visible = false
+	mutation_ui.visible = false
+	room_controller.clear_current_room()
 	_start_run()
 
 

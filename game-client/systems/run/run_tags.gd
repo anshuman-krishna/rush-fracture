@@ -35,6 +35,15 @@ static func generate(data: RunData, combo_best: int) -> PackedStringArray:
 	# upgrade tags
 	_check_upgrade_tags(data, tags)
 
+	# boss tag
+	var has_boss_room := false
+	for room in data.room_sequence:
+		if room.type == RoomDefinitions.RoomType.BOSS and room.status == RoomDefinitions.RoomStatus.CLEARED:
+			has_boss_room = true
+			break
+	if has_boss_room:
+		tags.append("boss slayer")
+
 	# survival tags
 	if data.status == RunData.RunStatus.COMPLETED:
 		tags.append("survivor")
