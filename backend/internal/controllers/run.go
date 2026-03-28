@@ -44,17 +44,19 @@ func (c *RunController) End(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 
 	var req struct {
-		Score         int `json:"score"`
-		Level         int `json:"level"`
-		EnemiesKilled int `json:"enemies_killed"`
-		Duration      int `json:"duration"`
+		Score         int    `json:"score"`
+		Level         int    `json:"level"`
+		EnemiesKilled int    `json:"enemies_killed"`
+		Duration      int    `json:"duration"`
+		BestCombo     int    `json:"best_combo"`
+		WeaponUsed    string `json:"weapon_used"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	run, err := c.service.End(id, req.Score, req.Level, req.EnemiesKilled, req.Duration)
+	run, err := c.service.End(id, req.Score, req.Level, req.EnemiesKilled, req.Duration, req.BestCombo, req.WeaponUsed)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

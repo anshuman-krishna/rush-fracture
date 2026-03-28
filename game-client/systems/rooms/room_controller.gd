@@ -61,6 +61,11 @@ func _spawn_enemies(room: RunData.RoomData) -> void:
 
 		_scale_enemy(instance, room.difficulty, is_elite and i == 0)
 
+		# apply cursed enemy speed bonus
+		var speed_bonus: float = room.metadata.get("enemy_speed_bonus", 0.0)
+		if speed_bonus > 0 and "move_speed" in instance:
+			instance.move_speed *= (1.0 + speed_bonus)
+
 		var health := instance.get_node_or_null("HealthComponent") as HealthComponent
 		if health:
 			health.died.connect(_on_enemy_died)

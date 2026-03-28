@@ -29,7 +29,7 @@ func (s *RunService) Start(userID string) (*models.Run, error) {
 	return run, nil
 }
 
-func (s *RunService) End(id string, score, level, enemiesKilled, duration int) (*models.Run, error) {
+func (s *RunService) End(id string, score, level, enemiesKilled, duration, bestCombo int, weaponUsed string) (*models.Run, error) {
 	run, err := s.repo.GetByID(id)
 	if err != nil {
 		return nil, err
@@ -44,6 +44,8 @@ func (s *RunService) End(id string, score, level, enemiesKilled, duration int) (
 	run.Level = level
 	run.EnemiesKilled = enemiesKilled
 	run.Duration = duration
+	run.BestCombo = bestCombo
+	run.WeaponUsed = weaponUsed
 
 	if err := s.repo.Update(run); err != nil {
 		return nil, err

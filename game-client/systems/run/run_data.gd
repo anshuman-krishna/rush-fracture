@@ -18,6 +18,8 @@ var total_enemies_killed := 0
 var rooms_cleared := 0
 var elapsed_time := 0.0
 var chosen_upgrades: Array[Dictionary] = []
+var chosen_mutations: Array[Dictionary] = []
+var run_tags: PackedStringArray = []
 var difficulty_scale := 1.0
 
 

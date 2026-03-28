@@ -13,6 +13,21 @@ enum UpgradeType {
 	OVERDRIVE,
 	LIFESTEAL_CORE,
 	UNSTABLE_ROUNDS,
+	# weapon-specific
+	BURST_FIRE,
+	ARMOR_PIERCING,
+	TIGHT_SPREAD,
+	DOUBLE_BLAST,
+	BEAM_CHAIN,
+	HEAT_CAPACITY,
+	# high-impact
+	CHAIN_REACTION,
+	ADRENALINE_SURGE,
+	TEMPORAL_BREAK,
+	# cursed
+	POWER_SURGE,
+	FRAGILE_SPEED,
+	BERSERKER_PACT,
 }
 
 
@@ -96,6 +111,116 @@ static var catalog: Array[Dictionary] = [
 		"stat": "unstable_rounds",
 		"modifier": 1.0,
 		"apply_mode": "special",
+	},
+	# weapon-specific: pulse rifle
+	{
+		"type": UpgradeType.BURST_FIRE,
+		"name": "burst protocol",
+		"description": "rifle fires 3-round bursts",
+		"stat": "burst_fire",
+		"modifier": 1.0,
+		"apply_mode": "special",
+		"weapon_type": "pulse_rifle",
+	},
+	{
+		"type": UpgradeType.ARMOR_PIERCING,
+		"name": "penetrator rounds",
+		"description": "rifle deals +40% to each hit",
+		"stat": "armor_piercing",
+		"modifier": 1.0,
+		"apply_mode": "special",
+		"weapon_type": "pulse_rifle",
+	},
+	# weapon-specific: scatter cannon
+	{
+		"type": UpgradeType.TIGHT_SPREAD,
+		"name": "choke bore",
+		"description": "scatter spread halved",
+		"stat": "tight_spread",
+		"modifier": 1.0,
+		"apply_mode": "special",
+		"weapon_type": "scatter_cannon",
+	},
+	{
+		"type": UpgradeType.DOUBLE_BLAST,
+		"name": "double tap",
+		"description": "scatter fires a second burst",
+		"stat": "double_blast",
+		"modifier": 1.0,
+		"apply_mode": "special",
+		"weapon_type": "scatter_cannon",
+	},
+	# weapon-specific: beam emitter
+	{
+		"type": UpgradeType.BEAM_CHAIN,
+		"name": "arc conductor",
+		"description": "beam chains to a nearby enemy",
+		"stat": "beam_chain",
+		"modifier": 1.0,
+		"apply_mode": "special",
+		"weapon_type": "beam_emitter",
+	},
+	{
+		"type": UpgradeType.HEAT_CAPACITY,
+		"name": "thermal sink",
+		"description": "+50% beam heat capacity",
+		"stat": "heat_capacity",
+		"modifier": 1.0,
+		"apply_mode": "special",
+		"weapon_type": "beam_emitter",
+	},
+	# high-impact
+	{
+		"type": UpgradeType.CHAIN_REACTION,
+		"name": "chain reaction",
+		"description": "kills cause an explosion",
+		"stat": "chain_reaction",
+		"modifier": 1.0,
+		"apply_mode": "special",
+	},
+	{
+		"type": UpgradeType.ADRENALINE_SURGE,
+		"name": "adrenaline surge",
+		"description": "kill streaks boost speed",
+		"stat": "adrenaline_surge",
+		"modifier": 1.0,
+		"apply_mode": "special",
+	},
+	{
+		"type": UpgradeType.TEMPORAL_BREAK,
+		"name": "temporal break",
+		"description": "kills briefly slow time",
+		"stat": "temporal_break",
+		"modifier": 1.0,
+		"apply_mode": "special",
+	},
+	# cursed upgrades — risk/reward
+	{
+		"type": UpgradeType.POWER_SURGE,
+		"name": "power surge",
+		"description": "+40% damage, enemies move 20% faster",
+		"stat": "power_surge",
+		"modifier": 1.0,
+		"apply_mode": "special",
+		"cursed": true,
+	},
+	{
+		"type": UpgradeType.FRAGILE_SPEED,
+		"name": "fragile speed",
+		"description": "+30% speed, take 25% more damage",
+		"stat": "fragile_speed",
+		"modifier": 1.0,
+		"apply_mode": "special",
+		"cursed": true,
+	},
+	{
+		"type": UpgradeType.BERSERKER_PACT,
+		"name": "berserker pact",
+		"description": "+25% damage at low hp, -30 max health",
+		"stat": "berserker_pact",
+		"modifier": 1.0,
+		"apply_mode": "special",
+		"cursed": true,
 	},
 ]
 

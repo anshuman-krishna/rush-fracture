@@ -17,5 +17,9 @@ type Run struct {
 	Level         int       `json:"level"`
 	EnemiesKilled int       `json:"enemies_killed"`
 	Duration      int       `json:"duration"`
+	BestCombo     int       `json:"best_combo"`
+	WeaponUsed    string    `json:"weapon_used"`
+	Mutations     string    `json:"mutations"`
+	RunTags       string    `json:"run_tags"`
 	CreatedAt     time.Time `json:"created_at"`
 }

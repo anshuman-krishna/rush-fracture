@@ -29,12 +29,35 @@ func _process(_delta: float) -> void:
 	lines.append("enemies: %d" % get_tree().get_nodes_in_group("enemies").size())
 	lines.append("hp: %d/%d" % [player.health, player.max_health])
 
+	var wm := get_node_or_null("/root/Main/Player/Head/WeaponManager") as WeaponManager
+	if wm:
+		lines.append("weapon: %s (dmg:%d rate:%.2f)" % [wm.get_weapon_name(), wm.damage, wm.fire_rate])
+		if wm.active_slot == WeaponManager.WeaponSlot.BEAM_EMITTER:
+			lines.append("heat: %.0f%% %s" % [wm.get_beam_heat_ratio() * 100, "OVERHEAT" if wm.is_beam_overheated() else ""])
+
+	var combo := get_node_or_null("/root/Main/ComboTracker") as ComboTracker
+	if combo and combo.combo_count > 0:
+		lines.append("combo: %d (x%d) %.1fs spd:+%.0f%% dmg:+%.0f%%" % [
+			combo.combo_count, combo.combo_multiplier, combo.get_time_remaining(),
+			combo.speed_buff * 100, combo.damage_buff * 100])
+
+	var mm := get_node_or_null("/root/Main/MutationManager") as MutationManager
+	if mm and mm.active_mutations.size() > 0:
+		lines.append("mutations: %s" % " / ".join(mm.get_mutation_names()))
+
+	var dt := get_node_or_null("/root/Main/DifficultyTracker") as DifficultyTracker
+	if dt:
+		lines.append("diff mod: %.2f" % dt.get_difficulty_modifier())
+
 	if run_manager and run_manager.data:
 		var data := run_manager.data
 		lines.append("---")
 		lines.append("run: %s" % ["active", "paused", "failed", "done"][data.status])
 		lines.append("kills: %d" % data.total_enemies_killed)
 		lines.append("upgrades: %d" % data.chosen_upgrades.size())
+
+		if data.run_tags.size() > 0:
+			lines.append("tags: %s" % " / ".join(data.run_tags))
 
 		var fracture := get_node_or_null("/root/Main/FractureManager") as FractureManager
 		if fracture and fracture.is_active:
