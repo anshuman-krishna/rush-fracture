@@ -1,0 +1,48 @@
+# binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+backend/server
+backend/*.db
+
+# go
+backend/vendor/
+
+# godot
+game-client/.godot/
+game-client/.import/
+game-client/export/
+*.import
+
+# builds
+build/
+dist/
+out/
+
+# logs
+*.log
+
+# temp
+*.tmp
+*.swp
+*.swo
+*~
+
+# os
+.DS_Store
+Thumbs.db
+
+# env
+.env
+*.env.local
+
+# ide
+.vscode/
+.idea/
+*.iml
+
+# for-testing
+CLAUDE.md
+.claude/

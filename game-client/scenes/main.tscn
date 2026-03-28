@@ -1,0 +1,288 @@
+[gd_scene load_steps=19 format=3 uid="uid://main"]
+
+[ext_resource type="Script" path="res://systems/player/player_controller.gd" id="1"]
+[ext_resource type="Script" path="res://systems/player/camera_controller.gd" id="2"]
+[ext_resource type="Script" path="res://systems/combat/weapon.gd" id="3"]
+[ext_resource type="Script" path="res://systems/combat/damage_vignette.gd" id="4"]
+[ext_resource type="Script" path="res://systems/combat/crosshair.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/game_manager.gd" id="6"]
+[ext_resource type="Script" path="res://scripts/debug_overlay.gd" id="7"]
+[ext_resource type="Script" path="res://systems/run/run_manager.gd" id="9"]
+[ext_resource type="Script" path="res://systems/rooms/room_controller.gd" id="10"]
+[ext_resource type="Script" path="res://systems/upgrades/upgrade_manager.gd" id="11"]
+[ext_resource type="Script" path="res://systems/ui/run_hud.gd" id="12"]
+[ext_resource type="Script" path="res://systems/ui/room_announce.gd" id="13"]
+[ext_resource type="Script" path="res://systems/ui/upgrade_selection_ui.gd" id="14"]
+[ext_resource type="Script" path="res://systems/ui/run_summary_ui.gd" id="15"]
+[ext_resource type="Script" path="res://systems/fracture/fracture_manager.gd" id="16"]
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
+radius = 0.4
+height = 1.8
+
+[sub_resource type="BoxMesh" id="BoxMesh_floor"]
+size = Vector3(100, 0.2, 100)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
+size = Vector3(100, 0.2, 100)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
+albedo_color = Color(0.12, 0.12, 0.14, 1)
+
+[node name="Main" type="Node3D"]
+
+[node name="GameManager" type="Node" parent="."]
+script = ExtResource("6")
+
+[node name="RunManager" type="Node" parent="."]
+script = ExtResource("9")
+
+[node name="RoomController" type="Node3D" parent="."]
+script = ExtResource("10")
+
+[node name="ArenaRoot" type="Node3D" parent="RoomController"]
+
+[node name="EnemyRoot" type="Node3D" parent="RoomController"]
+
+[node name="HazardRoot" type="Node3D" parent="RoomController"]
+
+[node name="UpgradeManager" type="Node" parent="."]
+script = ExtResource("11")
+
+[node name="FractureManager" type="Node" parent="."]
+script = ExtResource("16")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.707, 0.707, 0, -0.707, 0.707, 0, 10, 0)
+shadow_enabled = true
+light_color = Color(1, 0.95, 0.9, 1)
+
+[node name="Player" type="CharacterBody3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
+collision_layer = 1
+collision_mask = 3
+script = ExtResource("1")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="Player"]
+shape = SubResource("CapsuleShape3D_player")
+
+[node name="Head" type="Node3D" parent="Player"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
+
+[node name="Camera3D" type="Camera3D" parent="Player/Head"]
+current = true
+fov = 90.0
+script = ExtResource("2")
+
+[node name="Weapon" type="Node3D" parent="Player/Head"]
+script = ExtResource("3")
+
+[node name="Floor" type="StaticBody3D" parent="."]
+collision_layer = 1
+
+[node name="FloorMesh" type="MeshInstance3D" parent="Floor"]
+mesh = SubResource("BoxMesh_floor")
+surface_material_override/0 = SubResource("StandardMaterial3D_floor")
+
+[node name="FloorCollision" type="CollisionShape3D" parent="Floor"]
+shape = SubResource("BoxShape3D_floor")
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="DamageVignette" type="ColorRect" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("4")
+
+[node name="Crosshair" type="CenterContainer" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("5")
+
+[node name="CrosshairDot" type="ColorRect" parent="UI/Crosshair"]
+custom_minimum_size = Vector2(4, 4)
+layout_mode = 2
+color = Color(1, 1, 1, 0.8)
+
+[node name="HitMarker" type="Label" parent="UI/Crosshair"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.2, 0.2, 1)
+theme_override_font_sizes/font_size = 20
+text = "x"
+horizontal_alignment = 1
+
+[node name="RunHUD" type="Control" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("12")
+
+[node name="RoomLabel" type="Label" parent="UI/RunHUD"]
+offset_left = 20.0
+offset_top = 40.0
+offset_right = 200.0
+offset_bottom = 60.0
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 18
+text = "room 1/6"
+
+[node name="TimerLabel" type="Label" parent="UI/RunHUD"]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -40.0
+offset_top = 15.0
+offset_right = 40.0
+offset_bottom = 35.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 16
+text = "0:00"
+horizontal_alignment = 1
+
+[node name="HpLabel" type="Label" parent="UI/RunHUD"]
+offset_left = 20.0
+offset_top = 65.0
+offset_right = 200.0
+offset_bottom = 85.0
+theme_override_colors/font_color = Color(1.0, 0.3, 0.25, 1)
+theme_override_font_sizes/font_size = 16
+text = "100 hp"
+
+[node name="EnemyLabel" type="Label" parent="UI/RunHUD"]
+offset_left = 20.0
+offset_top = 90.0
+offset_right = 200.0
+offset_bottom = 110.0
+theme_override_colors/font_color = Color(0.8, 0.6, 0.5, 1)
+theme_override_font_sizes/font_size = 14
+text = "x0"
+
+[node name="RoomAnnounce" type="Control" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+visible = false
+script = ExtResource("13")
+
+[node name="AnnounceLabel" type="Label" parent="UI/RoomAnnounce"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -60.0
+offset_right = 200.0
+offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(1, 0.15, 0.1, 1)
+theme_override_font_sizes/font_size = 32
+text = "combat — 1/6"
+horizontal_alignment = 1
+
+[node name="UpgradeSelection" type="Control" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+visible = false
+script = ExtResource("14")
+
+[node name="Panel" type="PanelContainer" parent="UI/UpgradeSelection"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -250.0
+offset_top = -150.0
+offset_right = 250.0
+offset_bottom = 150.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleLabel" type="Label" parent="UI/UpgradeSelection/Panel"]
+layout_mode = 2
+offset_top = 10.0
+offset_bottom = 40.0
+theme_override_colors/font_color = Color(1, 0.2, 0.15, 1)
+theme_override_font_sizes/font_size = 22
+text = "choose upgrade"
+horizontal_alignment = 1
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/UpgradeSelection/Panel"]
+layout_mode = 2
+offset_top = 50.0
+size_flags_vertical = 3
+theme_override_constants/separation = 8
+
+[node name="RunSummary" type="Control" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+visible = false
+script = ExtResource("15")
+
+[node name="Panel" type="PanelContainer" parent="UI/RunSummary"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = -140.0
+offset_right = 200.0
+offset_bottom = 140.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="StatusLabel" type="Label" parent="UI/RunSummary/Panel"]
+layout_mode = 2
+offset_top = 15.0
+offset_bottom = 50.0
+theme_override_font_sizes/font_size = 28
+text = "run failed"
+horizontal_alignment = 1
+
+[node name="StatsLabel" type="Label" parent="UI/RunSummary/Panel"]
+layout_mode = 2
+offset_top = 55.0
+offset_bottom = 180.0
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 16
+text = "rooms: 0/0\nkills: 0\ntime: 0:00\nupgrades: 0"
+horizontal_alignment = 1
+
+[node name="RestartButton" type="Button" parent="UI/RunSummary/Panel"]
+layout_mode = 2
+offset_top = 200.0
+offset_bottom = 240.0
+theme_override_font_sizes/font_size = 18
+text = "restart"
+
+[node name="DebugOverlay" type="Label" parent="UI"]
+offset_left = 10.0
+offset_top = 130.0
+offset_right = 250.0
+offset_bottom = 250.0
+script = ExtResource("7")
