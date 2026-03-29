@@ -11,27 +11,27 @@ signal boss_defeated
 enum Phase { ONE, TWO }
 enum AttackState { IDLE, TELEGRAPH, ATTACKING, COOLDOWN }
 
-@export var move_speed := 3.0
-@export var detection_range := 40.0
-@export var attack_damage := 20
-@export var slam_damage := 30
-@export var slam_radius := 6.0
-@export var shockwave_damage := 15
-@export var shockwave_radius := 10.0
+@export var move_speed: float = 3.0
+@export var detection_range: float = 40.0
+@export var attack_damage: int = 20
+@export var slam_damage: int = 30
+@export var slam_radius: float = 6.0
+@export var shockwave_damage: int = 15
+@export var shockwave_radius: float = 10.0
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target: CharacterBody3D
-var current_phase := Phase.ONE
-var attack_state := AttackState.IDLE
-var attack_timer := 0.0
-var attack_cooldown := 3.0
-var phase_two_triggered := false
-var is_dying := false
-var _telegraph_timer := 0.0
-var _attack_duration := 0.0
-var _pending_attack := ""
-var _adds_spawned := 0
-var _add_timer := 0.0
+var current_phase: Phase = Phase.ONE
+var attack_state: AttackState = AttackState.IDLE
+var attack_timer: float = 0.0
+var attack_cooldown: float = 3.0
+var phase_two_triggered: bool = false
+var is_dying: bool = false
+var _telegraph_timer: float = 0.0
+var _attack_duration: float = 0.0
+var _pending_attack: String = ""
+var _adds_spawned: int = 0
+var _add_timer: float = 0.0
 
 @onready var health: HealthComponent = $HealthComponent
 @onready var mesh: MeshInstance3D = $MeshInstance3D
@@ -56,7 +56,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	var distance := global_position.distance_to(target.global_position)
+	var distance: float = global_position.distance_to(target.global_position)
 	if distance > detection_range:
 		move_and_slide()
 		return
@@ -122,7 +122,7 @@ func _execute_attack() -> void:
 	attack_state = AttackState.ATTACKING
 	_attack_duration = 0.3
 
-	var audio := _get_audio()
+	var audio: AudioManager = _get_audio()
 	match _pending_attack:
 		"slam":
 			_do_slam()
@@ -138,7 +138,7 @@ func _handle_attacking(delta: float) -> void:
 	_attack_duration -= delta
 	if _attack_duration <= 0:
 		attack_state = AttackState.COOLDOWN
-		var cd := attack_cooldown
+		var cd: float = attack_cooldown
 		if current_phase == Phase.TWO:
 			cd *= 0.65
 		attack_timer = cd
@@ -156,7 +156,7 @@ func _do_slam() -> void:
 	# ground slam — damages everything in radius
 	if not target:
 		return
-	var players := get_tree().get_nodes_in_group("player")
+	var players: Array[Node] = get_tree().get_nodes_in_group("player")
 	for p in players:
 		if p is Node3D and global_position.distance_to(p.global_position) <= slam_radius:
 			if p.has_method("take_damage"):
@@ -168,10 +168,10 @@ func _do_shockwave() -> void:
 	# expanding ring — damages at distance
 	if not target:
 		return
-	var players := get_tree().get_nodes_in_group("player")
+	var players: Array[Node] = get_tree().get_nodes_in_group("player")
 	for p in players:
 		if p is Node3D:
-			var dist := global_position.distance_to(p.global_position)
+			var dist: float = global_position.distance_to(p.global_position)
 			if dist <= shockwave_radius and dist > 2.0:
 				if p.has_method("take_damage"):
 					p.take_damage(shockwave_damage)
@@ -182,7 +182,7 @@ func _do_charge() -> void:
 	# phase 2 only — quick lunge toward player
 	if not target:
 		return
-	var dir := (target.global_position - global_position).normalized()
+	var dir: Vector3 = (target.global_position - global_position).normalized()
 	dir.y = 0
 	velocity = dir * move_speed * 8.0
 	_attack_duration = 0.35
@@ -190,15 +190,15 @@ func _do_charge() -> void:
 	# damage on arrival
 	await get_tree().create_timer(0.3).timeout
 	if not is_dying and target:
-		var dist := global_position.distance_to(target.global_position)
+		var dist: float = global_position.distance_to(target.global_position)
 		if dist <= 3.5 and target.has_method("take_damage"):
 			target.take_damage(attack_damage)
 
 
 func _chase(delta: float) -> void:
-	var direction := (target.global_position - global_position).normalized()
+	var direction: Vector3 = (target.global_position - global_position).normalized()
 	direction.y = 0
-	var speed := move_speed
+	var speed: float = move_speed
 	if current_phase == Phase.TWO:
 		speed *= 1.5
 	velocity.x = move_toward(velocity.x, direction.x * speed, 8.0 * delta)
@@ -210,7 +210,7 @@ func _check_phase_transition() -> void:
 		return
 	if not health:
 		return
-	var ratio := float(health.current_health) / float(health.max_health)
+	var ratio: float = float(health.current_health) / float(health.max_health)
 	if ratio <= 0.5:
 		phase_two_triggered = true
 		current_phase = Phase.TWO
@@ -230,19 +230,19 @@ func _handle_add_spawning(delta: float) -> void:
 
 func _spawn_add() -> void:
 	# spawn a chaser near the boss
-	var scene_path := EnemyTypes.scene_path(EnemyTypes.Type.CHASER)
+	var scene_path: String = EnemyTypes.scene_path(EnemyTypes.Type.CHASER)
 	if not ResourceLoader.exists(scene_path):
 		return
-	var scene := load(scene_path) as PackedScene
+	var scene: PackedScene = load(scene_path) as PackedScene
 	if not scene:
 		return
-	var instance := scene.instantiate() as CharacterBody3D
-	var angle := randf() * TAU
-	var offset := Vector3(cos(angle) * 4.0, 1.0, sin(angle) * 4.0)
+	var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
+	var angle: float = randf() * TAU
+	var offset: Vector3 = Vector3(cos(angle) * 4.0, 1.0, sin(angle) * 4.0)
 	instance.global_position = global_position + offset
 
 	# scale adds to current difficulty
-	var h := instance.get_node_or_null("HealthComponent") as HealthComponent
+	var h: HealthComponent = instance.get_node_or_null("HealthComponent") as HealthComponent
 	if h:
 		h.max_health = int(h.max_health * 0.6)
 		h.current_health = h.max_health
@@ -256,7 +256,7 @@ func _spawn_add() -> void:
 func _show_telegraph(attack_name: String) -> void:
 	if not mesh:
 		return
-	var mat := mesh.get_surface_override_material(0)
+	var mat: Material = mesh.get_surface_override_material(0)
 	if mat is StandardMaterial3D:
 		match attack_name:
 			"slam":
@@ -273,21 +273,21 @@ func _show_telegraph(attack_name: String) -> void:
 func _clear_telegraph() -> void:
 	if not mesh:
 		return
-	var mat := mesh.get_surface_override_material(0)
+	var mat: Material = mesh.get_surface_override_material(0)
 	if mat is StandardMaterial3D:
 		mat.emission = Color(0.6, 0.05, 0.0)
 		mat.emission_energy_multiplier = 1.0
 
 
 func _spawn_slam_visual() -> void:
-	var indicator := MeshInstance3D.new()
-	var disc := CylinderMesh.new()
+	var indicator: MeshInstance3D = MeshInstance3D.new()
+	var disc: CylinderMesh = CylinderMesh.new()
 	disc.top_radius = slam_radius
 	disc.bottom_radius = slam_radius
 	disc.height = 0.1
 	indicator.mesh = disc
 
-	var mat := StandardMaterial3D.new()
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = Color(1.0, 0.2, 0.0, 0.5)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.emission_enabled = true
@@ -298,20 +298,20 @@ func _spawn_slam_visual() -> void:
 	indicator.global_position = Vector3(global_position.x, 0.1, global_position.z)
 	get_tree().root.add_child(indicator)
 
-	var tween := get_tree().create_tween()
+	var tween: Tween = get_tree().create_tween()
 	tween.tween_property(mat, "albedo_color:a", 0.0, 0.4)
 	tween.tween_callback(indicator.queue_free)
 
 
 func _spawn_shockwave_visual() -> void:
-	var ring := MeshInstance3D.new()
-	var torus := CylinderMesh.new()
+	var ring: MeshInstance3D = MeshInstance3D.new()
+	var torus: CylinderMesh = CylinderMesh.new()
 	torus.top_radius = 1.0
 	torus.bottom_radius = 1.0
 	torus.height = 0.15
 	ring.mesh = torus
 
-	var mat := StandardMaterial3D.new()
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = Color(0.8, 0.0, 0.8, 0.6)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	mat.emission_enabled = true
@@ -322,7 +322,7 @@ func _spawn_shockwave_visual() -> void:
 	ring.global_position = Vector3(global_position.x, 0.1, global_position.z)
 	get_tree().root.add_child(ring)
 
-	var tween := get_tree().create_tween()
+	var tween: Tween = get_tree().create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(ring, "scale", Vector3(shockwave_radius, 1, shockwave_radius), 0.5)
 	tween.tween_property(mat, "albedo_color:a", 0.0, 0.5)
@@ -332,25 +332,25 @@ func _spawn_shockwave_visual() -> void:
 func _flash_phase_transition() -> void:
 	if not mesh:
 		return
-	var mat := mesh.get_surface_override_material(0)
+	var mat: Material = mesh.get_surface_override_material(0)
 	if not mat is StandardMaterial3D:
 		return
 
 	# bright flash then settle to phase 2 colors
-	var tween := create_tween()
+	var tween: Tween = create_tween()
 	tween.tween_property(mat, "emission_energy_multiplier", 6.0, 0.1)
 	tween.tween_property(mat, "emission_energy_multiplier", 1.5, 0.3)
 	tween.tween_property(mat, "emission", Color(0.8, 0.0, 0.0), 0.2)
 
 	# scale up slightly for phase 2
-	var size_tween := create_tween()
+	var size_tween: Tween = create_tween()
 	size_tween.tween_property(self, "scale", Vector3(1.15, 1.15, 1.15), 0.3)
 
 
 func _face_target() -> void:
 	if not target:
 		return
-	var look_pos := target.global_position
+	var look_pos: Vector3 = target.global_position
 	look_pos.y = global_position.y
 	if global_position.distance_to(look_pos) > 0.1:
 		look_at(look_pos)
@@ -362,7 +362,7 @@ func _apply_gravity(delta: float) -> void:
 
 
 func _find_target() -> void:
-	var players := get_tree().get_nodes_in_group("player")
+	var players: Array[Node] = get_tree().get_nodes_in_group("player")
 	if players.size() > 0:
 		target = players[0] as CharacterBody3D
 
@@ -380,17 +380,17 @@ func _on_died() -> void:
 func _flash_hit() -> void:
 	if not mesh:
 		return
-	var mat := mesh.get_surface_override_material(0)
+	var mat: Material = mesh.get_surface_override_material(0)
 	if mat is StandardMaterial3D:
 		var prev_emission: Color = mat.emission
 		mat.emission = Color.WHITE
-		var tween := create_tween()
+		var tween: Tween = create_tween()
 		tween.tween_property(mat, "emission", prev_emission, 0.12)
 
 
 func _play_death() -> void:
 	# dramatic boss death — slow collapse
-	var tween := create_tween()
+	var tween: Tween = create_tween()
 	tween.tween_property(self, "scale:y", 0.1, 0.8).set_ease(Tween.EASE_IN)
 	tween.parallel().tween_property(mesh, "transparency", 1.0, 1.0)
 	tween.tween_callback(queue_free)

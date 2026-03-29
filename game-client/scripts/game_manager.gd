@@ -5,8 +5,8 @@ extends Node
 
 @onready var player: CharacterBody3D = $"../Player"
 @onready var weapon_manager: WeaponManager = $"../Player/Head/WeaponManager"
-@onready var damage_vignette = $"../UI/DamageVignette"
-@onready var crosshair = $"../UI/Crosshair"
+@onready var damage_vignette: ColorRect = $"../UI/DamageVignette"
+@onready var crosshair: CenterContainer = $"../UI/Crosshair"
 @onready var run_manager: RunManager = $"../RunManager"
 @onready var room_controller: RoomController = $"../RoomController"
 @onready var upgrade_manager: UpgradeManager = $"../UpgradeManager"
@@ -17,18 +17,18 @@ extends Node
 @onready var audio: AudioManager = $"../AudioManager"
 @onready var game_feel: GameFeel = $"../GameFeel"
 @onready var camera: Camera3D = $"../Player/Head/Camera3D"
-@onready var run_hud = $"../UI/RunHUD"
-@onready var room_announce = $"../UI/RoomAnnounce"
-@onready var upgrade_ui = $"../UI/UpgradeSelection"
-@onready var mutation_ui = $"../UI/MutationSelection"
-@onready var summary_ui = $"../UI/RunSummary"
+@onready var run_hud: Control = $"../UI/RunHUD"
+@onready var room_announce: Control = $"../UI/RoomAnnounce"
+@onready var upgrade_ui: Control = $"../UI/UpgradeSelection"
+@onready var mutation_ui: Control = $"../UI/MutationSelection"
+@onready var summary_ui: Control = $"../UI/RunSummary"
 
-var awaiting_upgrade := false
-var awaiting_mutation := false
-var awaiting_transition := false
-var _pending_mutation_after_upgrade := false
-var _boss_active := false
-var _boss_defeated := false
+var awaiting_upgrade: bool = false
+var awaiting_mutation: bool = false
+var awaiting_transition: bool = false
+var _pending_mutation_after_upgrade: bool = false
+var _boss_active: bool = false
+var _boss_defeated: bool = false
 
 
 func _ready() -> void:
@@ -103,22 +103,22 @@ func _on_death() -> void:
 	audio.play("player_damage", 0.0, 0.05)
 	# brief death slow-mo
 	Engine.time_scale = 0.3
-	var tween := create_tween().set_ignore_time_scale(true)
+	var tween: Tween = create_tween().set_ignore_time_scale(true)
 	tween.tween_interval(0.4)
 	tween.tween_callback(func(): Engine.time_scale = 1.0)
 
 
 func _on_player_damaged(amount: int) -> void:
 	# apply cursed damage multiplier
-	var effective := int(amount * upgrade_manager.damage_taken_multiplier)
+	var effective: int = int(amount * upgrade_manager.damage_taken_multiplier)
 	if effective > amount:
-		var extra := effective - amount
+		var extra: int = effective - amount
 		player.health = maxi(player.health - extra, 0)
 
 	difficulty_tracker.on_player_damaged(effective)
 	audio.play("player_damage", -2.0, 0.1)
 
-	var intensity := clamp(float(effective) / 30.0, 0.5, 2.0)
+	var intensity: float = clamp(float(effective) / 30.0, 0.5, 2.0)
 	if damage_vignette:
 		damage_vignette.flash(intensity)
 	game_feel.camera_punch(camera, effective * 0.3)
@@ -177,11 +177,11 @@ func _on_all_enemies_dead() -> void:
 
 
 func _on_room_entered(room: RunData.RoomData) -> void:
-	var data := run_manager.data
+	var data: RunData = run_manager.data
 	_reset_player_position()
 
 	# apply dynamic difficulty subtly
-	var diff_mod := difficulty_tracker.get_difficulty_modifier()
+	var diff_mod: float = difficulty_tracker.get_difficulty_modifier()
 	room.difficulty *= diff_mod
 
 	# apply enemy speed bonus from cursed upgrades
@@ -236,7 +236,7 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 
 func _show_upgrade_selection() -> void:
 	awaiting_upgrade = true
-	var choices := UpgradeDefinitions.pick_choices(3)
+	var choices: Array[Dictionary] = UpgradeDefinitions.pick_choices(3)
 	upgrade_ui.show_choices(choices)
 
 
@@ -264,9 +264,9 @@ func _on_upgrade_selected(upgrade: Dictionary) -> void:
 
 
 func _should_offer_mutation() -> bool:
-	var data := run_manager.data
+	var data: RunData = run_manager.data
 	# offer mutation at rooms 3 and 6 (0-indexed: 2 and 5)
-	var room_idx := data.current_room_index
+	var room_idx: int = data.current_room_index
 	if room_idx == 2 or room_idx == 5:
 		# only offer once per room index
 		if data.chosen_mutations.size() < (1 if room_idx == 2 else 2):
@@ -276,10 +276,10 @@ func _should_offer_mutation() -> bool:
 
 func _show_mutation_selection() -> void:
 	awaiting_mutation = true
-	var exclude := []
+	var exclude: Array = []
 	for m in run_manager.data.chosen_mutations:
 		exclude.append(m.type)
-	var choices := MutationDefinitions.pick_choices(2, exclude)
+	var choices: Array[Dictionary] = MutationDefinitions.pick_choices(2, exclude)
 	mutation_ui.show_choices(choices)
 
 
@@ -313,7 +313,7 @@ func _prompt_next_room() -> void:
 
 func _on_run_failed(data: RunData) -> void:
 	fracture_manager.end_fracture()
-	var best := combo_tracker.best_combo
+	var best: int = combo_tracker.best_combo
 	combo_tracker.reset()
 	data.run_tags = RunTags.generate(data, best)
 	BestStats.update_from_run(data, best)
@@ -322,7 +322,7 @@ func _on_run_failed(data: RunData) -> void:
 
 func _on_run_completed(data: RunData) -> void:
 	fracture_manager.end_fracture()
-	var best := combo_tracker.best_combo
+	var best: int = combo_tracker.best_combo
 	combo_tracker.reset()
 	data.run_tags = RunTags.generate(data, best)
 	BestStats.update_from_run(data, best)
@@ -368,28 +368,28 @@ func _on_node_added(node: Node) -> void:
 
 
 func _connect_enemy_hit(enemy: Node) -> void:
-	var health := enemy.get_node_or_null("HealthComponent") as HealthComponent
+	var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
 	if health:
 		health.damaged.connect(func(_a, _b): crosshair.show_hit())
 
 
 func _spawn_kill_explosion() -> void:
-	var explosion_radius := 4.0
-	var explosion_damage := int(weapon_manager.damage * 0.6)
-	var enemies := get_tree().get_nodes_in_group("enemies")
-	var camera := get_viewport().get_camera_3d()
-	if not camera:
+	var explosion_radius: float = 4.0
+	var explosion_damage: int = int(weapon_manager.damage * 0.6)
+	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
+	var aim_camera: Camera3D = get_viewport().get_camera_3d()
+	if not aim_camera:
 		return
 
-	var screen_center := get_viewport().get_visible_rect().size / 2
-	var from := camera.project_ray_origin(screen_center)
-	var forward := camera.project_ray_normal(screen_center)
-	var aim_point := from + forward * 20.0
+	var screen_center: Vector2 = get_viewport().get_visible_rect().size / 2
+	var from: Vector3 = aim_camera.project_ray_origin(screen_center)
+	var forward: Vector3 = aim_camera.project_ray_normal(screen_center)
+	var aim_point: Vector3 = from + forward * 20.0
 
 	for enemy in enemies:
 		if not enemy is Node3D:
 			continue
-		var health := enemy.get_node_or_null("HealthComponent") as HealthComponent
+		var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
 		if not health or not health.is_alive():
 			continue
 		if enemy.global_position.distance_to(aim_point) < explosion_radius:

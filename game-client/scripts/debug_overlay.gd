@@ -2,7 +2,7 @@ extends Label
 
 var player: CharacterBody3D
 var run_manager: RunManager
-var _debug_visible := false
+var _debug_visible: bool = false
 
 
 func _ready() -> void:
@@ -27,40 +27,40 @@ func _process(_delta: float) -> void:
 	if not run_manager:
 		run_manager = get_tree().get_first_node_in_group("run_manager") as RunManager
 		if not run_manager:
-			var node := get_node_or_null("/root/Main/RunManager")
+			var node: Node = get_node_or_null("/root/Main/RunManager")
 			if node is RunManager:
 				run_manager = node
 	if not player:
 		return
 
-	var lines := PackedStringArray()
+	var lines: PackedStringArray = PackedStringArray()
 	lines.append("fps: %d" % Engine.get_frames_per_second())
 	lines.append("speed: %.1f" % Vector2(player.velocity.x, player.velocity.z).length())
 	lines.append("enemies: %d" % get_tree().get_nodes_in_group("enemies").size())
 	lines.append("hp: %d/%d" % [player.health, player.max_health])
 
-	var wm := get_node_or_null("/root/Main/Player/Head/WeaponManager") as WeaponManager
+	var wm: WeaponManager = get_node_or_null("/root/Main/Player/Head/WeaponManager") as WeaponManager
 	if wm:
 		lines.append("weapon: %s (dmg:%d rate:%.2f)" % [wm.get_weapon_name(), wm.damage, wm.fire_rate])
 		if wm.active_slot == WeaponManager.WeaponSlot.BEAM_EMITTER:
 			lines.append("heat: %.0f%% %s" % [wm.get_beam_heat_ratio() * 100, "OVERHEAT" if wm.is_beam_overheated() else ""])
 
-	var combo := get_node_or_null("/root/Main/ComboTracker") as ComboTracker
+	var combo: ComboTracker = get_node_or_null("/root/Main/ComboTracker") as ComboTracker
 	if combo and combo.combo_count > 0:
 		lines.append("combo: %d (x%d) %.1fs spd:+%.0f%% dmg:+%.0f%%" % [
 			combo.combo_count, combo.combo_multiplier, combo.get_time_remaining(),
 			combo.speed_buff * 100, combo.damage_buff * 100])
 
-	var mm := get_node_or_null("/root/Main/MutationManager") as MutationManager
+	var mm: MutationManager = get_node_or_null("/root/Main/MutationManager") as MutationManager
 	if mm and mm.active_mutations.size() > 0:
 		lines.append("mutations: %s" % " / ".join(mm.get_mutation_names()))
 
-	var dt := get_node_or_null("/root/Main/DifficultyTracker") as DifficultyTracker
+	var dt: DifficultyTracker = get_node_or_null("/root/Main/DifficultyTracker") as DifficultyTracker
 	if dt:
 		lines.append("diff mod: %.2f" % dt.get_difficulty_modifier())
 
 	if run_manager and run_manager.data:
-		var data := run_manager.data
+		var data: RunData = run_manager.data
 		lines.append("---")
 		lines.append("run: %s" % ["active", "paused", "failed", "done"][data.status])
 		lines.append("kills: %d" % data.total_enemies_killed)
@@ -69,18 +69,18 @@ func _process(_delta: float) -> void:
 		if data.run_tags.size() > 0:
 			lines.append("tags: %s" % " / ".join(data.run_tags))
 
-		var fracture := get_node_or_null("/root/Main/FractureManager") as FractureManager
+		var fracture: FractureManager = get_node_or_null("/root/Main/FractureManager") as FractureManager
 		if fracture and fracture.is_active:
 			lines.append("fracture: %s (%.1fs)" % [fracture.get_active_name(), fracture.get_time_remaining()])
 
 		# room controller info
-		var rc := get_node_or_null("/root/Main/RoomController") as RoomController
+		var rc: RoomController = get_node_or_null("/root/Main/RoomController") as RoomController
 		if rc and rc.current_palette:
 			lines.append("palette: active")
 
 		if rc and rc.active_boss:
-			var boss := rc.active_boss
-			var bh := boss.get_node_or_null("HealthComponent") as HealthComponent
+			var boss: BossController = rc.active_boss
+			var bh: HealthComponent = boss.get_node_or_null("HealthComponent") as HealthComponent
 			if bh:
 				lines.append("boss: phase %d hp:%d/%d (%.0f%%)" % [
 					boss.get_phase(), bh.current_health, bh.max_health,

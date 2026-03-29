@@ -10,7 +10,7 @@ signal upgrade_chosen(upgrade: Dictionary)
 signal enemy_killed_in_run
 
 var data: RunData
-var is_active := false
+var is_active: bool = false
 
 
 func _process(delta: float) -> void:
@@ -30,7 +30,7 @@ func start_run(seed_value: int = -1) -> void:
 
 
 func enter_current_room() -> void:
-	var room := data.current_room()
+	var room: RunData.RoomData = data.current_room()
 	if not room:
 		return
 	room.status = RoomDefinitions.RoomStatus.ACTIVE
@@ -38,7 +38,7 @@ func enter_current_room() -> void:
 
 
 func on_room_enemies_cleared() -> void:
-	var room := data.current_room()
+	var room: RunData.RoomData = data.current_room()
 	if not room or room.status != RoomDefinitions.RoomStatus.ACTIVE:
 		return
 
@@ -59,7 +59,7 @@ func register_kill() -> void:
 	if not data:
 		return
 	data.total_enemies_killed += 1
-	var room := data.current_room()
+	var room: RunData.RoomData = data.current_room()
 	if room:
 		room.enemies_killed += 1
 	enemy_killed_in_run.emit()
@@ -89,8 +89,8 @@ func complete_run() -> void:
 
 
 func _generate_id() -> String:
-	var chars := "abcdef0123456789"
-	var id := ""
+	var chars: String = "abcdef0123456789"
+	var id: String = ""
 	for i in 16:
 		id += chars[randi() % chars.length()]
 	return id

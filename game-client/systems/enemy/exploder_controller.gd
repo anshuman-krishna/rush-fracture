@@ -1,16 +1,16 @@
 extends CharacterBody3D
 
-@export var move_speed := 6.0
-@export var detection_range := 22.0
-@export var explode_range := 3.0
-@export var explosion_damage := 30
-@export var explosion_radius := 5.0
-@export var attack_damage := 5
+@export var move_speed: float = 6.0
+@export var detection_range: float = 22.0
+@export var explode_range: float = 3.0
+@export var explosion_damage: int = 30
+@export var explosion_radius: float = 5.0
+@export var attack_damage: int = 5
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target: CharacterBody3D
-var is_dying := false
-var has_exploded := false
+var is_dying: bool = false
+var has_exploded: bool = false
 
 @onready var health: HealthComponent = $HealthComponent
 @onready var mesh: MeshInstance3D = $MeshInstance3D
@@ -33,7 +33,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	var distance := global_position.distance_to(target.global_position)
+	var distance: float = global_position.distance_to(target.global_position)
 	if distance > detection_range:
 		move_and_slide()
 		return
@@ -51,7 +51,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _chase(delta: float) -> void:
-	var direction := (target.global_position - global_position).normalized()
+	var direction: Vector3 = (target.global_position - global_position).normalized()
 	direction.y = 0
 	velocity.x = move_toward(velocity.x, direction.x * move_speed, 25.0 * delta)
 	velocity.z = move_toward(velocity.z, direction.z * move_speed, 25.0 * delta)
@@ -73,16 +73,16 @@ func _explode() -> void:
 func _update_urgency(distance: float) -> void:
 	if not mesh:
 		return
-	var mat := mesh.get_surface_override_material(0)
+	var mat: Material = mesh.get_surface_override_material(0)
 	if mat is StandardMaterial3D:
-		var urgency := clamp(1.0 - (distance / detection_range), 0.0, 1.0)
+		var urgency: float = clamp(1.0 - (distance / detection_range), 0.0, 1.0)
 		mat.emission_energy_multiplier = 0.5 + urgency * 3.0
 
 
 func _face_target() -> void:
 	if not target:
 		return
-	var look_pos := target.global_position
+	var look_pos: Vector3 = target.global_position
 	look_pos.y = global_position.y
 	if global_position.distance_to(look_pos) > 0.1:
 		look_at(look_pos)
@@ -94,7 +94,7 @@ func _apply_gravity(delta: float) -> void:
 
 
 func _find_target() -> void:
-	var players := get_tree().get_nodes_in_group("player")
+	var players: Array[Node] = get_tree().get_nodes_in_group("player")
 	if players.size() > 0:
 		target = players[0] as CharacterBody3D
 
@@ -114,16 +114,16 @@ func _on_died() -> void:
 func _flash_hit() -> void:
 	if not mesh:
 		return
-	var mat := mesh.get_surface_override_material(0)
+	var mat: Material = mesh.get_surface_override_material(0)
 	if mat is StandardMaterial3D:
 		var original_color: Color = mat.albedo_color
 		mat.albedo_color = Color.WHITE
-		var tween := create_tween()
+		var tween: Tween = create_tween()
 		tween.tween_property(mat, "albedo_color", original_color, 0.1)
 
 
 func _play_explosion() -> void:
-	var tween := create_tween()
+	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(self, "scale", Vector3(2.5, 2.5, 2.5), 0.12)
 	tween.tween_property(mesh, "transparency", 1.0, 0.15)
@@ -131,7 +131,7 @@ func _play_explosion() -> void:
 
 
 func _play_death() -> void:
-	var tween := create_tween()
+	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(self, "scale", Vector3(1.3, 0.1, 1.3), 0.15)
 	tween.tween_property(mesh, "transparency", 1.0, 0.2)

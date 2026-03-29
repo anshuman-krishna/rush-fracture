@@ -5,7 +5,7 @@ extends Node
 # all effects are brief and respect gameplay flow.
 
 var _time_scale_tween: Tween
-var _is_restoring := false
+var _is_restoring: bool = false
 
 
 func hit_pause(duration: float = 0.03) -> void:

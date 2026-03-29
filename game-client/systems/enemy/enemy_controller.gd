@@ -1,15 +1,15 @@
 extends CharacterBody3D
 
-@export var move_speed := 5.0
-@export var detection_range := 25.0
-@export var attack_range := 2.0
-@export var attack_damage := 10
-@export var attack_cooldown := 1.5
+@export var move_speed: float = 5.0
+@export var detection_range: float = 25.0
+@export var attack_range: float = 2.0
+@export var attack_damage: int = 10
+@export var attack_cooldown: float = 1.5
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target: CharacterBody3D
-var attack_timer := 0.0
-var is_dying := false
+var attack_timer: float = 0.0
+var is_dying: bool = false
 
 @onready var health: HealthComponent = $HealthComponent
 @onready var mesh: MeshInstance3D = $MeshInstance3D
@@ -33,7 +33,7 @@ func _physics_process(delta: float) -> void:
 		move_and_slide()
 		return
 
-	var distance := global_position.distance_to(target.global_position)
+	var distance: float = global_position.distance_to(target.global_position)
 
 	if distance > detection_range:
 		move_and_slide()
@@ -48,7 +48,7 @@ func _physics_process(delta: float) -> void:
 
 
 func _chase(delta: float) -> void:
-	var direction := (target.global_position - global_position).normalized()
+	var direction: Vector3 = (target.global_position - global_position).normalized()
 	direction.y = 0
 
 	velocity.x = move_toward(velocity.x, direction.x * move_speed, 20.0 * delta)
@@ -56,7 +56,7 @@ func _chase(delta: float) -> void:
 
 	# face movement direction
 	if direction.length() > 0.1:
-		var look_target := global_position + direction
+		var look_target: Vector3 = global_position + direction
 		look_target.y = global_position.y
 		look_at(look_target)
 
@@ -81,7 +81,7 @@ func _update_attack_timer(delta: float) -> void:
 
 
 func _find_target() -> void:
-	var players := get_tree().get_nodes_in_group("player")
+	var players: Array[Node] = get_tree().get_nodes_in_group("player")
 	if players.size() > 0:
 		target = players[0] as CharacterBody3D
 
@@ -99,16 +99,16 @@ func _flash_hit() -> void:
 	if not mesh:
 		return
 
-	var mat := mesh.get_surface_override_material(0)
+	var mat: Material = mesh.get_surface_override_material(0)
 	if mat is StandardMaterial3D:
 		var original_color: Color = mat.albedo_color
 		mat.albedo_color = Color.WHITE
-		var tween := create_tween()
+		var tween: Tween = create_tween()
 		tween.tween_property(mat, "albedo_color", original_color, 0.1)
 
 
 func _play_death() -> void:
-	var tween := create_tween()
+	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(self, "scale", Vector3(1.3, 0.1, 1.3), 0.15)
 	tween.tween_property(mesh, "transparency", 1.0, 0.2)

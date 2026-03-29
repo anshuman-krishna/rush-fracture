@@ -11,12 +11,12 @@ var _player: CharacterBody3D
 var _weapon_manager: WeaponManager
 
 # blood pact state
-var _blood_pact_active := false
-var _blood_pact_timer := 0.0
-var _blood_pact_interval := 1.0
+var _blood_pact_active: bool = false
+var _blood_pact_timer: float = 0.0
+var _blood_pact_interval: float = 1.0
 
 # unstable core state
-var _unstable_core_active := false
+var _unstable_core_active: bool = false
 
 
 func bind(player: CharacterBody3D, weapon_manager: WeaponManager) -> void:
@@ -84,7 +84,7 @@ func has_mutation(type: MutationDefinitions.MutationType) -> bool:
 
 
 func get_mutation_names() -> PackedStringArray:
-	var names := PackedStringArray()
+	var names: PackedStringArray = PackedStringArray()
 	for m in active_mutations:
 		names.append(m.name)
 	return names
@@ -108,7 +108,7 @@ func _apply_glass_cannon() -> void:
 func _apply_overclock() -> void:
 	if _weapon_manager:
 		_weapon_manager.fire_rate_multiplier *= 0.6
-	var beam := _weapon_manager.get_node_or_null("BeamEmitter") as BeamEmitter
+	var beam: BeamEmitter = _weapon_manager.get_node_or_null("BeamEmitter") as BeamEmitter
 	if beam:
 		beam.heat_per_tick *= 2.0
 
@@ -142,13 +142,13 @@ func _trigger_time_slow() -> void:
 
 
 func _core_explosion(position: Vector3) -> void:
-	var radius := 4.0
-	var damage := 15
-	var enemies := get_tree().get_nodes_in_group("enemies")
+	var radius: float = 4.0
+	var damage: int = 15
+	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
 	for enemy in enemies:
 		if not enemy is Node3D:
 			continue
 		if enemy.global_position.distance_to(position) < radius:
-			var health := enemy.get_node_or_null("HealthComponent") as HealthComponent
+			var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
 			if health and health.is_alive():
 				health.take_damage(damage)

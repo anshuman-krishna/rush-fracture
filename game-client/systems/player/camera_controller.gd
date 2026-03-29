@@ -1,15 +1,15 @@
 extends Camera3D
 
-@export var base_fov := 90.0
-@export var max_fov := 110.0
-@export var fov_lerp_speed := 8.0
-@export var shake_decay := 8.0
+@export var base_fov: float = 90.0
+@export var max_fov: float = 110.0
+@export var fov_lerp_speed: float = 8.0
+@export var shake_decay: float = 8.0
 
-var target_fov := 90.0
-var shake_intensity := 0.0
-var shake_offset := Vector3.ZERO
-var recoil_offset := 0.0
-var recoil_recovery_speed := 12.0
+var target_fov: float = 90.0
+var shake_intensity: float = 0.0
+var shake_offset: Vector3 = Vector3.ZERO
+var recoil_offset: float = 0.0
+var recoil_recovery_speed: float = 12.0
 
 
 func _process(delta: float) -> void:
@@ -27,7 +27,7 @@ func add_recoil(amount: float) -> void:
 
 
 func _update_fov(delta: float) -> void:
-	var player := get_parent().get_parent() as CharacterBody3D
+	var player: CharacterBody3D = get_parent().get_parent() as CharacterBody3D
 	if not player:
 		return
 

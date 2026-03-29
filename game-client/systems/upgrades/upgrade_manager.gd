@@ -4,19 +4,19 @@ extends Node
 # applies upgrades to player and weapon systems.
 # tracks accumulated modifiers and special flags.
 
-var kill_heal_amount := 0
-var has_unstable_rounds := false
-var has_chain_reaction := false
-var has_adrenaline_surge := false
-var has_temporal_break := false
-var has_berserker := false
-var enemy_speed_bonus := 0.0
-var damage_taken_multiplier := 1.0
+var kill_heal_amount: int = 0
+var has_unstable_rounds: bool = false
+var has_chain_reaction: bool = false
+var has_adrenaline_surge: bool = false
+var has_temporal_break: bool = false
+var has_berserker: bool = false
+var enemy_speed_bonus: float = 0.0
+var damage_taken_multiplier: float = 1.0
 
 var _player: CharacterBody3D
 var _weapon_manager: WeaponManager
-var _adrenaline_active := false
-var _adrenaline_bonus := 0.0
+var _adrenaline_active: bool = false
+var _adrenaline_bonus: float = 0.0
 
 
 func bind(player: CharacterBody3D, weapon_manager: WeaponManager) -> void:
@@ -26,7 +26,7 @@ func bind(player: CharacterBody3D, weapon_manager: WeaponManager) -> void:
 
 func apply(upgrade: Dictionary) -> void:
 	var stat: String = upgrade.get("stat", "")
-	var modifier = upgrade.get("modifier", 0)
+	var modifier: Variant = upgrade.get("modifier", 0)
 	var mode: String = upgrade.get("apply_mode", "add")
 
 	match stat:
@@ -103,7 +103,7 @@ func on_combo_reset() -> void:
 
 func get_effective_damage(base_damage: int) -> int:
 	if has_berserker and _player:
-		var hp_ratio := float(_player.health) / float(_player.max_health)
+		var hp_ratio: float = float(_player.health) / float(_player.max_health)
 		if hp_ratio <= 0.4:
 			return int(base_damage * 1.25)
 	return base_damage
@@ -131,7 +131,7 @@ func _apply_overdrive() -> void:
 func _apply_weapon_flag(weapon_name: String, flag: String, value: bool) -> void:
 	if not _weapon_manager:
 		return
-	var weapon := _weapon_manager.get_node_or_null(weapon_name)
+	var weapon: Node = _weapon_manager.get_node_or_null(weapon_name)
 	if weapon and flag in weapon:
 		weapon.set(flag, value)
 
@@ -139,21 +139,21 @@ func _apply_weapon_flag(weapon_name: String, flag: String, value: bool) -> void:
 func _apply_beam_capacity() -> void:
 	if not _weapon_manager:
 		return
-	var beam := _weapon_manager.get_node_or_null("BeamEmitter") as BeamEmitter
+	var beam: BeamEmitter = _weapon_manager.get_node_or_null("BeamEmitter") as BeamEmitter
 	if beam:
 		beam.max_heat *= 1.5
 		beam.overheat_threshold *= 1.5
 
 
 func _apply_aoe_damage(position: Vector3) -> void:
-	var aoe_radius := 3.0
-	var aoe_damage := int(_weapon_manager.damage * 0.5)
-	var enemies := get_tree().get_nodes_in_group("enemies")
+	var aoe_radius: float = 3.0
+	var aoe_damage: int = int(_weapon_manager.damage * 0.5)
+	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
 	for enemy in enemies:
 		if not enemy is Node3D:
 			continue
 		if enemy.global_position.distance_to(position) < aoe_radius:
-			var health := enemy.get_node_or_null("HealthComponent") as HealthComponent
+			var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
 			if health and health.is_alive():
 				health.take_damage(aoe_damage)
 
@@ -164,7 +164,7 @@ func _trigger_chain_reaction() -> void:
 
 
 func _trigger_temporal_break() -> void:
-	var tree := get_tree()
+	var tree: SceneTree = get_tree()
 	Engine.time_scale = 0.3
 	tree.create_timer(0.4, true, false, true).timeout.connect(func():
 		Engine.time_scale = 1.0
@@ -211,7 +211,7 @@ static func _apply_to(target: Node, property: String, modifier, mode: String) ->
 	if not target or not property in target:
 		return
 
-	var current = target.get(property)
+	var current: Variant = target.get(property)
 	match mode:
 		"multiply":
 			target.set(property, current * modifier)

@@ -6,11 +6,11 @@ extends RefCounted
 
 
 static func generate(data: RunData, combo_best: int) -> PackedStringArray:
-	var tags := PackedStringArray()
+	var tags: PackedStringArray = PackedStringArray()
 
 	# playstyle tags
 	if data.total_enemies_killed > 0:
-		var kill_rate := float(data.total_enemies_killed) / max(data.elapsed_time, 1.0)
+		var kill_rate: float = float(data.total_enemies_killed) / max(data.elapsed_time, 1.0)
 		if kill_rate > 1.5:
 			tags.append("berserker")
 		elif kill_rate > 0.8:
@@ -25,7 +25,7 @@ static func generate(data: RunData, combo_best: int) -> PackedStringArray:
 
 	# speed tag
 	if data.elapsed_time > 0 and data.rooms_cleared > 0:
-		var avg_room_time := data.elapsed_time / float(data.rooms_cleared)
+		var avg_room_time: float = data.elapsed_time / float(data.rooms_cleared)
 		if avg_room_time < 15.0:
 			tags.append("speedrunner")
 
@@ -36,7 +36,7 @@ static func generate(data: RunData, combo_best: int) -> PackedStringArray:
 	_check_upgrade_tags(data, tags)
 
 	# boss tag
-	var has_boss_room := false
+	var has_boss_room: bool = false
 	for room in data.room_sequence:
 		if room.type == RoomDefinitions.RoomType.BOSS and room.status == RoomDefinitions.RoomStatus.CLEARED:
 			has_boss_room = true
@@ -52,7 +52,7 @@ static func generate(data: RunData, combo_best: int) -> PackedStringArray:
 		tags.append("mutant")
 
 	# cursed upgrade count
-	var cursed_count := 0
+	var cursed_count: int = 0
 	for u in data.chosen_upgrades:
 		if u.get("cursed", false):
 			cursed_count += 1
@@ -76,9 +76,9 @@ static func _check_mutation_tags(data: RunData, tags: PackedStringArray) -> void
 
 
 static func _check_upgrade_tags(data: RunData, tags: PackedStringArray) -> void:
-	var damage_count := 0
-	var heal_count := 0
-	var speed_count := 0
+	var damage_count: int = 0
+	var heal_count: int = 0
+	var speed_count: int = 0
 
 	for u in data.chosen_upgrades:
 		var stat: String = u.get("stat", "")

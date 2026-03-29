@@ -7,15 +7,15 @@ extends Node
 signal combo_changed(multiplier: int, kill_count: int)
 signal combo_reset
 
-var combo_count := 0
-var combo_multiplier := 1
-var combo_timer := 0.0
-var combo_window := 3.0
-var best_combo := 0
+var combo_count: int = 0
+var combo_multiplier: int = 1
+var combo_timer: float = 0.0
+var combo_window: float = 3.0
+var best_combo: int = 0
 
 # combo buffs applied to player
-var speed_buff := 0.0
-var damage_buff := 0.0
+var speed_buff: float = 0.0
+var damage_buff: float = 0.0
 var _player: CharacterBody3D
 
 # multiplier thresholds
@@ -48,7 +48,7 @@ func register_kill() -> void:
 	combo_count += 1
 	combo_timer = combo_window
 
-	var new_mult := 1
+	var new_mult: int = 1
 	for threshold in THRESHOLDS:
 		if combo_count >= threshold[0]:
 			new_mult = threshold[1]

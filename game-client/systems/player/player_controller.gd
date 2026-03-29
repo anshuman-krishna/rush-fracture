@@ -2,24 +2,24 @@ extends CharacterBody3D
 
 signal player_damaged(amount: int)
 
-@export var move_speed := 12.0
-@export var acceleration := 50.0
-@export var friction := 35.0
-@export var air_acceleration := 20.0
-@export var air_friction := 5.0
-@export var jump_force := 10.0
-@export var dash_force := 28.0
-@export var dash_duration := 0.12
-@export var dash_cooldown := 0.6
-@export var mouse_sensitivity := 0.002
-@export var max_health := 100
+@export var move_speed: float = 12.0
+@export var acceleration: float = 50.0
+@export var friction: float = 35.0
+@export var air_acceleration: float = 20.0
+@export var air_friction: float = 5.0
+@export var jump_force: float = 10.0
+@export var dash_force: float = 28.0
+@export var dash_duration: float = 0.12
+@export var dash_cooldown: float = 0.6
+@export var mouse_sensitivity: float = 0.002
+@export var max_health: int = 100
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
-var health := max_health
-var dash_timer := 0.0
-var dash_cooldown_timer := 0.0
-var dash_direction := Vector3.ZERO
-var is_dashing := false
+var health: int = max_health
+var dash_timer: float = 0.0
+var dash_cooldown_timer: float = 0.0
+var dash_direction: Vector3 = Vector3.ZERO
+var is_dashing: bool = false
 
 @onready var head: Node3D = $Head
 
@@ -56,12 +56,12 @@ func _handle_movement(delta: float) -> void:
 	if is_dashing:
 		return
 
-	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
-	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+	var input_dir: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
+	var direction: Vector3 = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 
-	var on_floor := is_on_floor()
-	var accel := acceleration if on_floor else air_acceleration
-	var fric := friction if on_floor else air_friction
+	var on_floor: bool = is_on_floor()
+	var accel: float = acceleration if on_floor else air_acceleration
+	var fric: float = friction if on_floor else air_friction
 
 	if direction.length() > 0:
 		velocity.x = move_toward(velocity.x, direction.x * move_speed, accel * delta)
@@ -85,7 +85,7 @@ func _handle_dash(delta: float) -> void:
 	dash_cooldown_timer = max(0, dash_cooldown_timer - delta)
 
 	if Input.is_action_just_pressed("dash") and dash_cooldown_timer <= 0:
-		var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
+		var input_dir: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
 		if input_dir.length() > 0:
 			dash_direction = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 		else:

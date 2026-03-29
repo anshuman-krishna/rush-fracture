@@ -8,13 +8,13 @@ signal all_enemies_dead
 signal enemy_killed
 signal boss_defeated
 
-@export var spawn_radius := 22.0
-@export var min_spawn_distance := 6.0
+@export var spawn_radius: float = 22.0
+@export var min_spawn_distance: float = 6.0
 
 var active_room: RunData.RoomData
-var enemies_alive := 0
-var room_active := false
-var _enemy_scenes := {}
+var enemies_alive: int = 0
+var room_active: bool = false
+var _enemy_scenes: Dictionary = {}
 var _boss_scene: PackedScene
 var active_boss: BossController
 var current_palette: RoomPalette
@@ -51,30 +51,30 @@ func enter_room(room: RunData.RoomData) -> void:
 
 func _preload_enemy_scenes() -> void:
 	for type in EnemyTypes.Type.values():
-		var path := EnemyTypes.scene_path(type)
+		var path: String = EnemyTypes.scene_path(type)
 		if ResourceLoader.exists(path):
 			_enemy_scenes[type] = load(path)
 
 
 func _preload_boss_scene() -> void:
-	var path := "res://scenes/enemies/boss_fracture_titan.tscn"
+	var path: String = "res://scenes/enemies/boss_fracture_titan.tscn"
 	if ResourceLoader.exists(path):
 		_boss_scene = load(path)
 
 
 func _spawn_enemies(room: RunData.RoomData) -> void:
-	var count := room.enemy_budget
-	var is_elite := room.type == RoomDefinitions.RoomType.ELITE
-	var composition := EnemyComposition.get_composition(room.type, room.difficulty, count)
+	var count: int = room.enemy_budget
+	var is_elite: bool = room.type == RoomDefinitions.RoomType.ELITE
+	var composition: Array[EnemyTypes.Type] = EnemyComposition.get_composition(room.type, room.difficulty, count)
 	enemies_alive = 0
 
 	for i in composition.size():
-		var type := composition[i]
+		var type: EnemyTypes.Type = composition[i]
 		var scene: PackedScene = _enemy_scenes.get(type, _enemy_scenes.get(EnemyTypes.Type.CHASER))
 		if not scene:
 			continue
 
-		var instance := scene.instantiate() as CharacterBody3D
+		var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
 		instance.global_position = _get_spawn_position()
 
 		_scale_enemy(instance, room.difficulty, is_elite and i == 0)
@@ -84,7 +84,7 @@ func _spawn_enemies(room: RunData.RoomData) -> void:
 		if speed_bonus > 0 and "move_speed" in instance:
 			instance.move_speed *= (1.0 + speed_bonus)
 
-		var health := instance.get_node_or_null("HealthComponent") as HealthComponent
+		var health: HealthComponent = instance.get_node_or_null("HealthComponent") as HealthComponent
 		if health:
 			health.died.connect(_on_enemy_died)
 
@@ -100,7 +100,7 @@ func _spawn_boss(room: RunData.RoomData) -> void:
 	active_boss.global_position = Vector3(0, 1.0, -15.0)
 
 	# scale boss health by difficulty
-	var bh := active_boss.get_node_or_null("HealthComponent") as HealthComponent
+	var bh: HealthComponent = active_boss.get_node_or_null("HealthComponent") as HealthComponent
 	if bh:
 		bh.max_health = int(bh.max_health * room.difficulty)
 		bh.current_health = bh.max_health
@@ -116,7 +116,7 @@ func _on_boss_defeated() -> void:
 
 
 func _scale_enemy(enemy: CharacterBody3D, difficulty: float, is_elite_unit: bool) -> void:
-	var health := enemy.get_node_or_null("HealthComponent") as HealthComponent
+	var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
 	if health:
 		health.max_health = int(health.max_health * difficulty)
 		if is_elite_unit:
@@ -140,10 +140,10 @@ func _scale_enemy(enemy: CharacterBody3D, difficulty: float, is_elite_unit: bool
 
 
 func _apply_elite_visual(enemy: CharacterBody3D) -> void:
-	var mesh := enemy.get_node_or_null("MeshInstance3D") as MeshInstance3D
+	var mesh: MeshInstance3D = enemy.get_node_or_null("MeshInstance3D") as MeshInstance3D
 	if not mesh:
 		return
-	var mat := StandardMaterial3D.new()
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = Color(0.9, 0.05, 0.05, 1)
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.1, 0.0)
@@ -160,8 +160,8 @@ func _on_enemy_died() -> void:
 
 
 func _get_spawn_position() -> Vector3:
-	var angle := randf() * TAU
-	var distance := min_spawn_distance + randf() * (spawn_radius - min_spawn_distance)
+	var angle: float = randf() * TAU
+	var distance: float = min_spawn_distance + randf() * (spawn_radius - min_spawn_distance)
 	return Vector3(cos(angle) * distance, 1.0, sin(angle) * distance)
 
 
@@ -170,7 +170,7 @@ func _configure_arena(room: RunData.RoomData) -> void:
 	if room.type == RoomDefinitions.RoomType.RECOVERY or room.type == RoomDefinitions.RoomType.BOSS:
 		return
 
-	var obstacle_count := 0
+	var obstacle_count: int = 0
 	match room.type:
 		RoomDefinitions.RoomType.COMBAT:
 			obstacle_count = clampi(int(room.difficulty * 2), 2, 6)
@@ -188,9 +188,9 @@ func _apply_palette() -> void:
 		return
 
 	# floor material
-	var floor_node := get_node_or_null("/root/Main/Floor/FloorMesh") as MeshInstance3D
+	var floor_node: MeshInstance3D = get_node_or_null("/root/Main/Floor/FloorMesh") as MeshInstance3D
 	if floor_node:
-		var mat := floor_node.get_surface_override_material(0)
+		var mat: Material = floor_node.get_surface_override_material(0)
 		if not mat:
 			mat = StandardMaterial3D.new()
 			floor_node.set_surface_override_material(0, mat)
@@ -201,38 +201,38 @@ func _apply_palette() -> void:
 			mat.emission_energy_multiplier = 0.3
 
 	# directional light
-	var light := get_node_or_null("/root/Main/DirectionalLight3D") as DirectionalLight3D
+	var light: DirectionalLight3D = get_node_or_null("/root/Main/DirectionalLight3D") as DirectionalLight3D
 	if light:
 		light.light_color = current_palette.light_color
 		light.light_energy = current_palette.light_energy
 
 
 func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
-	var pillar := StaticBody3D.new()
-	var angle := (float(index) / float(total)) * TAU + randf() * 0.5
-	var dist := 6.0 + randf() * 10.0
+	var pillar: StaticBody3D = StaticBody3D.new()
+	var angle: float = (float(index) / float(total)) * TAU + randf() * 0.5
+	var dist: float =6.0 + randf() * 10.0
 	pillar.position = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 
-	var height := 1.5 + randf() * 2.0
-	var width := 0.8 + randf() * 0.6
+	var height: float = 1.5 + randf() * 2.0
+	var width: float = 0.8 + randf() * 0.6
 
-	var mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
 	box.size = Vector3(width, height, width)
 	mesh.mesh = box
 	mesh.position.y = height / 2.0
 
-	var mat := StandardMaterial3D.new()
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	if current_palette:
-		var c := current_palette.obstacle_color
+		var c: Color = current_palette.obstacle_color
 		mat.albedo_color = Color(c.r + randf() * 0.03, c.g + randf() * 0.03, c.b + randf() * 0.03, 1)
 	else:
-		var shade := 0.08 + room.difficulty * 0.02
+		var shade: float = 0.08 + room.difficulty * 0.02
 		mat.albedo_color = Color(shade, shade, shade + 0.02, 1)
 	mesh.material_override = mat
 
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
+	var col: CollisionShape3D = CollisionShape3D.new()
+	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = Vector3(width, height, width)
 	col.shape = shape
 	col.position.y = height / 2.0
@@ -248,7 +248,7 @@ func _place_hazards(room: RunData.RoomData) -> void:
 	if room.type == RoomDefinitions.RoomType.RECOVERY or room.type == RoomDefinitions.RoomType.BOSS:
 		return
 
-	var hazard_count := 0
+	var hazard_count: int = 0
 	if room.difficulty >= 1.4:
 		hazard_count = clampi(int((room.difficulty - 1.2) * 3), 1, 5)
 
@@ -260,30 +260,30 @@ func _place_hazards(room: RunData.RoomData) -> void:
 
 
 func _place_spike_zone(index: int, total: int) -> void:
-	var zone := Area3D.new()
-	var angle := (float(index) / float(total)) * TAU + randf() * 1.0
-	var dist := 4.0 + randf() * 12.0
+	var zone: Area3D = Area3D.new()
+	var angle: float = (float(index) / float(total)) * TAU + randf() * 1.0
+	var dist: float =4.0 + randf() * 12.0
 	zone.position = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 	zone.collision_layer = 0
 	zone.collision_mask = 1
 
-	var size := 2.0 + randf() * 2.0
+	var size: float = 2.0 + randf() * 2.0
 
-	var mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
 	box.size = Vector3(size, 0.15, size)
 	mesh.mesh = box
 	mesh.position.y = 0.08
 
-	var mat := StandardMaterial3D.new()
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = Color(0.6, 0.08, 0.05, 1)
 	mat.emission_enabled = true
 	mat.emission = Color(0.8, 0.1, 0.0, 1)
 	mat.emission_energy_multiplier = 0.6
 	mesh.material_override = mat
 
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
+	var col: CollisionShape3D = CollisionShape3D.new()
+	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = Vector3(size, 0.5, size)
 	col.shape = shape
 	col.position.y = 0.25
@@ -300,30 +300,30 @@ func _place_spike_zone(index: int, total: int) -> void:
 
 
 func _place_damage_tile(index: int, total: int) -> void:
-	var tile := Area3D.new()
-	var angle := (float(index) / float(total)) * TAU + randf() * 0.8
-	var dist := 5.0 + randf() * 10.0
+	var tile: Area3D = Area3D.new()
+	var angle: float = (float(index) / float(total)) * TAU + randf() * 0.8
+	var dist: float =5.0 + randf() * 10.0
 	tile.position = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 	tile.collision_layer = 0
 	tile.collision_mask = 1
 
-	var size := 3.0 + randf() * 2.0
+	var size: float = 3.0 + randf() * 2.0
 
-	var mesh := MeshInstance3D.new()
-	var box := BoxMesh.new()
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
 	box.size = Vector3(size, 0.05, size)
 	mesh.mesh = box
 	mesh.position.y = 0.03
 
-	var mat := StandardMaterial3D.new()
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.albedo_color = Color(0.4, 0.3, 0.05, 1)
 	mat.emission_enabled = true
 	mat.emission = Color(0.5, 0.4, 0.0, 1)
 	mat.emission_energy_multiplier = 0.3
 	mesh.material_override = mat
 
-	var col := CollisionShape3D.new()
-	var shape := BoxShape3D.new()
+	var col: CollisionShape3D = CollisionShape3D.new()
+	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = Vector3(size, 0.3, size)
 	col.shape = shape
 	col.position.y = 0.15
@@ -331,7 +331,7 @@ func _place_damage_tile(index: int, total: int) -> void:
 	tile.add_child(mesh)
 	tile.add_child(col)
 
-	var damage_timer := 0.0
+	var damage_timer: float = 0.0
 	tile.body_entered.connect(func(body):
 		if body.is_in_group("player") and body.has_method("take_damage"):
 			body.take_damage(5)
@@ -358,16 +358,16 @@ func spawn_duplicate_enemy() -> void:
 	if not active_room or enemies_alive <= 0:
 		return
 
-	var type := EnemyComposition.get_composition(active_room.type, active_room.difficulty, 1)[0]
+	var type: EnemyTypes.Type = EnemyComposition.get_composition(active_room.type, active_room.difficulty, 1)[0]
 	var scene: PackedScene = _enemy_scenes.get(type, _enemy_scenes.get(EnemyTypes.Type.CHASER))
 	if not scene:
 		return
 
-	var instance := scene.instantiate() as CharacterBody3D
+	var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
 	instance.global_position = _get_spawn_position()
 	_scale_enemy(instance, active_room.difficulty, false)
 
-	var health := instance.get_node_or_null("HealthComponent") as HealthComponent
+	var health: HealthComponent = instance.get_node_or_null("HealthComponent") as HealthComponent
 	if health:
 		health.died.connect(_on_enemy_died)
 

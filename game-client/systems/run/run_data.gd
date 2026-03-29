@@ -10,17 +10,17 @@ enum RunStatus {
 }
 
 
-var run_id := ""
-var status := RunStatus.ACTIVE
-var current_room_index := 0
+var run_id: String = ""
+var status: RunStatus = RunStatus.ACTIVE
+var current_room_index: int = 0
 var room_sequence: Array[RoomData] = []
-var total_enemies_killed := 0
-var rooms_cleared := 0
-var elapsed_time := 0.0
+var total_enemies_killed: int = 0
+var rooms_cleared: int = 0
+var elapsed_time: float = 0.0
 var chosen_upgrades: Array[Dictionary] = []
 var chosen_mutations: Array[Dictionary] = []
 var run_tags: PackedStringArray = []
-var difficulty_scale := 1.0
+var difficulty_scale: float = 1.0
 
 
 func current_room() -> RoomData:
@@ -45,11 +45,11 @@ func advance_room() -> bool:
 
 
 class RoomData extends RefCounted:
-	var id := ""
+	var id: String = ""
 	var type: RoomDefinitions.RoomType = RoomDefinitions.RoomType.COMBAT
-	var difficulty := 1.0
-	var enemy_budget := 5
-	var reward_flag := false
+	var difficulty: float = 1.0
+	var enemy_budget: int = 5
+	var reward_flag: bool = false
 	var status: RoomDefinitions.RoomStatus = RoomDefinitions.RoomStatus.PENDING
-	var enemies_killed := 0
-	var metadata := {}
+	var enemies_killed: int = 0
+	var metadata: Dictionary = {}

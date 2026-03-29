@@ -1,37 +1,34 @@
 class_name BeamEmitter
-extends Node3D
+extends BaseWeapon
 
 # continuous damage beam with heat management.
 
-signal enemy_killed
-signal enemy_hit(position: Vector3)
+var weapon_range: float = 60.0
 
-var base_damage := 6
-var base_fire_rate := 0.05
-var shake_on_fire := 0.4
-var range := 60.0
-
-var fire_timer := 0.0
+var fire_timer: float = 0.0
 var camera: Camera3D
 var beam_mesh: MeshInstance3D
 
 # heat system
-var heat := 0.0
-var max_heat := 100.0
-var heat_per_tick := 2.5
-var cool_rate := 30.0
-var overheat_cool_rate := 20.0
-var overheated := false
-var overheat_threshold := 100.0
+var heat: float = 0.0
+var max_heat: float = 100.0
+var heat_per_tick: float = 2.5
+var cool_rate: float = 30.0
+var overheat_cool_rate: float = 20.0
+var overheated: bool = false
+var overheat_threshold: float = 100.0
 
 # upgrade flags
-var chain_beam := false
-var chain_range := 6.0
-var chain_damage_ratio := 0.4
-var extended_capacity := false
+var chain_beam: bool = false
+var chain_range: float = 6.0
+var chain_damage_ratio: float = 0.4
+var extended_capacity: bool = false
 
 
 func _ready() -> void:
+	base_damage = 6
+	base_fire_rate = 0.05
+	shake_on_fire = 0.4
 	camera = get_viewport().get_camera_3d()
 	_create_beam_visual()
 	if extended_capacity:
@@ -73,29 +70,29 @@ func _fire_beam(effective_damage: int) -> void:
 	if not camera:
 		return
 
-	var space_state := get_world_3d().direct_space_state
-	var screen_center := get_viewport().get_visible_rect().size / 2
-	var from := camera.project_ray_origin(screen_center)
-	var forward := camera.project_ray_normal(screen_center)
-	var to := from + forward * range
+	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var screen_center: Vector2 = get_viewport().get_visible_rect().size / 2
+	var from: Vector3 = camera.project_ray_origin(screen_center)
+	var forward: Vector3 = camera.project_ray_normal(screen_center)
+	var to: Vector3 = from + forward * weapon_range
 
-	var query := PhysicsRayQueryParameters3D.create(from, to)
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
 	query.collision_mask = 2
 	query.collide_with_areas = false
 
-	var result := space_state.intersect_ray(query)
+	var result: Dictionary = space_state.intersect_ray(query)
 	if result.is_empty():
 		_show_beam(from, to)
 		return
 
-	var hit := result.collider
+	var hit: Object = result.collider
 	var hit_pos: Vector3 = result.position
 	_show_beam(from, hit_pos)
 
 	if hit is CharacterBody3D:
-		var health := hit.get_node_or_null("HealthComponent") as HealthComponent
+		var health: HealthComponent = hit.get_node_or_null("HealthComponent") as HealthComponent
 		if health:
-			var was_alive := health.is_alive()
+			var was_alive: bool = health.is_alive()
 			health.take_damage(effective_damage)
 			enemy_hit.emit(hit_pos)
 			if was_alive and not health.is_alive():
@@ -106,19 +103,19 @@ func _fire_beam(effective_damage: int) -> void:
 
 
 func _apply_chain(origin: Vector3, exclude: Node, effective_damage: int) -> void:
-	var chain_dmg := int(effective_damage * chain_damage_ratio)
+	var chain_dmg: int = int(effective_damage * chain_damage_ratio)
 	if chain_dmg <= 0:
 		return
 
-	var enemies := get_tree().get_nodes_in_group("enemies")
+	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
 	for enemy in enemies:
 		if enemy == exclude or not enemy is Node3D:
 			continue
 		if enemy.global_position.distance_to(origin) > chain_range:
 			continue
-		var health := enemy.get_node_or_null("HealthComponent") as HealthComponent
+		var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
 		if health and health.is_alive():
-			var was_alive := health.is_alive()
+			var was_alive: bool = health.is_alive()
 			health.take_damage(chain_dmg)
 			if was_alive and not health.is_alive():
 				enemy_killed.emit()
@@ -127,13 +124,13 @@ func _apply_chain(origin: Vector3, exclude: Node, effective_damage: int) -> void
 
 func _create_beam_visual() -> void:
 	beam_mesh = MeshInstance3D.new()
-	var mesh := CylinderMesh.new()
+	var mesh: CylinderMesh = CylinderMesh.new()
 	mesh.top_radius = 0.015
 	mesh.bottom_radius = 0.015
 	mesh.height = 1.0
 	beam_mesh.mesh = mesh
 
-	var mat := StandardMaterial3D.new()
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.emission_enabled = true
 	mat.emission = Color(0.2, 0.8, 1.0)
 	mat.emission_energy_multiplier = 4.0
@@ -148,16 +145,16 @@ func _create_beam_visual() -> void:
 func _show_beam(from: Vector3, to: Vector3) -> void:
 	if not beam_mesh:
 		return
-	var midpoint := (from + to) / 2.0
-	var distance := from.distance_to(to)
+	var midpoint: Vector3 = (from + to) / 2.0
+	var distance: float = from.distance_to(to)
 	beam_mesh.global_position = midpoint
 
-	var direction := (to - from).normalized()
+	var direction: Vector3 = (to - from).normalized()
 	if direction.length() > 0.001:
 		beam_mesh.look_at(beam_mesh.global_position + direction)
 		beam_mesh.rotate_object_local(Vector3.RIGHT, PI / 2.0)
 
-	var mesh := beam_mesh.mesh as CylinderMesh
+	var mesh: CylinderMesh = beam_mesh.mesh as CylinderMesh
 	mesh.height = distance
 	beam_mesh.visible = true
 

@@ -5,16 +5,16 @@ extends RefCounted
 
 const SAVE_PATH := "user://best_stats.cfg"
 
-var best_kills := 0
-var best_combo := 0
-var best_time := 0.0
-var total_runs := 0
-var runs_completed := 0
+var best_kills: int = 0
+var best_combo: int = 0
+var best_time: float = 0.0
+var total_runs: int = 0
+var runs_completed: int = 0
 
 
 static func load_stats() -> BestStats:
-	var stats := BestStats.new()
-	var config := ConfigFile.new()
+	var stats: BestStats = BestStats.new()
+	var config: ConfigFile = ConfigFile.new()
 	if config.load(SAVE_PATH) != OK:
 		return stats
 
@@ -27,7 +27,7 @@ static func load_stats() -> BestStats:
 
 
 static func update_from_run(data: RunData, combo_best: int) -> void:
-	var stats := load_stats()
+	var stats: BestStats = load_stats()
 
 	stats.total_runs += 1
 	if data.status == RunData.RunStatus.COMPLETED:
@@ -45,7 +45,7 @@ static func update_from_run(data: RunData, combo_best: int) -> void:
 
 
 static func _save(stats: BestStats) -> void:
-	var config := ConfigFile.new()
+	var config: ConfigFile = ConfigFile.new()
 	config.set_value("stats", "best_kills", stats.best_kills)
 	config.set_value("stats", "best_combo", stats.best_combo)
 	config.set_value("stats", "best_time", stats.best_time)

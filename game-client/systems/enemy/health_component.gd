@@ -4,7 +4,7 @@ extends Node
 signal damaged(amount: int, current: int)
 signal died
 
-@export var max_health := 50
+@export var max_health: int = 50
 
 var current_health: int
 

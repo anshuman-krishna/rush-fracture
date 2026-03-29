@@ -1,6 +1,6 @@
 extends CenterContainer
 
-var hit_marker_timer := 0.0
+var hit_marker_timer: float = 0.0
 
 @onready var crosshair_dot: ColorRect = $CrosshairDot
 @onready var hit_marker: Label = $HitMarker
@@ -36,5 +36,5 @@ func show_kill() -> void:
 
 func _punch_scale(amount: float = 1.3) -> void:
 	crosshair_dot.scale = Vector2(amount, amount)
-	var tween := create_tween()
+	var tween: Tween = create_tween()
 	tween.tween_property(crosshair_dot, "scale", Vector2.ONE, 0.1)

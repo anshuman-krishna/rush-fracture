@@ -11,13 +11,13 @@ const DIFFICULTY_STEP := 0.2
 
 
 static func generate(seed_value: int = -1) -> Array[RunData.RoomData]:
-	var rng := RandomNumberGenerator.new()
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	if seed_value >= 0:
 		rng.seed = seed_value
 	else:
 		rng.randomize()
 
-	var room_count := rng.randi_range(MIN_ROOMS, MAX_ROOMS)
+	var room_count: int = rng.randi_range(MIN_ROOMS, MAX_ROOMS)
 	var sequence: Array[RunData.RoomData] = []
 
 	# first room is always an easy combat room
@@ -26,14 +26,14 @@ static func generate(seed_value: int = -1) -> Array[RunData.RoomData]:
 	))
 
 	# generate middle rooms
-	var elite_placed := false
-	var recovery_count := 0
+	var elite_placed: bool = false
+	var recovery_count: int = 0
 	var last_type: RoomDefinitions.RoomType = RoomDefinitions.RoomType.COMBAT
 
 	for i in range(1, room_count - 1):
-		var progress := float(i) / float(room_count - 1)
-		var difficulty := BASE_DIFFICULTY + DIFFICULTY_STEP * i
-		var type := _pick_room_type(rng, progress, last_type, elite_placed, recovery_count)
+		var progress: float = float(i) / float(room_count - 1)
+		var difficulty: float = BASE_DIFFICULTY + DIFFICULTY_STEP * i
+		var type: RoomDefinitions.RoomType = _pick_room_type(rng, progress, last_type, elite_placed, recovery_count)
 
 		if type == RoomDefinitions.RoomType.ELITE:
 			elite_placed = true
@@ -44,7 +44,7 @@ static func generate(seed_value: int = -1) -> Array[RunData.RoomData]:
 		last_type = type
 
 	# final room is the boss encounter
-	var final_difficulty := BASE_DIFFICULTY + DIFFICULTY_STEP * (room_count - 1) + 0.3
+	var final_difficulty: float = BASE_DIFFICULTY + DIFFICULTY_STEP * (room_count - 1) + 0.3
 	sequence.append(_create_room(
 		room_count - 1, RoomDefinitions.RoomType.BOSS, final_difficulty
 	))
@@ -59,7 +59,7 @@ static func _pick_room_type(
 	elite_placed: bool,
 	recovery_count: int,
 ) -> RoomDefinitions.RoomType:
-	var roll := rng.randf()
+	var roll: float = rng.randf()
 
 	# elite: once per run, not too early, not after recovery
 	if not elite_placed and progress > 0.4 and progress < 0.85:
@@ -83,7 +83,7 @@ static func _create_room(
 	type: RoomDefinitions.RoomType,
 	difficulty: float,
 ) -> RunData.RoomData:
-	var room := RunData.RoomData.new()
+	var room: RunData.RoomData = RunData.RoomData.new()
 	room.id = "room_%d" % index
 	room.type = type
 	room.difficulty = difficulty

@@ -1,29 +1,26 @@
 class_name ScatterCannon
-extends Node3D
+extends BaseWeapon
 
 # close-range spread weapon. multiple raycasts per shot.
 
-signal enemy_killed
-signal enemy_hit(position: Vector3)
+var weapon_range: float = 40.0
+var pellet_count: int = 7
+var spread_angle: float = 0.08
 
-var base_damage := 8
-var base_fire_rate := 0.45
-var shake_on_fire := 3.0
-var range := 40.0
-var pellet_count := 7
-var spread_angle := 0.08
-
-var fire_timer := 0.0
+var fire_timer: float = 0.0
 var camera: Camera3D
 var muzzle_flash: MeshInstance3D
 
 # upgrade flags
-var tight_spread := false
-var double_blast := false
-var _double_blast_pending := false
+var tight_spread: bool = false
+var double_blast: bool = false
+var _double_blast_pending: bool = false
 
 
 func _ready() -> void:
+	base_damage = 8
+	base_fire_rate = 0.45
+	shake_on_fire = 3.0
 	camera = get_viewport().get_camera_3d()
 	_create_muzzle_flash()
 
@@ -41,7 +38,7 @@ func try_fire(effective_damage: int, effective_fire_rate: float) -> bool:
 
 	if double_blast and not _double_blast_pending:
 		_double_blast_pending = true
-		var tween := create_tween()
+		var tween: Tween = create_tween()
 		tween.tween_interval(0.08)
 		tween.tween_callback(func():
 			_fire_spread(int(effective_damage * 0.6))
@@ -61,35 +58,35 @@ func _fire_spread(effective_damage: int) -> void:
 	if not camera:
 		return
 
-	var space_state := get_world_3d().direct_space_state
-	var screen_center := get_viewport().get_visible_rect().size / 2
-	var from := camera.project_ray_origin(screen_center)
-	var forward := camera.project_ray_normal(screen_center)
-	var current_spread := spread_angle * (0.5 if tight_spread else 1.0)
+	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var screen_center: Vector2 = get_viewport().get_visible_rect().size / 2
+	var from: Vector3 = camera.project_ray_origin(screen_center)
+	var forward: Vector3 = camera.project_ray_normal(screen_center)
+	var current_spread: float = spread_angle * (0.5 if tight_spread else 1.0)
 
 	for i in pellet_count:
-		var offset := Vector3(
+		var offset: Vector3 = Vector3(
 			randf_range(-current_spread, current_spread),
 			randf_range(-current_spread, current_spread),
 			0
 		)
-		var direction := (forward + offset).normalized()
-		var to := from + direction * range
+		var direction: Vector3 = (forward + offset).normalized()
+		var to: Vector3 = from + direction * weapon_range
 
-		var query := PhysicsRayQueryParameters3D.create(from, to)
+		var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
 		query.collision_mask = 2
 		query.collide_with_areas = false
 
-		var result := space_state.intersect_ray(query)
+		var result: Dictionary = space_state.intersect_ray(query)
 		if result.is_empty():
 			continue
 
-		var hit := result.collider
+		var hit: Object = result.collider
 		var hit_pos: Vector3 = result.position
 		if hit is CharacterBody3D:
-			var health := hit.get_node_or_null("HealthComponent") as HealthComponent
+			var health: HealthComponent = hit.get_node_or_null("HealthComponent") as HealthComponent
 			if health:
-				var was_alive := health.is_alive()
+				var was_alive: bool = health.is_alive()
 				health.take_damage(effective_damage)
 				enemy_hit.emit(hit_pos)
 				if was_alive and not health.is_alive():
@@ -98,12 +95,12 @@ func _fire_spread(effective_damage: int) -> void:
 
 func _create_muzzle_flash() -> void:
 	muzzle_flash = MeshInstance3D.new()
-	var mesh := SphereMesh.new()
+	var mesh: SphereMesh = SphereMesh.new()
 	mesh.radius = 0.06
 	mesh.height = 0.12
 	muzzle_flash.mesh = mesh
 
-	var mat := StandardMaterial3D.new()
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
 	mat.emission_enabled = true
 	mat.emission = Color(1.0, 0.4, 0.1)
 	mat.emission_energy_multiplier = 6.0
@@ -118,7 +115,7 @@ func _show_muzzle_flash() -> void:
 	if not muzzle_flash:
 		return
 	muzzle_flash.visible = true
-	var tween := create_tween()
+	var tween: Tween = create_tween()
 	tween.tween_property(muzzle_flash, "visible", false, 0.07)
 
 
