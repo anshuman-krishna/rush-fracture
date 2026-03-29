@@ -11,6 +11,7 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target: CharacterBody3D
 var is_dying: bool = false
 var has_exploded: bool = false
+var _player_manager: PlayerManager
 
 @onready var health: HealthComponent = $HealthComponent
 @onready var mesh: MeshInstance3D = $MeshInstance3D
@@ -20,6 +21,7 @@ func _ready() -> void:
 	health.died.connect(_on_died)
 	health.damaged.connect(_on_damaged)
 	add_to_group("enemies")
+	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
 
 
 func _physics_process(delta: float) -> void:
@@ -94,9 +96,12 @@ func _apply_gravity(delta: float) -> void:
 
 
 func _find_target() -> void:
-	var players: Array[Node] = get_tree().get_nodes_in_group("player")
-	if players.size() > 0:
-		target = players[0] as CharacterBody3D
+	if _player_manager:
+		target = _player_manager.get_nearest_player(global_position)
+	else:
+		var players: Array[Node] = get_tree().get_nodes_in_group("player")
+		if players.size() > 0:
+			target = players[0] as CharacterBody3D
 
 
 func _on_damaged(_amount: int, _current: int) -> void:

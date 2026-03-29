@@ -9,7 +9,7 @@ enum FractureType {
 }
 
 
-static var events := {
+static var events: Dictionary = {
 	FractureType.VELOCITY_SURGE: {
 		"name": "velocity surge",
 		"description": "speed amplified",

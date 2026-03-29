@@ -14,11 +14,11 @@ static func get_composition(
 	if budget <= 0:
 		return result
 
-	var available := _available_types(difficulty)
-	var weights := _type_weights(room_type, difficulty)
+	var available: Array = _available_types(difficulty)
+	var weights: Dictionary = _type_weights(room_type, difficulty)
 
 	for i in budget:
-		var type := _weighted_pick(available, weights)
+		var type: EnemyTypes.Type = _weighted_pick(available, weights)
 		result.append(type)
 
 	return result
@@ -62,7 +62,7 @@ static func _type_weights(
 			}
 		_:
 			# combat / default — balanced
-			var variety := clamp((difficulty - 1.0) * 2.0, 0.0, 1.0)
+			var variety: float = clamp((difficulty - 1.0) * 2.0, 0.0, 1.0)
 			return {
 				EnemyTypes.Type.CHASER: int(5 - variety * 2),
 				EnemyTypes.Type.EXPLODER: int(1 + variety * 2),
@@ -76,15 +76,15 @@ static func _weighted_pick(
 	types: Array[EnemyTypes.Type],
 	weights: Dictionary,
 ) -> EnemyTypes.Type:
-	var total := 0
+	var total: int = 0
 	for t in types:
 		total += int(weights.get(t, 0))
 
 	if total <= 0:
 		return types[0]
 
-	var roll := randi() % total
-	var cumulative := 0
+	var roll: int = randi() % total
+	var cumulative: int = 0
 	for t in types:
 		cumulative += int(weights.get(t, 0))
 		if roll < cumulative:

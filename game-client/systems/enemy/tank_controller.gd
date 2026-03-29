@@ -12,6 +12,7 @@ var attack_timer: float = 0.0
 var is_dying: bool = false
 var is_elite: bool = false
 var slam_cooldown: float = 0.0
+var _player_manager: PlayerManager
 
 @onready var health: HealthComponent = $HealthComponent
 @onready var mesh: MeshInstance3D = $MeshInstance3D
@@ -21,6 +22,7 @@ func _ready() -> void:
 	health.died.connect(_on_died)
 	health.damaged.connect(_on_damaged)
 	add_to_group("enemies")
+	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
 
 
 func _physics_process(delta: float) -> void:
@@ -74,7 +76,11 @@ func _elite_ground_slam() -> void:
 	slam_cooldown = 6.0
 	var slam_radius: float = 5.0
 	var slam_damage: int = int(attack_damage * 0.8)
-	var players: Array[Node] = get_tree().get_nodes_in_group("player")
+	var players: Array[Node]
+	if _player_manager:
+		players = _player_manager.get_all_players()
+	else:
+		players = get_tree().get_nodes_in_group("player")
 	for p in players:
 		if p is Node3D and global_position.distance_to(p.global_position) <= slam_radius:
 			if p.has_method("take_damage"):
@@ -119,9 +125,12 @@ func _apply_gravity(delta: float) -> void:
 
 
 func _find_target() -> void:
-	var players: Array[Node] = get_tree().get_nodes_in_group("player")
-	if players.size() > 0:
-		target = players[0] as CharacterBody3D
+	if _player_manager:
+		target = _player_manager.get_nearest_player(global_position)
+	else:
+		var players: Array[Node] = get_tree().get_nodes_in_group("player")
+		if players.size() > 0:
+			target = players[0] as CharacterBody3D
 
 
 func _on_damaged(_amount: int, _current: int) -> void:

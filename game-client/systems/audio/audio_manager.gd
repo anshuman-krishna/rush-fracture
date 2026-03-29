@@ -7,14 +7,14 @@ extends Node
 const POOL_SIZE := 12
 
 var _pool: Array[AudioStreamPlayer] = []
-var _pool_index := 0
-var _sounds := {}
-var _enabled := true
+var _pool_index: int = 0
+var _sounds: Dictionary = {}
+var _enabled: bool = true
 
 
 func _ready() -> void:
 	for i in POOL_SIZE:
-		var player := AudioStreamPlayer.new()
+		var player: AudioStreamPlayer = AudioStreamPlayer.new()
 		player.bus = "Master"
 		add_child(player)
 		_pool.append(player)
@@ -29,7 +29,7 @@ func play(sound_name: String, volume_db: float = 0.0, pitch_variance: float = 0.
 	if not stream:
 		return
 
-	var player := _get_next_player()
+	var player: AudioStreamPlayer = _get_next_player()
 	player.stream = stream
 	player.volume_db = volume_db
 	if pitch_variance > 0:
@@ -48,7 +48,7 @@ func set_enabled(enabled: bool) -> void:
 
 
 func _get_next_player() -> AudioStreamPlayer:
-	var player := _pool[_pool_index]
+	var player: AudioStreamPlayer = _pool[_pool_index]
 	_pool_index = (_pool_index + 1) % POOL_SIZE
 	return player
 
@@ -91,7 +91,7 @@ func _try_load(name: String, path: String) -> void:
 
 func _fill_placeholders() -> void:
 	# generate simple procedural tones as placeholders
-	var needed := [
+	var needed: Array = [
 		"pulse_fire", "scatter_fire", "beam_fire",
 		"enemy_hit", "enemy_death", "player_damage",
 		"boss_slam", "boss_shockwave", "boss_phase", "boss_death",
@@ -105,9 +105,9 @@ func _fill_placeholders() -> void:
 
 func _generate_tone(name: String) -> AudioStream:
 	# procedural placeholder — short noise burst
-	var sample_rate := 22050
-	var duration := 0.08
-	var samples := int(sample_rate * duration)
+	var sample_rate: int = 22050
+	var duration: float = 0.08
+	var samples: int = int(sample_rate * duration)
 
 	match name:
 		"pulse_fire":
@@ -128,30 +128,30 @@ func _generate_tone(name: String) -> AudioStream:
 			duration = 0.05
 
 	samples = int(sample_rate * duration)
-	var data := PackedVector2Array()
+	var data: PackedVector2Array = PackedVector2Array()
 	data.resize(samples)
 
 	# simple synthesis
-	var freq := _freq_for_sound(name)
+	var freq: float = _freq_for_sound(name)
 	for i in samples:
-		var t := float(i) / float(sample_rate)
-		var envelope := 1.0 - (t / duration)
-		var wave := sin(t * freq * TAU) * envelope
+		var t: float = float(i) / float(sample_rate)
+		var envelope: float = 1.0 - (t / duration)
+		var wave: float = sin(t * freq * TAU) * envelope
 		# add noise for impact sounds
 		if name in ["scatter_fire", "boss_slam", "enemy_death", "player_damage"]:
 			wave += randf_range(-0.3, 0.3) * envelope
 		wave = clamp(wave, -1.0, 1.0) * 0.4
 		data[i] = Vector2(wave, wave)
 
-	var stream := AudioStreamWAV.new()
+	var stream: AudioStreamWAV = AudioStreamWAV.new()
 	stream.format = AudioStreamWAV.FORMAT_16_BITS
 	stream.mix_rate = sample_rate
 	stream.stereo = true
 
-	var byte_data := PackedByteArray()
+	var byte_data: PackedByteArray = PackedByteArray()
 	for sample in data:
-		var left := int(clamp(sample.x, -1.0, 1.0) * 32767)
-		var right := int(clamp(sample.y, -1.0, 1.0) * 32767)
+		var left: int = int(clamp(sample.x, -1.0, 1.0) * 32767)
+		var right: int = int(clamp(sample.y, -1.0, 1.0) * 32767)
 		byte_data.append(left & 0xFF)
 		byte_data.append((left >> 8) & 0xFF)
 		byte_data.append(right & 0xFF)

@@ -32,6 +32,7 @@ func Migrate(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS runs (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL,
+			player_id TEXT NOT NULL DEFAULT '',
 			status TEXT NOT NULL DEFAULT 'active',
 			score INTEGER NOT NULL DEFAULT 0,
 			level INTEGER NOT NULL DEFAULT 0,
@@ -60,6 +61,7 @@ func Migrate(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS room_events (
 			id TEXT PRIMARY KEY,
 			run_id TEXT NOT NULL,
+			player_id TEXT NOT NULL DEFAULT '',
 			event_type TEXT NOT NULL,
 			room_index INTEGER NOT NULL DEFAULT 0,
 			room_type TEXT NOT NULL DEFAULT '',

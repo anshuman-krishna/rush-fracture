@@ -29,19 +29,19 @@ func _on_quit() -> void:
 
 
 func _show_best_stats() -> void:
-	var stats := BestStats.load_stats()
+	var stats: BestStats = BestStats.load_stats()
 	if stats.best_kills <= 0 and stats.best_combo <= 0:
 		best_stats_label.visible = false
 		return
 
-	var lines := PackedStringArray()
+	var lines: PackedStringArray = PackedStringArray()
 	if stats.best_kills > 0:
 		lines.append("best kills: %d" % stats.best_kills)
 	if stats.best_combo > 0:
 		lines.append("best combo: %d" % stats.best_combo)
 	if stats.best_time > 0:
-		var m := int(stats.best_time) / 60
-		var s := int(stats.best_time) % 60
+		var m: int = int(stats.best_time) / 60
+		var s: int = int(stats.best_time) % 60
 		lines.append("best time: %d:%02d" % [m, s])
 	if stats.runs_completed > 0:
 		lines.append("runs completed: %d" % stats.runs_completed)
@@ -52,11 +52,11 @@ func _show_best_stats() -> void:
 
 func _animate_in() -> void:
 	modulate.a = 0.0
-	var tween := create_tween()
+	var tween: Tween = create_tween()
 	tween.tween_property(self, "modulate:a", 1.0, 0.4)
 
 
 func _animate_out(callback: Callable) -> void:
-	var tween := create_tween()
+	var tween: Tween = create_tween()
 	tween.tween_property(self, "modulate:a", 0.0, 0.2)
 	tween.tween_callback(callback)

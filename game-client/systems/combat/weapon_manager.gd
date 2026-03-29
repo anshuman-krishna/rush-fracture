@@ -45,17 +45,24 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
-	if Input.is_action_pressed("shoot"):
+	var provider: InputProvider = _get_input_provider()
+	if provider and provider.is_shoot_held():
 		_try_fire()
 
+	if provider:
+		if provider.is_weapon_1_pressed():
+			switch_to(WeaponSlot.PULSE_RIFLE)
+		elif provider.is_weapon_2_pressed():
+			switch_to(WeaponSlot.SCATTER_CANNON)
+		elif provider.is_weapon_3_pressed():
+			switch_to(WeaponSlot.BEAM_EMITTER)
 
-func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("weapon_1"):
-		switch_to(WeaponSlot.PULSE_RIFLE)
-	elif event.is_action_pressed("weapon_2"):
-		switch_to(WeaponSlot.SCATTER_CANNON)
-	elif event.is_action_pressed("weapon_3"):
-		switch_to(WeaponSlot.BEAM_EMITTER)
+
+func _get_input_provider() -> InputProvider:
+	var player: CharacterBody3D = get_parent().get_parent() as CharacterBody3D
+	if player and "input" in player:
+		return player.input
+	return null
 
 
 func switch_to(slot: WeaponSlot) -> void:

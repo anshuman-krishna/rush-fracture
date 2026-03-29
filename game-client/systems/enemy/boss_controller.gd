@@ -22,6 +22,7 @@ enum AttackState { IDLE, TELEGRAPH, ATTACKING, COOLDOWN }
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target: CharacterBody3D
 var current_phase: Phase = Phase.ONE
+var _player_manager: PlayerManager
 var attack_state: AttackState = AttackState.IDLE
 var attack_timer: float = 0.0
 var attack_cooldown: float = 3.0
@@ -42,6 +43,7 @@ func _ready() -> void:
 	health.damaged.connect(_on_damaged)
 	add_to_group("enemies")
 	add_to_group("boss")
+	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
 
 
 func _physics_process(delta: float) -> void:
@@ -156,7 +158,11 @@ func _do_slam() -> void:
 	# ground slam — damages everything in radius
 	if not target:
 		return
-	var players: Array[Node] = get_tree().get_nodes_in_group("player")
+	var players: Array[Node]
+	if _player_manager:
+		players = _player_manager.get_all_players()
+	else:
+		players = get_tree().get_nodes_in_group("player")
 	for p in players:
 		if p is Node3D and global_position.distance_to(p.global_position) <= slam_radius:
 			if p.has_method("take_damage"):
@@ -168,7 +174,11 @@ func _do_shockwave() -> void:
 	# expanding ring — damages at distance
 	if not target:
 		return
-	var players: Array[Node] = get_tree().get_nodes_in_group("player")
+	var players: Array[Node]
+	if _player_manager:
+		players = _player_manager.get_all_players()
+	else:
+		players = get_tree().get_nodes_in_group("player")
 	for p in players:
 		if p is Node3D:
 			var dist: float = global_position.distance_to(p.global_position)
@@ -362,9 +372,12 @@ func _apply_gravity(delta: float) -> void:
 
 
 func _find_target() -> void:
-	var players: Array[Node] = get_tree().get_nodes_in_group("player")
-	if players.size() > 0:
-		target = players[0] as CharacterBody3D
+	if _player_manager:
+		target = _player_manager.get_nearest_player(global_position)
+	else:
+		var players: Array[Node] = get_tree().get_nodes_in_group("player")
+		if players.size() > 0:
+			target = players[0] as CharacterBody3D
 
 
 func _on_damaged(_amount: int, _current: int) -> void:

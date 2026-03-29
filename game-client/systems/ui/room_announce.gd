@@ -8,7 +8,7 @@ var _active_tween: Tween
 
 
 func show_room_enter(room: RunData.RoomData, room_number: int, total: int) -> void:
-	var type_name := RoomDefinitions.type_to_string(room.type)
+	var type_name: String = RoomDefinitions.type_to_string(room.type)
 	announce_label.text = "%s — %d/%d" % [type_name, room_number, total]
 	announce_label.remove_theme_color_override("font_color")
 	_slide_in(1.2)

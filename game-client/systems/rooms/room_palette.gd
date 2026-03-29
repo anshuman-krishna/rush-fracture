@@ -27,13 +27,13 @@ static func pick_for_room(room_index: int, room_type: RoomDefinitions.RoomType) 
 		return _create(PaletteType.COLD)
 
 	# cycle through palettes with some randomness
-	var options := [PaletteType.CRIMSON, PaletteType.COLD, PaletteType.BLEACH, PaletteType.CORRUPT]
-	var idx := (room_index + randi() % 2) % options.size()
+	var options: Array = [PaletteType.CRIMSON, PaletteType.COLD, PaletteType.BLEACH, PaletteType.CORRUPT]
+	var idx: int = (room_index + randi() % 2) % options.size()
 	return _create(options[idx])
 
 
 static func _create(type: PaletteType) -> RoomPalette:
-	var p := RoomPalette.new()
+	var p: RoomPalette = RoomPalette.new()
 	match type:
 		PaletteType.CRIMSON:
 			p.floor_color = Color(0.10, 0.06, 0.06, 1)

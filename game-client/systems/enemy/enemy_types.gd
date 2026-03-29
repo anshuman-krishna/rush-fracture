@@ -10,7 +10,7 @@ enum Type {
 }
 
 
-static var type_names := {
+static var type_names: Dictionary = {
 	Type.CHASER: "chaser",
 	Type.SHOOTER: "shooter",
 	Type.DASHER: "dasher",

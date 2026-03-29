@@ -18,7 +18,7 @@ enum RoomStatus {
 }
 
 
-static var type_names := {
+static var type_names: Dictionary = {
 	RoomType.COMBAT: "combat",
 	RoomType.SWARM: "swarm",
 	RoomType.ELITE: "elite",
@@ -33,7 +33,7 @@ static func type_to_string(type: RoomType) -> String:
 
 
 static func enemy_budget_for(type: RoomType, difficulty: float) -> int:
-	var base := {
+	var base: Dictionary = {
 		RoomType.COMBAT: 5,
 		RoomType.SWARM: 8,
 		RoomType.ELITE: 3,

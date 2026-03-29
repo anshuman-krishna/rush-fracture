@@ -14,6 +14,7 @@ const (
 type RoomEvent struct {
 	ID            string        `json:"id"`
 	RunID         string        `json:"run_id"`
+	PlayerID      string        `json:"player_id,omitempty"`
 	EventType     RoomEventType `json:"event_type"`
 	RoomIndex     int           `json:"room_index"`
 	RoomType      string        `json:"room_type"`

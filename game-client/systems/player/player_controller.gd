@@ -20,6 +20,7 @@ var dash_timer: float = 0.0
 var dash_cooldown_timer: float = 0.0
 var dash_direction: Vector3 = Vector3.ZERO
 var is_dashing: bool = false
+var input: InputProvider = InputProvider.new()
 
 @onready var head: Node3D = $Head
 
@@ -27,6 +28,20 @@ var is_dashing: bool = false
 func _ready() -> void:
 	add_to_group("player")
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+	# register with player manager if available
+	var pm: PlayerManager = _get_player_manager()
+	if pm:
+		pm.register_player(self)
+
+
+func _exit_tree() -> void:
+	var pm: PlayerManager = _get_player_manager()
+	if pm:
+		pm.unregister_player(self)
+
+
+func _get_player_manager() -> PlayerManager:
+	return get_node_or_null("/root/Main/PlayerManager") as PlayerManager
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -56,8 +71,8 @@ func _handle_movement(delta: float) -> void:
 	if is_dashing:
 		return
 
-	var input_dir: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
-	var direction: Vector3 = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
+	var move_dir: Vector2 = input.get_move_vector()
+	var direction: Vector3 = (transform.basis * Vector3(move_dir.x, 0, move_dir.y)).normalized()
 
 	var on_floor: bool = is_on_floor()
 	var accel: float = acceleration if on_floor else air_acceleration
@@ -77,15 +92,15 @@ func _apply_gravity(delta: float) -> void:
 
 
 func _handle_jump() -> void:
-	if Input.is_action_just_pressed("jump") and is_on_floor():
+	if input.is_jump_pressed() and is_on_floor():
 		velocity.y = jump_force
 
 
 func _handle_dash(delta: float) -> void:
 	dash_cooldown_timer = max(0, dash_cooldown_timer - delta)
 
-	if Input.is_action_just_pressed("dash") and dash_cooldown_timer <= 0:
-		var input_dir: Vector2 = Input.get_vector("move_left", "move_right", "move_forward", "move_backward")
+	if input.is_dash_pressed() and dash_cooldown_timer <= 0:
+		var input_dir: Vector2 = input.get_move_vector()
 		if input_dir.length() > 0:
 			dash_direction = (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
 		else:

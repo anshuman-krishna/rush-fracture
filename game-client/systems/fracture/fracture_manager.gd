@@ -5,8 +5,8 @@ signal fracture_started(type: FractureDefinitions.FractureType)
 signal fracture_ended(type: FractureDefinitions.FractureType)
 
 var active_fracture: FractureDefinitions.FractureType = -1
-var fracture_timer := 0.0
-var is_active := false
+var fracture_timer: float = 0.0
+var is_active: bool = false
 
 var _player: CharacterBody3D
 var _original_gravity: float
@@ -33,11 +33,11 @@ func try_trigger(room_difficulty: float) -> bool:
 		return false
 
 	# base 10% chance, scales with difficulty
-	var chance := 0.10 + (room_difficulty - 1.0) * 0.08
+	var chance: float = 0.10 + (room_difficulty - 1.0) * 0.08
 	if randf() > chance:
 		return false
 
-	var types := FractureDefinitions.FractureType.values()
+	var types: Array = FractureDefinitions.FractureType.values()
 	var type: FractureDefinitions.FractureType = types[randi() % types.size()]
 	start_fracture(type)
 	return true
@@ -57,7 +57,7 @@ func end_fracture() -> void:
 		return
 
 	_revert_effect(active_fracture)
-	var ended_type := active_fracture
+	var ended_type: FractureDefinitions.FractureType = active_fracture
 	active_fracture = -1
 	is_active = false
 	fracture_timer = 0.0

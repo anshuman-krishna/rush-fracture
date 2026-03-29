@@ -3,8 +3,7 @@ extends Node
 # central coordinator. connects run, room, combat, fracture, combo,
 # mutation, difficulty, and ui systems.
 
-@onready var player: CharacterBody3D = $"../Player"
-@onready var weapon_manager: WeaponManager = $"../Player/Head/WeaponManager"
+@onready var player_manager: PlayerManager = $"../PlayerManager"
 @onready var damage_vignette: ColorRect = $"../UI/DamageVignette"
 @onready var crosshair: CenterContainer = $"../UI/Crosshair"
 @onready var run_manager: RunManager = $"../RunManager"
@@ -16,12 +15,16 @@ extends Node
 @onready var difficulty_tracker: DifficultyTracker = $"../DifficultyTracker"
 @onready var audio: AudioManager = $"../AudioManager"
 @onready var game_feel: GameFeel = $"../GameFeel"
-@onready var camera: Camera3D = $"../Player/Head/Camera3D"
 @onready var run_hud: Control = $"../UI/RunHUD"
 @onready var room_announce: Control = $"../UI/RoomAnnounce"
 @onready var upgrade_ui: Control = $"../UI/UpgradeSelection"
 @onready var mutation_ui: Control = $"../UI/MutationSelection"
 @onready var summary_ui: Control = $"../UI/RunSummary"
+
+# resolved from player_manager each run
+var player: CharacterBody3D
+var weapon_manager: WeaponManager
+var camera: Camera3D
 
 var awaiting_upgrade: bool = false
 var awaiting_mutation: bool = false
@@ -32,6 +35,8 @@ var _boss_defeated: bool = false
 
 
 func _ready() -> void:
+	_resolve_player_refs()
+
 	player.player_damaged.connect(_on_player_damaged)
 	weapon_manager.enemy_killed.connect(_on_weapon_kill)
 	weapon_manager.enemy_hit.connect(_on_weapon_hit)
@@ -66,6 +71,12 @@ func _ready() -> void:
 	run_hud.bind_run_manager(run_manager)
 
 	_start_run()
+
+
+func _resolve_player_refs() -> void:
+	player = player_manager.get_primary_player()
+	weapon_manager = player_manager.get_primary_weapon_manager()
+	camera = player_manager.get_primary_camera()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -336,6 +347,7 @@ func _on_restart() -> void:
 	upgrade_ui.visible = false
 	mutation_ui.visible = false
 	room_controller.clear_current_room()
+	_resolve_player_refs()
 	_start_run()
 
 

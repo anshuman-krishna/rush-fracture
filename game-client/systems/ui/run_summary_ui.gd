@@ -22,8 +22,8 @@ func _ready() -> void:
 
 
 func show_summary(data: RunData) -> void:
-	var is_win := data.status == RunData.RunStatus.COMPLETED
-	var beat_boss := false
+	var is_win: bool = data.status == RunData.RunStatus.COMPLETED
+	var beat_boss: bool = false
 	for room in data.room_sequence:
 		if room.type == RoomDefinitions.RoomType.BOSS and room.status == RoomDefinitions.RoomStatus.CLEARED:
 			beat_boss = true
@@ -38,14 +38,14 @@ func show_summary(data: RunData) -> void:
 	status_label.add_theme_color_override("font_color",
 		Color(1.0, 0.8, 0.0) if beat_boss else (Color(0.2, 1.0, 0.3) if is_win else Color(1.0, 0.2, 0.15)))
 
-	var time_str := "%d:%02d" % [int(data.elapsed_time) / 60, int(data.elapsed_time) % 60]
+	var time_str: String = "%d:%02d" % [int(data.elapsed_time) / 60, int(data.elapsed_time) % 60]
 
-	var best_combo := 0
-	var combo := get_node_or_null("/root/Main/ComboTracker") as ComboTracker
+	var best_combo: int = 0
+	var combo: ComboTracker = get_node_or_null("/root/Main/ComboTracker") as ComboTracker
 	if combo:
 		best_combo = combo.best_combo
 
-	var lines := PackedStringArray()
+	var lines: PackedStringArray = PackedStringArray()
 	lines.append("rooms: %d/%d" % [data.rooms_cleared, data.total_rooms()])
 	lines.append("kills: %d" % data.total_enemies_killed)
 	lines.append("time: %s" % time_str)
@@ -54,7 +54,7 @@ func show_summary(data: RunData) -> void:
 	lines.append("best combo: %d" % best_combo)
 
 	# show personal best markers
-	var saved := BestStats.load_stats()
+	var saved: BestStats = BestStats.load_stats()
 	if data.total_enemies_killed >= saved.best_kills and saved.best_kills > 0:
 		lines.append(">> new best kills!")
 	if best_combo >= saved.best_combo and saved.best_combo > 0:
@@ -70,6 +70,6 @@ func show_summary(data: RunData) -> void:
 
 	modulate.a = 0.0
 	visible = true
-	var tween := create_tween()
+	var tween: Tween = create_tween()
 	tween.tween_property(self, "modulate:a", 1.0, 0.3)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

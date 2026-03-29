@@ -4,14 +4,14 @@ extends Node
 # subtly adjusts room pressure based on player performance.
 # never punishing, never obvious. just keeps the game in the sweet spot.
 
-var performance_score := 0.0
-var rooms_tracked := 0
+var performance_score: float = 0.0
+var rooms_tracked: int = 0
 
 # tracked per room
-var _room_kills := 0
-var _room_damage_taken := 0
-var _room_time := 0.0
-var _room_active := false
+var _room_kills: int = 0
+var _room_damage_taken: int = 0
+var _room_time: float = 0.0
+var _room_active: bool = false
 
 
 func _process(delta: float) -> void:
@@ -55,7 +55,7 @@ func reset() -> void:
 
 
 func _evaluate_room() -> void:
-	var score_delta := 0.0
+	var score_delta: float = 0.0
 
 	# fast clear = doing well
 	if _room_time < 12.0:

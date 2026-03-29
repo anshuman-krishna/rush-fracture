@@ -16,8 +16,8 @@ func NewRunRepository(db *sql.DB) *RunRepository {
 
 func (r *RunRepository) Create(run *models.Run) error {
 	_, err := r.db.Exec(
-		"INSERT INTO runs (id, user_id, status, score, level, enemies_killed, duration, best_combo, weapon_used, mutations, run_tags, boss_encountered, boss_defeated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-		run.ID, run.UserID, run.Status, run.Score, run.Level, run.EnemiesKilled, run.Duration, run.BestCombo, run.WeaponUsed, run.Mutations, run.RunTags, run.BossEncountered, run.BossDefeated, run.CreatedAt,
+		"INSERT INTO runs (id, user_id, player_id, status, score, level, enemies_killed, duration, best_combo, weapon_used, mutations, run_tags, boss_encountered, boss_defeated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+		run.ID, run.UserID, run.PlayerID, run.Status, run.Score, run.Level, run.EnemiesKilled, run.Duration, run.BestCombo, run.WeaponUsed, run.Mutations, run.RunTags, run.BossEncountered, run.BossDefeated, run.CreatedAt,
 	)
 	return err
 }
@@ -25,8 +25,8 @@ func (r *RunRepository) Create(run *models.Run) error {
 func (r *RunRepository) GetByID(id string) (*models.Run, error) {
 	run := &models.Run{}
 	err := r.db.QueryRow(
-		"SELECT id, user_id, status, score, level, enemies_killed, duration, best_combo, weapon_used, mutations, run_tags, boss_encountered, boss_defeated, created_at FROM runs WHERE id = ?", id,
-	).Scan(&run.ID, &run.UserID, &run.Status, &run.Score, &run.Level, &run.EnemiesKilled, &run.Duration, &run.BestCombo, &run.WeaponUsed, &run.Mutations, &run.RunTags, &run.BossEncountered, &run.BossDefeated, &run.CreatedAt)
+		"SELECT id, user_id, player_id, status, score, level, enemies_killed, duration, best_combo, weapon_used, mutations, run_tags, boss_encountered, boss_defeated, created_at FROM runs WHERE id = ?", id,
+	).Scan(&run.ID, &run.UserID, &run.PlayerID, &run.Status, &run.Score, &run.Level, &run.EnemiesKilled, &run.Duration, &run.BestCombo, &run.WeaponUsed, &run.Mutations, &run.RunTags, &run.BossEncountered, &run.BossDefeated, &run.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
