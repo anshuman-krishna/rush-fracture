@@ -50,6 +50,9 @@ func _physics_process(delta: float) -> void:
 	if is_dying:
 		return
 
+	if not _is_local_authority():
+		return
+
 	_apply_gravity(delta)
 	_check_phase_transition()
 
@@ -423,3 +426,9 @@ func get_health_ratio() -> float:
 	if not health:
 		return 0.0
 	return float(health.current_health) / float(health.max_health)
+
+
+func _is_local_authority() -> bool:
+	if not multiplayer or not multiplayer.has_multiplayer_peer():
+		return true
+	return is_multiplayer_authority()

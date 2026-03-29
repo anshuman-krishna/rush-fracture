@@ -29,6 +29,9 @@ func _physics_process(delta: float) -> void:
 	if is_dying:
 		return
 
+	if not _is_local_authority():
+		return
+
 	_apply_gravity(delta)
 	attack_timer = max(0, attack_timer - delta)
 
@@ -137,3 +140,9 @@ func _play_death() -> void:
 	tween.tween_property(self, "scale", Vector3(1.3, 0.1, 1.3), 0.15)
 	tween.tween_property(mesh, "transparency", 1.0, 0.2)
 	tween.chain().tween_callback(queue_free)
+
+
+func _is_local_authority() -> bool:
+	if not multiplayer or not multiplayer.has_multiplayer_peer():
+		return true
+	return is_multiplayer_authority()

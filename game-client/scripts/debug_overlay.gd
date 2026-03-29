@@ -3,6 +3,7 @@ extends Label
 var player: CharacterBody3D
 var run_manager: RunManager
 var _player_manager: PlayerManager
+var _network_manager: NetworkManager
 var _debug_visible: bool = false
 
 
@@ -23,6 +24,8 @@ func _process(_delta: float) -> void:
 		return
 	if not _player_manager:
 		_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
+	if not _network_manager:
+		_network_manager = get_node_or_null("/root/NetworkManager") as NetworkManager
 	if not player:
 		if _player_manager:
 			player = _player_manager.get_primary_player()
@@ -42,6 +45,16 @@ func _process(_delta: float) -> void:
 	var lines: PackedStringArray = PackedStringArray()
 	var player_count: int = _player_manager.get_player_count() if _player_manager else 1
 	lines.append("fps: %d" % Engine.get_frames_per_second())
+
+	# network info
+	if _network_manager and _network_manager.is_online():
+		var role: String = "host" if _network_manager.is_host() else "client"
+		lines.append("net: %s | peer: %d | peers: %d | ping: %.0fms" % [
+			role, _network_manager.local_peer_id, _network_manager.connected_peers.size(),
+			_network_manager.estimated_ping_ms])
+	else:
+		lines.append("net: solo")
+
 	lines.append("players: %d" % player_count)
 	lines.append("speed: %.1f" % Vector2(player.velocity.x, player.velocity.z).length())
 	lines.append("enemies: %d" % get_tree().get_nodes_in_group("enemies").size())

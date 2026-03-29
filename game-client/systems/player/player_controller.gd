@@ -14,6 +14,8 @@ signal player_damaged(amount: int)
 @export var mouse_sensitivity: float = 0.002
 @export var max_health: int = 100
 
+const INTERP_SPEED: float = 18.0
+
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var health: int = max_health
 var dash_timer: float = 0.0
@@ -22,13 +24,24 @@ var dash_direction: Vector3 = Vector3.ZERO
 var is_dashing: bool = false
 var input: InputProvider = InputProvider.new()
 
+# network sync targets — synchronizer writes to these, visual lerps toward them
+var sync_position: Vector3 = Vector3.ZERO
+var sync_rotation_y: float = 0.0
+var sync_head_rotation_x: float = 0.0
+var sync_velocity: Vector3 = Vector3.ZERO
+
 @onready var head: Node3D = $Head
 
 
 func _ready() -> void:
 	add_to_group("player")
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
-	# register with player manager if available
+	sync_position = global_position
+	sync_rotation_y = rotation.y
+	if head:
+		sync_head_rotation_x = head.rotation.x
+
+	if _is_local_authority():
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	var pm: PlayerManager = _get_player_manager()
 	if pm:
 		pm.register_player(self)
@@ -45,6 +58,9 @@ func _get_player_manager() -> PlayerManager:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not _is_local_authority():
+		return
+
 	if event is InputEventMouseMotion:
 		rotate_y(-event.relative.x * mouse_sensitivity)
 		head.rotate_x(-event.relative.y * mouse_sensitivity)
@@ -55,11 +71,32 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	_handle_dash(delta)
-	_apply_gravity(delta)
-	_handle_jump()
-	_handle_movement(delta)
-	move_and_slide()
+	if _is_local_authority():
+		_handle_dash(delta)
+		_apply_gravity(delta)
+		_handle_jump()
+		_handle_movement(delta)
+		move_and_slide()
+
+		# update sync vars so synchronizer sends correct values
+		sync_position = global_position
+		sync_rotation_y = rotation.y
+		sync_velocity = velocity
+		if head:
+			sync_head_rotation_x = head.rotation.x
+	else:
+		# remote player — interpolate toward synced values
+		global_position = global_position.lerp(sync_position, INTERP_SPEED * delta)
+		rotation.y = lerp_angle(rotation.y, sync_rotation_y, INTERP_SPEED * delta)
+		velocity = sync_velocity
+		if head:
+			head.rotation.x = lerp_angle(head.rotation.x, sync_head_rotation_x, INTERP_SPEED * delta)
+
+
+func _is_local_authority() -> bool:
+	if not multiplayer or not multiplayer.has_multiplayer_peer():
+		return true
+	return is_multiplayer_authority()
 
 
 func take_damage(amount: int) -> void:

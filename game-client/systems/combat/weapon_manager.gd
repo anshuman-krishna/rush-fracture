@@ -45,6 +45,9 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if not _is_local_authority():
+		return
+
 	var provider: InputProvider = _get_input_provider()
 	if provider and provider.is_shoot_held():
 		_try_fire()
@@ -56,6 +59,15 @@ func _process(_delta: float) -> void:
 			switch_to(WeaponSlot.SCATTER_CANNON)
 		elif provider.is_weapon_3_pressed():
 			switch_to(WeaponSlot.BEAM_EMITTER)
+
+
+func _is_local_authority() -> bool:
+	var player: CharacterBody3D = get_parent().get_parent() as CharacterBody3D
+	if not player:
+		return true
+	if not player.multiplayer or not player.multiplayer.has_multiplayer_peer():
+		return true
+	return player.is_multiplayer_authority()
 
 
 func _get_input_provider() -> InputProvider:

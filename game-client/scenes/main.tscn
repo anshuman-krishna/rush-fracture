@@ -22,6 +22,7 @@
 [ext_resource type="Script" path="res://systems/audio/audio_manager.gd" id="21"]
 [ext_resource type="Script" path="res://systems/combat/game_feel.gd" id="22"]
 [ext_resource type="Script" path="res://systems/player/player_manager.gd" id="23"]
+[ext_resource type="Script" path="res://systems/network/player_spawner.gd" id="24"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.4
@@ -40,6 +41,9 @@ albedo_color = Color(0.12, 0.12, 0.14, 1)
 
 [node name="PlayerManager" type="Node" parent="."]
 script = ExtResource("23")
+
+[node name="PlayerSpawner" type="Node" parent="."]
+script = ExtResource("24")
 
 [node name="Player" type="CharacterBody3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)

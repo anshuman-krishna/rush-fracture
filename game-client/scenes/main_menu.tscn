@@ -76,3 +76,37 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.5, 0.3, 1)
 theme_override_font_sizes/font_size = 12
 horizontal_alignment = 1
+
+[node name="Spacer2" type="Control" parent="Panel"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="HostButton" type="Button" parent="Panel"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.9, 0.5, 1)
+theme_override_colors/font_hover_color = Color(0.5, 1.0, 0.7, 1)
+theme_override_font_sizes/font_size = 16
+text = "host game"
+
+[node name="IpInput" type="LineEdit" parent="Panel"]
+custom_minimum_size = Vector2(0, 36)
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+placeholder_text = "ip address (default: 127.0.0.1)"
+alignment = 1
+
+[node name="JoinButton" type="Button" parent="Panel"]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.3, 0.7, 1.0, 1)
+theme_override_colors/font_hover_color = Color(0.5, 0.9, 1.0, 1)
+theme_override_font_sizes/font_size = 16
+text = "join game"
+
+[node name="StatusLabel" type="Label" parent="Panel"]
+visible = false
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.8, 0.3, 1)
+theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1

@@ -18,6 +18,7 @@ var _enemy_scenes: Dictionary = {}
 var _boss_scene: PackedScene
 var active_boss: BossController
 var current_palette: RoomPalette
+var _dup_counter: int = 0
 
 @onready var arena_root: Node3D = $ArenaRoot
 @onready var enemy_root: Node3D = $EnemyRoot
@@ -35,6 +36,9 @@ func enter_room(room: RunData.RoomData) -> void:
 	room_active = false
 	current_palette = RoomPalette.pick_for_room(
 		room.id.get_slice("_", 1).to_int(), room.type)
+
+	# seed random state from room id so both peers get identical layout
+	seed(room.id.hash())
 
 	_configure_arena(room)
 	_apply_palette()
@@ -75,6 +79,7 @@ func _spawn_enemies(room: RunData.RoomData) -> void:
 			continue
 
 		var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
+		instance.name = "Enemy_%d" % i
 		instance.global_position = _get_spawn_position()
 
 		_scale_enemy(instance, room.difficulty, is_elite and i == 0)
@@ -89,6 +94,7 @@ func _spawn_enemies(room: RunData.RoomData) -> void:
 			health.died.connect(_on_enemy_died)
 
 		enemy_root.add_child(instance)
+		_setup_enemy_multiplayer(instance)
 		enemies_alive += 1
 
 
@@ -97,6 +103,7 @@ func _spawn_boss(room: RunData.RoomData) -> void:
 		return
 
 	active_boss = _boss_scene.instantiate() as BossController
+	active_boss.name = "Boss_0"
 	active_boss.global_position = Vector3(0, 1.0, -15.0)
 
 	# scale boss health by difficulty
@@ -108,6 +115,7 @@ func _spawn_boss(room: RunData.RoomData) -> void:
 
 	active_boss.boss_defeated.connect(_on_boss_defeated)
 	enemy_root.add_child(active_boss)
+	_setup_enemy_multiplayer(active_boss)
 	enemies_alive = 1
 
 
@@ -363,7 +371,9 @@ func spawn_duplicate_enemy() -> void:
 	if not scene:
 		return
 
+	_dup_counter += 1
 	var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
+	instance.name = "Dup_%d" % _dup_counter
 	instance.global_position = _get_spawn_position()
 	_scale_enemy(instance, active_room.difficulty, false)
 
@@ -372,6 +382,7 @@ func spawn_duplicate_enemy() -> void:
 		health.died.connect(_on_enemy_died)
 
 	enemy_root.add_child(instance)
+	_setup_enemy_multiplayer(instance)
 	enemies_alive += 1
 
 
@@ -389,3 +400,35 @@ func _clear_room() -> void:
 	room_active = false
 	active_room = null
 	active_boss = null
+	_dup_counter = 0
+
+
+func _setup_enemy_multiplayer(enemy: CharacterBody3D) -> void:
+	# in multiplayer, host is authority for all enemies
+	if not multiplayer or not multiplayer.has_multiplayer_peer():
+		return
+
+	enemy.set_multiplayer_authority(1)
+
+	# add interpolator for smooth movement on clients
+	var interp: NetworkInterpolator = NetworkInterpolator.new()
+	interp.name = "NetInterp"
+	enemy.add_child(interp)
+
+	# add synchronizer — syncs interpolator targets, not raw position
+	var sync: MultiplayerSynchronizer = MultiplayerSynchronizer.new()
+	sync.name = "EnemySync"
+	sync.set_multiplayer_authority(1)
+	sync.replication_interval = 0.05  # 20 updates/sec
+
+	var config: SceneReplicationConfig = SceneReplicationConfig.new()
+	config.add_property(NodePath("%s:sync_position" % interp.get_path()))
+	config.add_property(NodePath("%s:sync_rotation" % interp.get_path()))
+
+	# sync health so clients see correct health values
+	var hc: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
+	if hc:
+		config.add_property(NodePath("%s:current_health" % hc.get_path()))
+
+	sync.replication_config = config
+	enemy.add_child(sync)

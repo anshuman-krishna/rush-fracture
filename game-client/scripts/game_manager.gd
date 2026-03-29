@@ -2,8 +2,10 @@ extends Node
 
 # central coordinator. connects run, room, combat, fracture, combo,
 # mutation, difficulty, and ui systems.
+# in multiplayer: host drives room progression, clients follow via rpc.
 
 @onready var player_manager: PlayerManager = $"../PlayerManager"
+@onready var player_spawner: PlayerSpawner = $"../PlayerSpawner"
 @onready var damage_vignette: ColorRect = $"../UI/DamageVignette"
 @onready var crosshair: CenterContainer = $"../UI/Crosshair"
 @onready var run_manager: RunManager = $"../RunManager"
@@ -25,6 +27,7 @@ extends Node
 var player: CharacterBody3D
 var weapon_manager: WeaponManager
 var camera: Camera3D
+var network_manager: NetworkManager
 
 var awaiting_upgrade: bool = false
 var awaiting_mutation: bool = false
@@ -32,9 +35,12 @@ var awaiting_transition: bool = false
 var _pending_mutation_after_upgrade: bool = false
 var _boss_active: bool = false
 var _boss_defeated: bool = false
+var _run_seed: int = 0
 
 
 func _ready() -> void:
+	_detect_network()
+	_setup_multiplayer_spawning()
 	_resolve_player_refs()
 
 	player.player_damaged.connect(_on_player_damaged)
@@ -70,7 +76,49 @@ func _ready() -> void:
 	combo_tracker.bind(player)
 	run_hud.bind_run_manager(run_manager)
 
-	_start_run()
+	if is_host_or_solo():
+		_start_run()
+	elif _is_online():
+		# client requests run seed from host after scene loads
+		_rpc_request_run_seed.rpc_id(1)
+
+
+func _detect_network() -> void:
+	network_manager = get_node_or_null("/root/NetworkManager") as NetworkManager
+	if network_manager:
+		network_manager.server_disconnected.connect(_on_server_disconnected)
+		network_manager.player_disconnected.connect(_on_peer_disconnected)
+
+
+func _setup_multiplayer_spawning() -> void:
+	if not network_manager or not network_manager.is_online():
+		return
+
+	# setup player spawner for multiplayer
+	var main_node: Node = get_parent()
+	player_spawner.setup(main_node, player_manager, network_manager)
+
+	# spawn players for all connected peers (except local — already in scene)
+	for peer_id: int in network_manager.connected_peers:
+		if peer_id != network_manager.local_peer_id:
+			player_spawner._spawn_player_for_peer(peer_id)
+
+	# set authority on the scene-tree player
+	var scene_player: CharacterBody3D = player_manager.get_primary_player()
+	if scene_player:
+		scene_player.set_multiplayer_authority(network_manager.local_peer_id)
+		player_spawner._add_synchronizer(scene_player, network_manager.local_peer_id)
+		player_spawner._spawned_players[network_manager.local_peer_id] = scene_player
+
+
+func is_host_or_solo() -> bool:
+	if not network_manager or not network_manager.is_online():
+		return true
+	return network_manager.is_host()
+
+
+func _is_online() -> bool:
+	return network_manager and network_manager.is_online()
 
 
 func _resolve_player_refs() -> void:
@@ -82,10 +130,23 @@ func _resolve_player_refs() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if awaiting_transition and event.is_action_pressed("jump"):
 		awaiting_transition = false
-		run_manager.advance_to_next_room()
+		if is_host_or_solo():
+			_advance_room()
+		else:
+			_rpc_request_advance_room.rpc_id(1)
 
+
+# --- run lifecycle ---
 
 func _start_run() -> void:
+	_run_seed = randi()
+	_do_start_run(_run_seed)
+
+	if _is_online():
+		_rpc_start_run.rpc(_run_seed)
+
+
+func _do_start_run(seed_value: int) -> void:
 	_reset_player()
 	upgrade_manager.reset()
 	mutation_manager.reset()
@@ -98,8 +159,41 @@ func _start_run() -> void:
 	_pending_mutation_after_upgrade = false
 	game_feel.reset()
 	audio.play("run_start", -3.0)
-	run_manager.start_run()
+	run_manager.start_run(seed_value)
 
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_start_run(seed_value: int) -> void:
+	_do_start_run(seed_value)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_run_seed() -> void:
+	# client asks host for current run seed after loading
+	if is_host_or_solo() and _run_seed != 0:
+		var sender_id: int = multiplayer.get_remote_sender_id()
+		_rpc_start_run.rpc_id(sender_id, _run_seed)
+
+
+func _advance_room() -> void:
+	run_manager.advance_to_next_room()
+	if _is_online():
+		_rpc_advance_room.rpc()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_advance_room() -> void:
+	run_manager.advance_to_next_room()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_advance_room() -> void:
+	# client requests host to advance — host validates and advances
+	if is_host_or_solo():
+		_advance_room()
+
+
+# --- player ---
 
 func _reset_player() -> void:
 	player.health = player.max_health
@@ -135,8 +229,18 @@ func _on_player_damaged(amount: int) -> void:
 	game_feel.camera_punch(camera, effective * 0.3)
 	if player.health <= 0:
 		_on_death()
-		run_manager.fail_run()
+		if is_host_or_solo():
+			run_manager.fail_run()
+			if _is_online():
+				_rpc_fail_run.rpc()
 
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_fail_run() -> void:
+	run_manager.fail_run()
+
+
+# --- combat ---
 
 func _on_weapon_kill() -> void:
 	run_manager.register_kill()
@@ -183,7 +287,17 @@ func _on_boss_defeated() -> void:
 	game_feel.boss_death_slowmo()
 
 
+# --- room progression (host-driven) ---
+
 func _on_all_enemies_dead() -> void:
+	if is_host_or_solo():
+		run_manager.on_room_enemies_cleared()
+		if _is_online():
+			_rpc_room_cleared.rpc()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_room_cleared() -> void:
 	run_manager.on_room_enemies_cleared()
 
 
@@ -229,6 +343,11 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 	difficulty_tracker.on_room_cleared()
 	audio.play("room_clear", -3.0)
 
+	# clients wait for host-driven room transitions
+	if not is_host_or_solo():
+		_prompt_next_room()
+		return
+
 	if room.type == RoomDefinitions.RoomType.BOSS:
 		# boss reward: upgrade + mutation, then complete
 		_pending_mutation_after_upgrade = true
@@ -240,10 +359,23 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 	elif _should_offer_mutation():
 		_show_mutation_selection()
 	elif run_manager.data.is_final_room():
-		run_manager.complete_run()
+		_complete_run()
 	else:
 		_prompt_next_room()
 
+
+func _complete_run() -> void:
+	run_manager.complete_run()
+	if _is_online():
+		_rpc_complete_run.rpc()
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_complete_run() -> void:
+	run_manager.complete_run()
+
+
+# --- upgrades and mutations (host-driven) ---
 
 func _show_upgrade_selection() -> void:
 	awaiting_upgrade = true
@@ -269,7 +401,7 @@ func _on_upgrade_selected(upgrade: Dictionary) -> void:
 		return
 
 	if run_manager.data.is_final_room():
-		run_manager.complete_run()
+		_complete_run()
 	else:
 		_prompt_next_room()
 
@@ -301,9 +433,9 @@ func _on_mutation_selected(mutation: Dictionary) -> void:
 	audio.play("upgrade_pick", -3.0)
 
 	if _boss_defeated:
-		run_manager.complete_run()
+		_complete_run()
 	elif run_manager.data.is_final_room():
-		run_manager.complete_run()
+		_complete_run()
 	else:
 		_prompt_next_room()
 
@@ -311,9 +443,9 @@ func _on_mutation_selected(mutation: Dictionary) -> void:
 func _on_mutation_skipped() -> void:
 	awaiting_mutation = false
 	if _boss_defeated:
-		run_manager.complete_run()
+		_complete_run()
 	elif run_manager.data.is_final_room():
-		run_manager.complete_run()
+		_complete_run()
 	else:
 		_prompt_next_room()
 
@@ -321,6 +453,8 @@ func _on_mutation_skipped() -> void:
 func _prompt_next_room() -> void:
 	awaiting_transition = true
 
+
+# --- run end ---
 
 func _on_run_failed(data: RunData) -> void:
 	fracture_manager.end_fracture()
@@ -348,8 +482,11 @@ func _on_restart() -> void:
 	mutation_ui.visible = false
 	room_controller.clear_current_room()
 	_resolve_player_refs()
-	_start_run()
+	if is_host_or_solo():
+		_start_run()
 
+
+# --- fracture / combo ---
 
 func _on_fracture_started(type: FractureDefinitions.FractureType) -> void:
 	room_announce.show_fracture(FractureDefinitions.get_name(type))
@@ -368,6 +505,21 @@ func _on_combo_reset() -> void:
 	upgrade_manager.on_combo_reset()
 	run_hud.update_combo(1, 0)
 
+
+# --- network events ---
+
+func _on_server_disconnected() -> void:
+	# host dropped — clean up and return to menu
+	Engine.time_scale = 1.0
+	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+
+
+func _on_peer_disconnected(peer_id: int) -> void:
+	# remote player left — spawner handles despawn, just log
+	pass
+
+
+# --- utilities ---
 
 func _reset_player_position() -> void:
 	player.global_position = Vector3(0, 2, 0)
