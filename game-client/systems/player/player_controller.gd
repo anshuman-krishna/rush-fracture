@@ -1,6 +1,7 @@
 extends CharacterBody3D
 
 signal player_damaged(amount: int)
+signal player_dashed
 
 @export var move_speed: float = 12.0
 @export var acceleration: float = 50.0
@@ -147,6 +148,7 @@ func _handle_dash(delta: float) -> void:
 		dash_timer = dash_duration
 		dash_cooldown_timer = dash_cooldown
 		velocity = dash_direction * dash_force
+		player_dashed.emit()
 
 	if is_dashing:
 		dash_timer -= delta

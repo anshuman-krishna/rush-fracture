@@ -31,10 +31,16 @@ static func _available_types(difficulty: float) -> Array[EnemyTypes.Type]:
 		types.append(EnemyTypes.Type.EXPLODER)
 	if difficulty >= 1.4:
 		types.append(EnemyTypes.Type.SHOOTER)
+	if difficulty >= 1.5:
+		types.append(EnemyTypes.Type.SNIPER)
 	if difficulty >= 1.6:
 		types.append(EnemyTypes.Type.DASHER)
+	if difficulty >= 1.6:
+		types.append(EnemyTypes.Type.SUPPORT)
 	if difficulty >= 1.8:
 		types.append(EnemyTypes.Type.TANK)
+	if difficulty >= 1.8:
+		types.append(EnemyTypes.Type.DISPLACER)
 
 	return types
 
@@ -51,6 +57,9 @@ static func _type_weights(
 				EnemyTypes.Type.SHOOTER: 1,
 				EnemyTypes.Type.DASHER: 2,
 				EnemyTypes.Type.TANK: 0,
+				EnemyTypes.Type.SNIPER: 0,
+				EnemyTypes.Type.SUPPORT: 1,
+				EnemyTypes.Type.DISPLACER: 1,
 			}
 		RoomDefinitions.RoomType.ELITE:
 			return {
@@ -59,6 +68,45 @@ static func _type_weights(
 				EnemyTypes.Type.SHOOTER: 3,
 				EnemyTypes.Type.DASHER: 2,
 				EnemyTypes.Type.TANK: 3,
+				EnemyTypes.Type.SNIPER: 2,
+				EnemyTypes.Type.SUPPORT: 2,
+				EnemyTypes.Type.DISPLACER: 2,
+			}
+		RoomDefinitions.RoomType.HAZARD:
+			# hazard rooms favor ranged and tricky enemies
+			return {
+				EnemyTypes.Type.CHASER: 2,
+				EnemyTypes.Type.EXPLODER: 3,
+				EnemyTypes.Type.SHOOTER: 2,
+				EnemyTypes.Type.DASHER: 1,
+				EnemyTypes.Type.TANK: 1,
+				EnemyTypes.Type.SNIPER: 3,
+				EnemyTypes.Type.SUPPORT: 1,
+				EnemyTypes.Type.DISPLACER: 2,
+			}
+		RoomDefinitions.RoomType.GAUNTLET:
+			# gauntlet waves: high aggression
+			return {
+				EnemyTypes.Type.CHASER: 4,
+				EnemyTypes.Type.EXPLODER: 3,
+				EnemyTypes.Type.SHOOTER: 2,
+				EnemyTypes.Type.DASHER: 3,
+				EnemyTypes.Type.TANK: 1,
+				EnemyTypes.Type.SNIPER: 1,
+				EnemyTypes.Type.SUPPORT: 2,
+				EnemyTypes.Type.DISPLACER: 2,
+			}
+		RoomDefinitions.RoomType.ELITE_CHAMBER:
+			# elite chamber: fewer but stronger synergy picks
+			return {
+				EnemyTypes.Type.CHASER: 1,
+				EnemyTypes.Type.EXPLODER: 1,
+				EnemyTypes.Type.SHOOTER: 2,
+				EnemyTypes.Type.DASHER: 2,
+				EnemyTypes.Type.TANK: 3,
+				EnemyTypes.Type.SNIPER: 3,
+				EnemyTypes.Type.SUPPORT: 3,
+				EnemyTypes.Type.DISPLACER: 3,
 			}
 		_:
 			# combat / default — balanced
@@ -69,6 +117,9 @@ static func _type_weights(
 				EnemyTypes.Type.SHOOTER: int(1 + variety * 2),
 				EnemyTypes.Type.DASHER: int(variety * 2),
 				EnemyTypes.Type.TANK: int(variety * 1.5),
+				EnemyTypes.Type.SNIPER: int(variety * 1.5),
+				EnemyTypes.Type.SUPPORT: int(variety),
+				EnemyTypes.Type.DISPLACER: int(variety),
 			}
 
 

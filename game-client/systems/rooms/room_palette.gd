@@ -25,6 +25,12 @@ static func pick_for_room(room_index: int, room_type: RoomDefinitions.RoomType) 
 		return _create(PaletteType.CRIMSON)
 	if room_type == RoomDefinitions.RoomType.RECOVERY:
 		return _create(PaletteType.COLD)
+	if room_type == RoomDefinitions.RoomType.ELITE_CHAMBER:
+		return _create(PaletteType.CORRUPT)
+	if room_type == RoomDefinitions.RoomType.HAZARD:
+		return _create(PaletteType.CRIMSON)
+	if room_type == RoomDefinitions.RoomType.GAUNTLET:
+		return _create(PaletteType.BLEACH)
 
 	# cycle through palettes with some randomness
 	var options: Array = [PaletteType.CRIMSON, PaletteType.COLD, PaletteType.BLEACH, PaletteType.CORRUPT]

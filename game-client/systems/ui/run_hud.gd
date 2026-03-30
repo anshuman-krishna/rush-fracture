@@ -1,8 +1,9 @@
 extends Control
 
-# persistent run hud: room counter, timer, hp, enemies, weapon, combo
+# persistent run hud: room counter, timer, hp, enemies, weapon, combo, mode
 
 var run_manager: RunManager
+var pvp_manager: PvPManager
 
 @onready var room_label: Label = $RoomLabel
 @onready var timer_label: Label = $TimerLabel
@@ -10,10 +11,15 @@ var run_manager: RunManager
 @onready var enemy_label: Label = $EnemyLabel
 @onready var weapon_label: Label = $WeaponLabel
 @onready var combo_label: Label = $ComboLabel
+@onready var mode_label: Label = $ModeLabel
 
 
 func bind_run_manager(manager: RunManager) -> void:
 	run_manager = manager
+
+
+func bind_pvp(manager: PvPManager) -> void:
+	pvp_manager = manager
 
 
 func update_weapon_display(weapon_name: String) -> void:
@@ -60,6 +66,26 @@ func _process(_delta: float) -> void:
 			weapon_label.add_theme_color_override("font_color", Color(1.0, 0.5, 0.1))
 		else:
 			weapon_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
+
+	_update_mode_display()
+
+
+func _update_mode_display() -> void:
+	if not mode_label:
+		return
+
+	var gm: GameModeManager = get_node_or_null("/root/GameModeManager") as GameModeManager
+	if not gm or gm.current_mode == GameModeManager.GameMode.COOP:
+		mode_label.visible = false
+		return
+
+	mode_label.visible = true
+	if pvp_manager and pvp_manager.is_active():
+		mode_label.text = "pvp encounter"
+		mode_label.add_theme_color_override("font_color", Color(1.0, 0.2, 0.1))
+	else:
+		mode_label.text = gm.get_mode_name()
+		mode_label.add_theme_color_override("font_color", Color(0.9, 0.6, 0.2))
 
 
 static func _format_time(seconds: float) -> String:

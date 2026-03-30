@@ -57,7 +57,17 @@ func _process(_delta: float) -> void:
 
 	lines.append("players: %d" % player_count)
 	lines.append("speed: %.1f" % Vector2(player.velocity.x, player.velocity.z).length())
-	lines.append("enemies: %d" % get_tree().get_nodes_in_group("enemies").size())
+	var enemy_nodes: Array[Node] = get_tree().get_nodes_in_group("enemies")
+	lines.append("enemies: %d" % enemy_nodes.size())
+	if enemy_nodes.size() > 0:
+		var types: Dictionary = {}
+		for e in enemy_nodes:
+			var type_name: String = e.get_script().get_path().get_file().replace("_controller.gd", "")
+			types[type_name] = types.get(type_name, 0) + 1
+		var parts: PackedStringArray = PackedStringArray()
+		for t in types:
+			parts.append("%s:%d" % [t, types[t]])
+		lines.append("  comp: %s" % " ".join(parts))
 	lines.append("hp: %d/%d" % [player.health, player.max_health])
 
 	var wm: WeaponManager = _player_manager.get_primary_weapon_manager() if _player_manager else null
@@ -84,6 +94,9 @@ func _process(_delta: float) -> void:
 		var data: RunData = run_manager.data
 		lines.append("---")
 		lines.append("run: %s" % ["active", "paused", "failed", "done"][data.status])
+		if data.current_room_index < data.room_sequence.size():
+			var cur_room: RunData.RoomData = data.room_sequence[data.current_room_index]
+			lines.append("room type: %s (d:%.1f)" % [RoomDefinitions.type_to_string(cur_room.type), cur_room.difficulty])
 		lines.append("kills: %d" % data.total_enemies_killed)
 		lines.append("upgrades: %d" % data.chosen_upgrades.size())
 
@@ -100,12 +113,12 @@ func _process(_delta: float) -> void:
 			lines.append("palette: active")
 
 		if rc and rc.active_boss:
-			var boss: BossController = rc.active_boss
-			var bh: HealthComponent = boss.get_node_or_null("HealthComponent") as HealthComponent
-			if bh:
+			var boss_node: Node = rc.active_boss
+			var bh: HealthComponent = boss_node.get_node_or_null("HealthComponent") as HealthComponent
+			if bh and boss_node.has_method("get_phase") and boss_node.has_method("get_health_ratio"):
 				lines.append("boss: phase %d hp:%d/%d (%.0f%%)" % [
-					boss.get_phase(), bh.current_health, bh.max_health,
-					boss.get_health_ratio() * 100])
+					boss_node.get_phase(), bh.current_health, bh.max_health,
+					boss_node.get_health_ratio() * 100])
 
 		lines.append("---")
 		for i in data.room_sequence.size():

@@ -7,6 +7,9 @@ enum Type {
 	DASHER,
 	TANK,
 	EXPLODER,
+	SNIPER,
+	SUPPORT,
+	DISPLACER,
 }
 
 
@@ -16,6 +19,9 @@ static var type_names: Dictionary = {
 	Type.DASHER: "dasher",
 	Type.TANK: "tank",
 	Type.EXPLODER: "exploder",
+	Type.SNIPER: "sniper",
+	Type.SUPPORT: "support",
+	Type.DISPLACER: "displacer",
 }
 
 

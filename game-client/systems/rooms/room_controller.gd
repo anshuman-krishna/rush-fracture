@@ -16,9 +16,12 @@ var enemies_alive: int = 0
 var room_active: bool = false
 var _enemy_scenes: Dictionary = {}
 var _boss_scene: PackedScene
-var active_boss: BossController
+var _warden_scene: PackedScene
+var active_boss: Node
 var current_palette: RoomPalette
 var _dup_counter: int = 0
+var _gauntlet_waves_remaining: int = 0
+var _gauntlet_timer: float = 0.0
 
 @onready var arena_root: Node3D = $ArenaRoot
 @onready var enemy_root: Node3D = $EnemyRoot
@@ -28,6 +31,7 @@ var _dup_counter: int = 0
 func _ready() -> void:
 	_preload_enemy_scenes()
 	_preload_boss_scene()
+	_preload_warden_scene()
 
 
 func enter_room(room: RunData.RoomData) -> void:
@@ -48,6 +52,10 @@ func enter_room(room: RunData.RoomData) -> void:
 
 	if room.type == RoomDefinitions.RoomType.BOSS:
 		_spawn_boss(room)
+	elif room.type == RoomDefinitions.RoomType.ELITE_CHAMBER:
+		_spawn_warden(room)
+	elif room.type == RoomDefinitions.RoomType.GAUNTLET:
+		_start_gauntlet(room)
 	else:
 		_spawn_enemies(room)
 	room_active = true
@@ -64,6 +72,12 @@ func _preload_boss_scene() -> void:
 	var path: String = "res://scenes/enemies/boss_fracture_titan.tscn"
 	if ResourceLoader.exists(path):
 		_boss_scene = load(path)
+
+
+func _preload_warden_scene() -> void:
+	var path: String = "res://scenes/enemies/boss_fracture_warden.tscn"
+	if ResourceLoader.exists(path):
+		_warden_scene = load(path)
 
 
 func _spawn_enemies(room: RunData.RoomData) -> void:
@@ -119,6 +133,61 @@ func _spawn_boss(room: RunData.RoomData) -> void:
 	enemies_alive = 1
 
 
+func _spawn_warden(room: RunData.RoomData) -> void:
+	if not _warden_scene:
+		return
+
+	active_boss = _warden_scene.instantiate() as BossWardenController
+	active_boss.name = "BossWarden_0"
+	active_boss.global_position = Vector3(0, 1.0, -12.0)
+
+	var bh: HealthComponent = active_boss.get_node_or_null("HealthComponent") as HealthComponent
+	if bh:
+		bh.max_health = int(bh.max_health * room.difficulty)
+		bh.current_health = bh.max_health
+		bh.died.connect(_on_enemy_died)
+
+	active_boss.boss_defeated.connect(_on_boss_defeated)
+	enemy_root.add_child(active_boss)
+	_setup_enemy_multiplayer(active_boss)
+	enemies_alive = 1
+
+
+func _start_gauntlet(room: RunData.RoomData) -> void:
+	# gauntlet: 3 waves of enemies, next wave spawns when current clears
+	_gauntlet_waves_remaining = 3
+	_spawn_gauntlet_wave(room)
+
+
+func _spawn_gauntlet_wave(room: RunData.RoomData) -> void:
+	var wave_budget: int = maxi(int(room.enemy_budget / 3), 2)
+	var composition: Array[EnemyTypes.Type] = EnemyComposition.get_composition(
+		room.type, room.difficulty, wave_budget)
+
+	for i in composition.size():
+		var type: EnemyTypes.Type = composition[i]
+		var scene: PackedScene = _enemy_scenes.get(type, _enemy_scenes.get(EnemyTypes.Type.CHASER))
+		if not scene:
+			continue
+
+		var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
+		instance.name = "GauntletEnemy_%d_%d" % [_gauntlet_waves_remaining, i]
+		instance.global_position = _get_spawn_position()
+		_scale_enemy(instance, room.difficulty, false)
+
+		var speed_bonus: float = room.metadata.get("enemy_speed_bonus", 0.0)
+		if speed_bonus > 0 and "move_speed" in instance:
+			instance.move_speed *= (1.0 + speed_bonus)
+
+		var h: HealthComponent = instance.get_node_or_null("HealthComponent") as HealthComponent
+		if h:
+			h.died.connect(_on_enemy_died)
+
+		enemy_root.add_child(instance)
+		_setup_enemy_multiplayer(instance)
+		enemies_alive += 1
+
+
 func _on_boss_defeated() -> void:
 	boss_defeated.emit()
 
@@ -163,6 +232,15 @@ func _on_enemy_died() -> void:
 	enemies_alive -= 1
 	enemy_killed.emit()
 	if enemies_alive <= 0 and room_active:
+		# gauntlet: spawn next wave if waves remain
+		if _gauntlet_waves_remaining > 1 and active_room and active_room.type == RoomDefinitions.RoomType.GAUNTLET:
+			_gauntlet_waves_remaining -= 1
+			# brief delay between waves
+			get_tree().create_timer(1.0).timeout.connect(func():
+				if room_active and active_room:
+					_spawn_gauntlet_wave(active_room)
+			)
+			return
 		room_active = false
 		all_enemies_dead.emit()
 
@@ -185,6 +263,12 @@ func _configure_arena(room: RunData.RoomData) -> void:
 		RoomDefinitions.RoomType.SWARM:
 			obstacle_count = clampi(int(room.difficulty), 1, 3)
 		RoomDefinitions.RoomType.ELITE:
+			obstacle_count = clampi(int(room.difficulty * 1.5), 2, 5)
+		RoomDefinitions.RoomType.HAZARD:
+			obstacle_count = clampi(int(room.difficulty * 2.5), 3, 8)
+		RoomDefinitions.RoomType.GAUNTLET:
+			obstacle_count = clampi(int(room.difficulty * 1.5), 2, 4)
+		RoomDefinitions.RoomType.ELITE_CHAMBER:
 			obstacle_count = clampi(int(room.difficulty * 1.5), 2, 5)
 
 	for i in obstacle_count:
@@ -257,7 +341,10 @@ func _place_hazards(room: RunData.RoomData) -> void:
 		return
 
 	var hazard_count: int = 0
-	if room.difficulty >= 1.4:
+	if room.type == RoomDefinitions.RoomType.HAZARD:
+		# hazard rooms always have many hazards
+		hazard_count = clampi(int(room.difficulty * 4), 4, 10)
+	elif room.difficulty >= 1.4:
 		hazard_count = clampi(int((room.difficulty - 1.2) * 3), 1, 5)
 
 	for i in hazard_count:
@@ -401,6 +488,7 @@ func _clear_room() -> void:
 	active_room = null
 	active_boss = null
 	_dup_counter = 0
+	_gauntlet_waves_remaining = 0
 
 
 func _setup_enemy_multiplayer(enemy: CharacterBody3D) -> void:

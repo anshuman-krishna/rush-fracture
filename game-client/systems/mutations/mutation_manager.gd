@@ -18,6 +18,12 @@ var _blood_pact_interval: float = 1.0
 # unstable core state
 var _unstable_core_active: bool = false
 
+# momentum shield state
+var _momentum_shield_active: bool = false
+
+# fracture echo state
+var _fracture_echo_active: bool = false
+
 
 func bind(player: CharacterBody3D, weapon_manager: WeaponManager) -> void:
 	_player = player
@@ -49,6 +55,12 @@ func apply(mutation: Dictionary) -> void:
 			_apply_velocity_addict()
 		MutationDefinitions.MutationType.TEMPORAL_DISTORTION:
 			_apply_temporal_distortion()
+		MutationDefinitions.MutationType.MOMENTUM_SHIELD:
+			_momentum_shield_active = true
+		MutationDefinitions.MutationType.FRACTURE_ECHO:
+			_fracture_echo_active = true
+			if _weapon_manager:
+				_weapon_manager.damage_multiplier *= 0.8
 
 	mutation_applied.emit(mutation)
 
@@ -90,11 +102,38 @@ func get_mutation_names() -> PackedStringArray:
 	return names
 
 
+func get_damage_multiplier() -> float:
+	# momentum shield: moving fast = less damage, standing still = more
+	if _momentum_shield_active and _player:
+		var speed: float = Vector2(_player.velocity.x, _player.velocity.z).length()
+		if speed > 8.0:
+			return 0.6
+		elif speed < 2.0:
+			return 1.4
+	return 1.0
+
+
+func on_fracture_started() -> void:
+	if _fracture_echo_active and _weapon_manager:
+		# revert the -20% and apply +35%
+		_weapon_manager.damage_multiplier /= 0.8
+		_weapon_manager.damage_multiplier *= 1.35
+
+
+func on_fracture_ended() -> void:
+	if _fracture_echo_active and _weapon_manager:
+		# revert +35% and reapply -20%
+		_weapon_manager.damage_multiplier /= 1.35
+		_weapon_manager.damage_multiplier *= 0.8
+
+
 func reset() -> void:
 	active_mutations.clear()
 	_blood_pact_active = false
 	_blood_pact_timer = 0.0
 	_unstable_core_active = false
+	_momentum_shield_active = false
+	_fracture_echo_active = false
 
 
 func _apply_glass_cannon() -> void:

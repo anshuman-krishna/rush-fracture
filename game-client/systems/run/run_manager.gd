@@ -29,6 +29,17 @@ func start_run(seed_value: int = -1) -> void:
 	enter_current_room()
 
 
+func start_run_with_sequence(sequence: Array[RunData.RoomData]) -> void:
+	data = RunData.new()
+	data.run_id = _generate_id()
+	data.room_sequence = sequence
+	data.status = RunData.RunStatus.ACTIVE
+	is_active = true
+	run_started.emit(data)
+
+	enter_current_room()
+
+
 func enter_current_room() -> void:
 	var room: RunData.RoomData = data.current_room()
 	if not room:

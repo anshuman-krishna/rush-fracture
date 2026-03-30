@@ -12,8 +12,11 @@ extends Control
 @onready var join_button: Button = $Panel/JoinButton
 @onready var ip_input: LineEdit = $Panel/IpInput
 @onready var status_label: Label = $Panel/StatusLabel
+@onready var mode_button: Button = $Panel/ModeButton
 
 var _network_manager: NetworkManager
+var _game_mode_manager: GameModeManager
+var _selected_mode: GameModeManager.GameMode = GameModeManager.GameMode.COOP
 
 
 func _ready() -> void:
@@ -31,14 +34,29 @@ func _ready() -> void:
 	_network_manager.name = "NetworkManager"
 	get_tree().root.add_child(_network_manager)
 
+	# create game mode manager
+	_game_mode_manager = GameModeManager.new()
+	_game_mode_manager.name = "GameModeManager"
+	get_tree().root.add_child(_game_mode_manager)
+
 	_network_manager.connection_succeeded.connect(_on_connection_succeeded)
 	_network_manager.connection_failed.connect(_on_connection_failed)
 
+	# mode selection button
+	if mode_button:
+		mode_button.pressed.connect(_on_mode_cycle)
+		_update_mode_label()
+
 
 func _on_start() -> void:
+	# set the selected game mode
+	_game_mode_manager.set_mode(_selected_mode)
+
 	# solo mode — clean up network manager if not connected
 	if _network_manager and not _network_manager.is_online():
 		_network_manager.queue_free()
+		# force coop for solo play
+		_game_mode_manager.set_mode(GameModeManager.GameMode.COOP)
 	_animate_out(func():
 		get_tree().change_scene_to_file("res://scenes/main.tscn")
 	)
@@ -83,6 +101,29 @@ func _on_connection_failed() -> void:
 	status_label.text = "connection failed"
 	host_button.disabled = false
 	join_button.disabled = false
+
+
+func _on_mode_cycle() -> void:
+	match _selected_mode:
+		GameModeManager.GameMode.COOP:
+			_selected_mode = GameModeManager.GameMode.RACE
+		GameModeManager.GameMode.RACE:
+			_selected_mode = GameModeManager.GameMode.PVP_ENCOUNTER
+		GameModeManager.GameMode.PVP_ENCOUNTER:
+			_selected_mode = GameModeManager.GameMode.COOP
+	_update_mode_label()
+
+
+func _update_mode_label() -> void:
+	if not mode_button:
+		return
+	match _selected_mode:
+		GameModeManager.GameMode.COOP:
+			mode_button.text = "mode: co-op"
+		GameModeManager.GameMode.RACE:
+			mode_button.text = "mode: race"
+		GameModeManager.GameMode.PVP_ENCOUNTER:
+			mode_button.text = "mode: pvp encounter"
 
 
 func _on_quit() -> void:

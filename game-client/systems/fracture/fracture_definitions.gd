@@ -6,6 +6,10 @@ enum FractureType {
 	VELOCITY_SURGE,
 	UNSTABLE_GRAVITY,
 	ENEMY_DUPLICATION,
+	LOW_GRAVITY,
+	DOUBLE_SPEED_ENEMIES,
+	RANDOM_EXPLOSIONS,
+	VISION_DISTORTION,
 }
 
 
@@ -24,6 +28,26 @@ static var events: Dictionary = {
 		"name": "fracture echo",
 		"description": "enemies may duplicate",
 		"duration": 10.0,
+	},
+	FractureType.LOW_GRAVITY: {
+		"name": "void drift",
+		"description": "gravity near zero",
+		"duration": 10.0,
+	},
+	FractureType.DOUBLE_SPEED_ENEMIES: {
+		"name": "adrenaline leak",
+		"description": "enemies move 2x faster",
+		"duration": 12.0,
+	},
+	FractureType.RANDOM_EXPLOSIONS: {
+		"name": "unstable field",
+		"description": "random explosions across the arena",
+		"duration": 10.0,
+	},
+	FractureType.VISION_DISTORTION: {
+		"name": "perception fracture",
+		"description": "vision warped",
+		"duration": 8.0,
 	},
 }
 

@@ -74,23 +74,15 @@ func _fire_spread(effective_damage: int) -> void:
 		var to: Vector3 = from + direction * weapon_range
 
 		var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
-		query.collision_mask = 2
+		query.collision_mask = _get_collision_mask()
 		query.collide_with_areas = false
+		query.exclude = _get_owner_exclude()
 
 		var result: Dictionary = space_state.intersect_ray(query)
 		if result.is_empty():
 			continue
 
-		var hit: Object = result.collider
-		var hit_pos: Vector3 = result.position
-		if hit is CharacterBody3D:
-			var health: HealthComponent = hit.get_node_or_null("HealthComponent") as HealthComponent
-			if health:
-				var was_alive: bool = health.is_alive()
-				health.take_damage(effective_damage)
-				enemy_hit.emit(hit_pos)
-				if was_alive and not health.is_alive():
-					enemy_killed.emit()
+		_handle_hit(result.collider, result.position, effective_damage)
 
 
 func _create_muzzle_flash() -> void:

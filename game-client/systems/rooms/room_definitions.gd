@@ -9,6 +9,9 @@ enum RoomType {
 	RECOVERY,
 	TRANSITION,
 	BOSS,
+	HAZARD,
+	GAUNTLET,
+	ELITE_CHAMBER,
 }
 
 enum RoomStatus {
@@ -25,6 +28,9 @@ static var type_names: Dictionary = {
 	RoomType.RECOVERY: "recovery",
 	RoomType.TRANSITION: "transition",
 	RoomType.BOSS: "boss",
+	RoomType.HAZARD: "hazard",
+	RoomType.GAUNTLET: "gauntlet",
+	RoomType.ELITE_CHAMBER: "elite chamber",
 }
 
 
@@ -40,9 +46,15 @@ static func enemy_budget_for(type: RoomType, difficulty: float) -> int:
 		RoomType.RECOVERY: 2,
 		RoomType.TRANSITION: 0,
 		RoomType.BOSS: 0,
+		RoomType.HAZARD: 4,
+		RoomType.GAUNTLET: 10,
+		RoomType.ELITE_CHAMBER: 3,
 	}
 	return int(base.get(type, 4) * difficulty)
 
 
 static func has_reward(type: RoomType) -> bool:
-	return type == RoomType.ELITE or type == RoomType.RECOVERY or type == RoomType.BOSS
+	match type:
+		RoomType.ELITE, RoomType.RECOVERY, RoomType.BOSS, RoomType.ELITE_CHAMBER:
+			return true
+	return false

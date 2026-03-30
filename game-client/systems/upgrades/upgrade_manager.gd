@@ -10,13 +10,25 @@ var has_chain_reaction: bool = false
 var has_adrenaline_surge: bool = false
 var has_temporal_break: bool = false
 var has_berserker: bool = false
+var has_explosive_dash: bool = false
+var has_enemy_slow_aura: bool = false
 var enemy_speed_bonus: float = 0.0
 var damage_taken_multiplier: float = 1.0
+var _slow_aura_radius: float = 8.0
+var _slow_aura_timer: float = 0.0
 
 var _player: CharacterBody3D
 var _weapon_manager: WeaponManager
 var _adrenaline_active: bool = false
 var _adrenaline_bonus: float = 0.0
+
+
+func _process(delta: float) -> void:
+	if has_enemy_slow_aura and _player:
+		_slow_aura_timer -= delta
+		if _slow_aura_timer <= 0:
+			_slow_aura_timer = 0.5
+			_apply_slow_aura()
 
 
 func bind(player: CharacterBody3D, weapon_manager: WeaponManager) -> void:
@@ -67,6 +79,14 @@ func apply(upgrade: Dictionary) -> void:
 			has_adrenaline_surge = true
 		"temporal_break":
 			has_temporal_break = true
+		"ricochet_rounds":
+			_apply_weapon_flag("PulseRifle", "ricochet", true)
+		"piercing_beam":
+			_apply_weapon_flag("BeamEmitter", "piercing", true)
+		"explosive_dash":
+			has_explosive_dash = true
+		"enemy_slow_aura":
+			has_enemy_slow_aura = true
 		"power_surge":
 			_apply_power_surge()
 		"fragile_speed":
@@ -109,6 +129,11 @@ func get_effective_damage(base_damage: int) -> int:
 	return base_damage
 
 
+func on_player_dashed() -> void:
+	if has_explosive_dash and _player:
+		_trigger_explosive_dash()
+
+
 func reset() -> void:
 	kill_heal_amount = 0
 	has_unstable_rounds = false
@@ -116,10 +141,13 @@ func reset() -> void:
 	has_adrenaline_surge = false
 	has_temporal_break = false
 	has_berserker = false
+	has_explosive_dash = false
+	has_enemy_slow_aura = false
 	enemy_speed_bonus = 0.0
 	damage_taken_multiplier = 1.0
 	_adrenaline_active = false
 	_adrenaline_bonus = 0.0
+	_slow_aura_timer = 0.0
 
 
 func _apply_overdrive() -> void:
@@ -205,6 +233,34 @@ func _apply_berserker_pact() -> void:
 	if _player:
 		_player.max_health = maxi(_player.max_health - 30, 20)
 		_player.health = mini(_player.health, _player.max_health)
+
+
+func _apply_slow_aura() -> void:
+	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
+	for enemy in enemies:
+		if not enemy is Node3D or not "move_speed" in enemy:
+			continue
+		var dist: float = enemy.global_position.distance_to(_player.global_position)
+		var is_slowed: bool = enemy.get_meta("slow_aura_active", false)
+		if dist < _slow_aura_radius and not is_slowed:
+			enemy.move_speed *= 0.7
+			enemy.set_meta("slow_aura_active", true)
+		elif dist >= _slow_aura_radius and is_slowed:
+			enemy.move_speed /= 0.7
+			enemy.set_meta("slow_aura_active", false)
+
+
+func _trigger_explosive_dash() -> void:
+	var radius: float = 4.0
+	var damage: int = 20
+	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
+	for enemy in enemies:
+		if not enemy is Node3D:
+			continue
+		if enemy.global_position.distance_to(_player.global_position) < radius:
+			var h: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
+			if h and h.is_alive():
+				h.take_damage(damage)
 
 
 static func _apply_to(target: Node, property: String, modifier, mode: String) -> void:

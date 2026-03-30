@@ -10,6 +10,8 @@ enum MutationType {
 	UNSTABLE_CORE,
 	VELOCITY_ADDICT,
 	TEMPORAL_DISTORTION,
+	MOMENTUM_SHIELD,
+	FRACTURE_ECHO,
 }
 
 
@@ -55,6 +57,20 @@ static var catalog: Array[Dictionary] = [
 		"description": "kills slow time 0.5s, -20% base speed",
 		"upside": "time slow on kill",
 		"downside": "reduced speed",
+	},
+	{
+		"type": MutationType.MOMENTUM_SHIELD,
+		"name": "momentum shield",
+		"description": "moving fast reduces damage taken, standing still takes 40% more",
+		"upside": "damage reduction at speed",
+		"downside": "vulnerable when slow",
+	},
+	{
+		"type": MutationType.FRACTURE_ECHO,
+		"name": "fracture echo",
+		"description": "+35% damage during fracture events, -20% damage otherwise",
+		"upside": "massive fracture boost",
+		"downside": "weaker in normal rooms",
 	},
 ]
 

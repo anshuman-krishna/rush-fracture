@@ -35,7 +35,7 @@ static func generate(seed_value: int = -1) -> Array[RunData.RoomData]:
 		var difficulty: float = BASE_DIFFICULTY + DIFFICULTY_STEP * i
 		var type: RoomDefinitions.RoomType = _pick_room_type(rng, progress, last_type, elite_placed, recovery_count)
 
-		if type == RoomDefinitions.RoomType.ELITE:
+		if type == RoomDefinitions.RoomType.ELITE or type == RoomDefinitions.RoomType.ELITE_CHAMBER:
 			elite_placed = true
 		if type == RoomDefinitions.RoomType.RECOVERY:
 			recovery_count += 1
@@ -60,6 +60,12 @@ static func _pick_room_type(
 	recovery_count: int,
 ) -> RoomDefinitions.RoomType:
 	var roll: float = rng.randf()
+	var roll2: float = rng.randf()
+
+	# elite chamber: once per run, late-run, not after recovery
+	if not elite_placed and progress > 0.5 and progress < 0.85:
+		if roll < 0.15 and last_type != RoomDefinitions.RoomType.RECOVERY:
+			return RoomDefinitions.RoomType.ELITE_CHAMBER
 
 	# elite: once per run, not too early, not after recovery
 	if not elite_placed and progress > 0.4 and progress < 0.85:
@@ -70,6 +76,14 @@ static func _pick_room_type(
 	if recovery_count < 1 and progress > 0.3 and progress < 0.7:
 		if roll > 0.75 and last_type != RoomDefinitions.RoomType.RECOVERY:
 			return RoomDefinitions.RoomType.RECOVERY
+
+	# gauntlet: mid-to-late run, avoid consecutive
+	if progress > 0.4 and roll2 < 0.2 and last_type != RoomDefinitions.RoomType.GAUNTLET:
+		return RoomDefinitions.RoomType.GAUNTLET
+
+	# hazard: difficulty-gated, avoid consecutive
+	if progress > 0.3 and roll2 > 0.7 and last_type != RoomDefinitions.RoomType.HAZARD:
+		return RoomDefinitions.RoomType.HAZARD
 
 	# swarm: avoid consecutive swarms
 	if roll < 0.35 and last_type != RoomDefinitions.RoomType.SWARM:

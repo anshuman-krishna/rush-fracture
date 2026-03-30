@@ -76,25 +76,19 @@ func _raycast() -> Dictionary:
 	var to: Vector3 = from + camera.project_ray_normal(screen_center) * weapon_range
 
 	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
-	query.collision_mask = 2
+	query.collision_mask = _get_collision_mask()
 	query.collide_with_areas = false
+	query.exclude = _get_owner_exclude()
 	return space_state.intersect_ray(query)
 
 
 func _apply_hit(result: Dictionary, effective_damage: int) -> void:
 	var hit: Object = result.collider
 	var hit_pos: Vector3 = result.position
-	if hit is CharacterBody3D:
-		var health: HealthComponent = hit.get_node_or_null("HealthComponent") as HealthComponent
-		if health:
-			var dmg: int = effective_damage
-			if armor_piercing:
-				dmg = int(dmg * 1.4)
-			var was_alive: bool = health.is_alive()
-			health.take_damage(dmg)
-			enemy_hit.emit(hit_pos)
-			if was_alive and not health.is_alive():
-				enemy_killed.emit()
+	var dmg: int = effective_damage
+	if armor_piercing:
+		dmg = int(dmg * 1.4)
+	_handle_hit(hit, hit_pos, dmg)
 
 
 func _create_muzzle_flash() -> void:
