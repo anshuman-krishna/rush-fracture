@@ -73,11 +73,10 @@ func _apply_pvp_damage(target_peer: int, damage: int, attacker_peer: int) -> voi
 	_pvp_health[target_peer] = maxi(_pvp_health.get(target_peer, 0) - damage, 0)
 	_game_mode.register_damage_dealt(attacker_peer, damage)
 
-	# apply visual damage to the actual player
+	# apply visual damage to the actual player (fraction of pvp damage)
 	var target_player: CharacterBody3D = _find_player_by_peer(target_peer)
 	if target_player and target_player.has_method("take_damage"):
-		# use a fraction of pvp damage as visual/health damage
-		target_player.take_damage(damage)
+		target_player.take_damage(ceili(damage / 3))
 
 	if _pvp_health[target_peer] <= 0:
 		_on_player_eliminated(target_peer, attacker_peer)

@@ -231,7 +231,7 @@ func _apply_fragile_speed() -> void:
 func _apply_berserker_pact() -> void:
 	has_berserker = true
 	if _player:
-		_player.max_health = maxi(_player.max_health - 30, 20)
+		_player.max_health = maxi(_player.max_health - 20, 20)
 		_player.health = mini(_player.health, _player.max_health)
 
 
@@ -243,10 +243,10 @@ func _apply_slow_aura() -> void:
 		var dist: float = enemy.global_position.distance_to(_player.global_position)
 		var is_slowed: bool = enemy.get_meta("slow_aura_active", false)
 		if dist < _slow_aura_radius and not is_slowed:
-			enemy.move_speed *= 0.7
+			enemy.move_speed *= 0.8
 			enemy.set_meta("slow_aura_active", true)
 		elif dist >= _slow_aura_radius and is_slowed:
-			enemy.move_speed /= 0.7
+			enemy.move_speed /= 0.8
 			enemy.set_meta("slow_aura_active", false)
 
 

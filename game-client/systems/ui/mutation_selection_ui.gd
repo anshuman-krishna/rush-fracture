@@ -42,6 +42,10 @@ func _build_buttons() -> void:
 
 	for i in choices.size():
 		var mutation: Dictionary = choices[i]
+
+		var wrapper: VBoxContainer = VBoxContainer.new()
+		wrapper.add_theme_constant_override("separation", 2)
+
 		var btn: Button = Button.new()
 		btn.text = "[%d] %s — %s" % [i + 1, mutation.name, mutation.description]
 		btn.custom_minimum_size = Vector2(450, 50)
@@ -52,15 +56,33 @@ func _build_buttons() -> void:
 
 		var captured: Dictionary = mutation
 		btn.pressed.connect(func(): _on_choice(captured))
-		container.add_child(btn)
+		wrapper.add_child(btn)
+
+		# upside/downside hint
+		var upside: String = mutation.get("upside", "")
+		var downside: String = mutation.get("downside", "")
+		if upside.length() > 0 or downside.length() > 0:
+			var hint_label: Label = Label.new()
+			var parts: PackedStringArray = PackedStringArray()
+			if upside.length() > 0:
+				parts.append(upside)
+			if downside.length() > 0:
+				parts.append(downside)
+			hint_label.text = " | ".join(parts)
+			hint_label.add_theme_font_size_override("font_size", 11)
+			hint_label.add_theme_color_override("font_color", Color(0.6, 0.4, 0.2))
+			hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			wrapper.add_child(hint_label)
+
+		container.add_child(wrapper)
 
 		# staggered fade
-		btn.modulate.a = 0.0
+		wrapper.modulate.a = 0.0
 		var delay: float = i * 0.05
 		get_tree().create_timer(delay).timeout.connect(func():
-			if is_instance_valid(btn):
+			if is_instance_valid(wrapper):
 				var t: Tween = create_tween()
-				t.tween_property(btn, "modulate:a", 1.0, 0.1)
+				t.tween_property(wrapper, "modulate:a", 1.0, 0.1)
 		)
 
 	# skip button
@@ -75,7 +97,11 @@ func _build_buttons() -> void:
 
 	# focus first button
 	if container.get_child_count() > 0:
-		container.get_child(0).call_deferred("grab_focus")
+		var first: Node = container.get_child(0)
+		if first is VBoxContainer and first.get_child_count() > 0:
+			first.get_child(0).call_deferred("grab_focus")
+		else:
+			first.call_deferred("grab_focus")
 
 
 func _animate_in() -> void:

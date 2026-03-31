@@ -43,6 +43,7 @@ var _pvp_active: bool = false
 var _match_ended: bool = false
 var _profile: PlayerProfile
 var _scavenger_healed_this_room: bool = false
+var _onboarding: OnboardingOverlay
 
 
 func _ready() -> void:
@@ -89,7 +90,11 @@ func _ready() -> void:
 	run_hud.bind_pvp(pvp_manager)
 	run_hud.bind_player(player, weapon_manager)
 
-	if is_host_or_solo():
+	# show onboarding on first run
+	var settings: GameSettings = GameSettings.load_settings()
+	if not settings.has_seen_onboarding:
+		_show_onboarding()
+	elif is_host_or_solo():
 		_start_run()
 	elif _is_online():
 		_rpc_request_run_seed.rpc_id(1)
@@ -739,6 +744,27 @@ func _on_peer_disconnected(peer_id: int) -> void:
 
 
 # --- utilities ---
+
+func _show_onboarding() -> void:
+	var scene: PackedScene = load("res://scenes/onboarding_overlay.tscn")
+	if not scene:
+		if is_host_or_solo():
+			_start_run()
+		return
+	_onboarding = scene.instantiate() as OnboardingOverlay
+	var ui_layer: CanvasLayer = get_node_or_null("../UI") as CanvasLayer
+	if ui_layer:
+		ui_layer.add_child(_onboarding)
+	else:
+		add_child(_onboarding)
+	_onboarding.show_onboarding()
+	_onboarding.dismissed.connect(func():
+		if is_host_or_solo():
+			_start_run()
+		elif _is_online():
+			_rpc_request_run_seed.rpc_id(1)
+	)
+
 
 func _reset_player_position() -> void:
 	player.global_position = Vector3(0, 2, 0)

@@ -24,6 +24,7 @@ var dash_cooldown_timer: float = 0.0
 var dash_direction: Vector3 = Vector3.ZERO
 var is_dashing: bool = false
 var input: InputProvider = InputProvider.new()
+var invert_mouse_y: bool = false
 
 # network sync targets — synchronizer writes to these, visual lerps toward them
 var sync_position: Vector3 = Vector3.ZERO
@@ -43,6 +44,7 @@ func _ready() -> void:
 
 	if _is_local_authority():
 		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
+		_apply_settings()
 	var pm: PlayerManager = _get_player_manager()
 	if pm:
 		pm.register_player(self)
@@ -64,7 +66,10 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event is InputEventMouseMotion:
 		rotate_y(-event.relative.x * mouse_sensitivity)
-		head.rotate_x(-event.relative.y * mouse_sensitivity)
+		var y_input: float = -event.relative.y * mouse_sensitivity
+		if invert_mouse_y:
+			y_input = -y_input
+		head.rotate_x(y_input)
 		head.rotation.x = clamp(head.rotation.x, -PI / 2, PI / 2)
 
 	if event.is_action_pressed("ui_cancel"):
@@ -159,3 +164,9 @@ func _handle_dash(delta: float) -> void:
 		dash_timer -= delta
 		if dash_timer <= 0:
 			is_dashing = false
+
+
+func _apply_settings() -> void:
+	var settings: GameSettings = GameSettings.load_settings()
+	mouse_sensitivity = settings.mouse_sensitivity
+	invert_mouse_y = settings.invert_mouse_y

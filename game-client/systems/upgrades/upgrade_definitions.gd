@@ -104,9 +104,9 @@ static var catalog: Array[Dictionary] = [
 	{
 		"type": UpgradeType.LIFESTEAL_CORE,
 		"name": "lifesteal core",
-		"description": "heal 12 hp per kill",
+		"description": "heal 10 hp per kill",
 		"stat": "kill_heal",
-		"modifier": 12,
+		"modifier": 10,
 		"apply_mode": "set",
 	},
 	{
@@ -229,7 +229,7 @@ static var catalog: Array[Dictionary] = [
 	{
 		"type": UpgradeType.ENEMY_SLOW_AURA,
 		"name": "null field",
-		"description": "nearby enemies move 30% slower",
+		"description": "nearby enemies move 20% slower",
 		"stat": "enemy_slow_aura",
 		"modifier": 1.0,
 		"apply_mode": "special",
@@ -256,7 +256,7 @@ static var catalog: Array[Dictionary] = [
 	{
 		"type": UpgradeType.BERSERKER_PACT,
 		"name": "berserker pact",
-		"description": "+25% damage at low hp, -30 max health",
+		"description": "+25% damage at low hp, -20 max health",
 		"stat": "berserker_pact",
 		"modifier": 1.0,
 		"apply_mode": "special",

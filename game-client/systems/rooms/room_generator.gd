@@ -44,7 +44,7 @@ static func generate(seed_value: int = -1) -> Array[RunData.RoomData]:
 		last_type = type
 
 	# final room is the boss encounter
-	var final_difficulty: float = BASE_DIFFICULTY + DIFFICULTY_STEP * (room_count - 1) + 0.3
+	var final_difficulty: float = BASE_DIFFICULTY + DIFFICULTY_STEP * (room_count - 1) + 0.15
 	sequence.append(_create_room(
 		room_count - 1, RoomDefinitions.RoomType.BOSS, final_difficulty
 	))

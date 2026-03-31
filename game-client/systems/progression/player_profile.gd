@@ -30,31 +30,53 @@ var unlocks: Dictionary = {}
 static func load_profile() -> PlayerProfile:
 	var profile: PlayerProfile = PlayerProfile.new()
 	var config: ConfigFile = ConfigFile.new()
-	if config.load(SAVE_PATH) != OK:
+	var err: Error = config.load(SAVE_PATH)
+	if err != OK:
 		return profile
 
-	profile.total_runs = config.get_value("stats", "total_runs", 0)
-	profile.total_kills = config.get_value("stats", "total_kills", 0)
-	profile.total_time_played = config.get_value("stats", "total_time_played", 0.0)
-	profile.best_combo = config.get_value("stats", "best_combo", 0)
-	profile.best_kills_single_run = config.get_value("stats", "best_kills_single_run", 0)
-	profile.best_time = config.get_value("stats", "best_time", 0.0)
-	profile.runs_completed = config.get_value("stats", "runs_completed", 0)
-	profile.pvp_wins = config.get_value("stats", "pvp_wins", 0)
-	profile.bosses_defeated = config.get_value("stats", "bosses_defeated", 0)
-	profile.fracture_shards = config.get_value("currency", "fracture_shards", 0)
+	# safe int/float reads — guard against corrupted types
+	profile.total_runs = _safe_int(config, "stats", "total_runs", 0)
+	profile.total_kills = _safe_int(config, "stats", "total_kills", 0)
+	profile.total_time_played = _safe_float(config, "stats", "total_time_played", 0.0)
+	profile.best_combo = _safe_int(config, "stats", "best_combo", 0)
+	profile.best_kills_single_run = _safe_int(config, "stats", "best_kills_single_run", 0)
+	profile.best_time = _safe_float(config, "stats", "best_time", 0.0)
+	profile.runs_completed = _safe_int(config, "stats", "runs_completed", 0)
+	profile.pvp_wins = _safe_int(config, "stats", "pvp_wins", 0)
+	profile.bosses_defeated = _safe_int(config, "stats", "bosses_defeated", 0)
+	profile.fracture_shards = _safe_int(config, "currency", "fracture_shards", 0)
 
 	# load meta upgrades
-	var upgrade_keys: PackedStringArray = config.get_value("meta", "upgrade_keys", PackedStringArray())
-	for key in upgrade_keys:
-		profile.meta_upgrades[key] = config.get_value("meta", "upgrade_%s" % key, 0)
+	var upgrade_keys: Variant = config.get_value("meta", "upgrade_keys", PackedStringArray())
+	if upgrade_keys is PackedStringArray:
+		for key in upgrade_keys:
+			profile.meta_upgrades[key] = _safe_int(config, "meta", "upgrade_%s" % key, 0)
 
 	# load unlocks
-	var unlock_keys: PackedStringArray = config.get_value("unlocks", "keys", PackedStringArray())
-	for key in unlock_keys:
-		profile.unlocks[key] = true
+	var unlock_keys: Variant = config.get_value("unlocks", "keys", PackedStringArray())
+	if unlock_keys is PackedStringArray:
+		for key in unlock_keys:
+			profile.unlocks[key] = true
 
 	return profile
+
+
+static func _safe_int(config: ConfigFile, section: String, key: String, fallback: int) -> int:
+	var val: Variant = config.get_value(section, key, fallback)
+	if val is int:
+		return val
+	if val is float:
+		return int(val)
+	return fallback
+
+
+static func _safe_float(config: ConfigFile, section: String, key: String, fallback: float) -> float:
+	var val: Variant = config.get_value(section, key, fallback)
+	if val is float:
+		return val
+	if val is int:
+		return float(val)
+	return fallback
 
 
 func save() -> void:

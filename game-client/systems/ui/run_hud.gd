@@ -19,6 +19,15 @@ var _update_timer: float = 0.0
 @onready var mode_label: Label = $ModeLabel
 
 
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F2:
+		visible = not visible
+		# toggle crosshair alongside hud for screenshot mode
+		var crosshair: Node = get_node_or_null("../Crosshair")
+		if crosshair:
+			crosshair.visible = visible
+
+
 func bind_run_manager(manager: RunManager) -> void:
 	run_manager = manager
 

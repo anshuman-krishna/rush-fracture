@@ -98,10 +98,10 @@ func _handle_idle(delta: float, distance: float) -> void:
 
 func _choose_attack(distance: float) -> void:
 	if distance <= slam_radius:
-		_begin_telegraph("slam", 0.6)
+		_begin_telegraph("slam", 0.8)
 	elif distance <= shockwave_radius:
 		if current_phase == Phase.TWO and randf() < 0.4:
-			_begin_telegraph("charge", 0.4)
+			_begin_telegraph("charge", 0.6)
 		else:
 			_begin_telegraph("shockwave", 0.8)
 	else:
@@ -169,7 +169,7 @@ func _do_slam() -> void:
 	for p in players:
 		if p is Node3D and global_position.distance_to(p.global_position) <= slam_radius:
 			if p.has_method("take_damage"):
-				p.take_damage(slam_damage if current_phase == Phase.ONE else int(slam_damage * 1.4))
+				p.take_damage(slam_damage if current_phase == Phase.ONE else int(slam_damage * 1.25))
 	_spawn_slam_visual()
 
 

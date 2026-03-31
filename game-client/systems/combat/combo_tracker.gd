@@ -10,7 +10,7 @@ signal combo_reset
 var combo_count: int = 0
 var combo_multiplier: int = 1
 var combo_timer: float = 0.0
-var combo_window: float = 3.0
+var combo_window: float = 3.5
 var best_combo: int = 0
 
 # combo buffs applied to player

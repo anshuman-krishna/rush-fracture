@@ -36,8 +36,13 @@ func _build_buttons() -> void:
 
 	for i in choices.size():
 		var upgrade: Dictionary = choices[i]
-		var btn: Button = Button.new()
 		var is_cursed: bool = upgrade.get("cursed", false)
+
+		# wrapper: button + stat hint
+		var wrapper: VBoxContainer = VBoxContainer.new()
+		wrapper.add_theme_constant_override("separation", 2)
+
+		var btn: Button = Button.new()
 		btn.text = "[%d] %s — %s" % [i + 1, upgrade.name, upgrade.description]
 		btn.custom_minimum_size = Vector2(400, 50)
 
@@ -51,18 +56,32 @@ func _build_buttons() -> void:
 
 		var captured: Dictionary = upgrade
 		btn.pressed.connect(func(): _on_choice(captured))
+		wrapper.add_child(btn)
+
+		# stat hint line
+		var hint: String = _build_hint(upgrade)
+		if hint.length() > 0:
+			var hint_label: Label = Label.new()
+			hint_label.text = hint
+			hint_label.add_theme_font_size_override("font_size", 11)
+			hint_label.add_theme_color_override("font_color",
+				Color(0.7, 0.3, 0.6) if is_cursed else Color(0.5, 0.5, 0.5))
+			hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+			wrapper.add_child(hint_label)
 
 		# stagger animation: buttons fade in sequentially
-		btn.modulate.a = 0.0
-		container.add_child(btn)
+		wrapper.modulate.a = 0.0
+		container.add_child(wrapper)
 		var delay: float = 0.05 * i
-		var tween: Tween = btn.create_tween()
+		var tween: Tween = wrapper.create_tween()
 		tween.tween_interval(delay)
-		tween.tween_property(btn, "modulate:a", 1.0, 0.12)
+		tween.tween_property(wrapper, "modulate:a", 1.0, 0.12)
 
 	# focus first button
 	if container.get_child_count() > 0:
-		(container.get_child(0) as Button).grab_focus()
+		var first_wrapper: VBoxContainer = container.get_child(0) as VBoxContainer
+		if first_wrapper and first_wrapper.get_child_count() > 0:
+			(first_wrapper.get_child(0) as Button).grab_focus()
 
 
 func _animate_in() -> void:
@@ -92,3 +111,19 @@ func _on_choice(upgrade: Dictionary) -> void:
 	_active = false
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_animate_out(func(): upgrade_selected.emit(upgrade))
+
+
+func _build_hint(upgrade: Dictionary) -> String:
+	var stat: String = upgrade.get("stat", "")
+	var modifier: float = upgrade.get("modifier", 0.0)
+	var mode: String = upgrade.get("apply_mode", "")
+	if stat.is_empty() or modifier == 0.0:
+		return ""
+	var sign: String = "+" if modifier > 0 else ""
+	if mode == "multiply":
+		var pct: int = int((modifier - 1.0) * 100)
+		if pct == 0:
+			return ""
+		var pct_sign: String = "+" if pct > 0 else ""
+		return "%s%d%% %s" % [pct_sign, pct, stat.replace("_", " ")]
+	return "%s%s %s" % [sign, str(modifier), stat.replace("_", " ")]

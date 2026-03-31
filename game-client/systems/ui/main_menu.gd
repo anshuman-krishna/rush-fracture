@@ -15,15 +15,22 @@ extends Control
 @onready var mode_button: Button = $Panel/ModeButton
 @onready var upgrades_button: Button = $Panel/UpgradesButton
 @onready var shards_label: Label = $Panel/ShardsLabel
+@onready var settings_button: Button = $Panel/SettingsButton
 
 var _network_manager: NetworkManager
 var _game_mode_manager: GameModeManager
 var _selected_mode: GameModeManager.GameMode = GameModeManager.GameMode.COOP
 var _progression_ui: ProgressionUI
+var _settings_menu: SettingsMenu
 
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+
+	# apply saved settings on startup
+	var settings: GameSettings = GameSettings.load_settings()
+	settings.apply()
+
 	start_button.pressed.connect(_on_start)
 	quit_button.pressed.connect(_on_quit)
 	host_button.pressed.connect(_on_host)
@@ -55,6 +62,11 @@ func _ready() -> void:
 	if upgrades_button:
 		upgrades_button.pressed.connect(_on_upgrades)
 	_load_progression_ui()
+
+	# settings menu
+	if settings_button:
+		settings_button.pressed.connect(_on_settings)
+	_load_settings_menu()
 
 
 func _on_start() -> void:
@@ -140,6 +152,11 @@ func _on_upgrades() -> void:
 		_progression_ui.show_progression()
 
 
+func _on_settings() -> void:
+	if _settings_menu:
+		_settings_menu.show_settings()
+
+
 func _load_progression_ui() -> void:
 	var scene: PackedScene = load("res://scenes/progression_ui.tscn")
 	if scene:
@@ -147,6 +164,16 @@ func _load_progression_ui() -> void:
 		add_child(_progression_ui)
 		_progression_ui.closed.connect(func():
 			_show_shards()
+			start_button.grab_focus()
+		)
+
+
+func _load_settings_menu() -> void:
+	var scene: PackedScene = load("res://scenes/settings_menu.tscn")
+	if scene:
+		_settings_menu = scene.instantiate() as SettingsMenu
+		add_child(_settings_menu)
+		_settings_menu.closed.connect(func():
 			start_button.grab_focus()
 		)
 
