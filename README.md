@@ -1,10 +1,12 @@
 ## rush-fracture
-
 **break speed. survive chaos.**
 
 a fast-paced fps roguelike built in godot 4.6, with procedural runs, build variety, and co-op/competitive multiplayer.
 
-co-developed with claude — used throughout development for learning gdscript, structuring systems, and iterating on game design.
+---
+
+## quick note
+before anything else, i started this project without knowing gd-script. this project is co-developed with claude, which helped me learn godot scripting, structure systems properly, and assist with testing and validation throughout development.
 
 ---
 
@@ -193,5 +195,5 @@ rush-fracture/
 ## notes
 
 this project started as a learning exercise and grew into a complete, playable game.
-it is not a commercial product, but it is stable, testable, and designed for extensibility.
+it is of course not a commercial product, but it is stable, testable, and designed for extensibility.
 the goal was to build something real, learn along the way, and keep it enjoyable to work on.
