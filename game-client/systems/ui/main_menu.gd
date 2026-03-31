@@ -13,10 +13,13 @@ extends Control
 @onready var ip_input: LineEdit = $Panel/IpInput
 @onready var status_label: Label = $Panel/StatusLabel
 @onready var mode_button: Button = $Panel/ModeButton
+@onready var upgrades_button: Button = $Panel/UpgradesButton
+@onready var shards_label: Label = $Panel/ShardsLabel
 
 var _network_manager: NetworkManager
 var _game_mode_manager: GameModeManager
 var _selected_mode: GameModeManager.GameMode = GameModeManager.GameMode.COOP
+var _progression_ui: ProgressionUI
 
 
 func _ready() -> void:
@@ -27,6 +30,7 @@ func _ready() -> void:
 	join_button.pressed.connect(_on_join)
 	start_button.grab_focus()
 	_show_best_stats()
+	_show_shards()
 	_animate_in()
 
 	# create network manager as autoload-like node
@@ -46,6 +50,11 @@ func _ready() -> void:
 	if mode_button:
 		mode_button.pressed.connect(_on_mode_cycle)
 		_update_mode_label()
+
+	# progression ui
+	if upgrades_button:
+		upgrades_button.pressed.connect(_on_upgrades)
+	_load_progression_ui()
 
 
 func _on_start() -> void:
@@ -126,29 +135,56 @@ func _update_mode_label() -> void:
 			mode_button.text = "mode: pvp encounter"
 
 
+func _on_upgrades() -> void:
+	if _progression_ui:
+		_progression_ui.show_progression()
+
+
+func _load_progression_ui() -> void:
+	var scene: PackedScene = load("res://scenes/progression_ui.tscn")
+	if scene:
+		_progression_ui = scene.instantiate() as ProgressionUI
+		add_child(_progression_ui)
+		_progression_ui.closed.connect(func():
+			_show_shards()
+			start_button.grab_focus()
+		)
+
+
 func _on_quit() -> void:
 	if _network_manager:
 		_network_manager.disconnect_game()
 	get_tree().quit()
 
 
+func _show_shards() -> void:
+	if not shards_label:
+		return
+	var profile: PlayerProfile = PlayerProfile.load_profile()
+	if profile.fracture_shards > 0:
+		shards_label.text = "%d shards" % profile.fracture_shards
+		shards_label.visible = true
+	else:
+		shards_label.visible = false
+
+
 func _show_best_stats() -> void:
-	var stats: BestStats = BestStats.load_stats()
-	if stats.best_kills <= 0 and stats.best_combo <= 0:
+	var profile: PlayerProfile = PlayerProfile.load_profile()
+	if profile.best_kills_single_run <= 0 and profile.best_combo <= 0:
 		best_stats_label.visible = false
 		return
 
 	var lines: PackedStringArray = PackedStringArray()
-	if stats.best_kills > 0:
-		lines.append("best kills: %d" % stats.best_kills)
-	if stats.best_combo > 0:
-		lines.append("best combo: %d" % stats.best_combo)
-	if stats.best_time > 0:
-		var m: int = int(stats.best_time) / 60
-		var s: int = int(stats.best_time) % 60
+	if profile.best_kills_single_run > 0:
+		lines.append("best kills: %d" % profile.best_kills_single_run)
+	if profile.best_combo > 0:
+		lines.append("best combo: %d" % profile.best_combo)
+	if profile.best_time > 0:
+		var m: int = int(profile.best_time) / 60
+		var s: int = int(profile.best_time) % 60
 		lines.append("best time: %d:%02d" % [m, s])
-	if stats.runs_completed > 0:
-		lines.append("runs completed: %d" % stats.runs_completed)
+	if profile.runs_completed > 0:
+		lines.append("runs completed: %d" % profile.runs_completed)
 
 	best_stats_label.text = " / ".join(lines)
 	best_stats_label.visible = true

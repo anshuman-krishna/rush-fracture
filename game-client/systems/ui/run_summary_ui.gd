@@ -60,6 +60,28 @@ func show_summary(data: RunData) -> void:
 	if best_combo >= saved.best_combo and saved.best_combo > 0:
 		lines.append(">> new best combo!")
 
+	# shard rewards
+	var shards_earned: int = data.metadata.get("shards_earned", 0)
+	if shards_earned > 0:
+		lines.append("")
+		lines.append("+%d fracture shards" % shards_earned)
+		var breakdown: Dictionary = data.metadata.get("shard_breakdown", {})
+		var detail_parts: PackedStringArray = PackedStringArray()
+		if breakdown.get("kills", 0) > 0:
+			detail_parts.append("kills:%d" % breakdown.kills)
+		if breakdown.get("rooms", 0) > 0:
+			detail_parts.append("rooms:%d" % breakdown.rooms)
+		if breakdown.get("completed", 0) > 0:
+			detail_parts.append("clear:%d" % breakdown.completed)
+		if breakdown.get("bosses", 0) > 0:
+			detail_parts.append("boss:%d" % breakdown.bosses)
+		if breakdown.get("pvp_win", 0) > 0:
+			detail_parts.append("pvp:%d" % breakdown.pvp_win)
+		if breakdown.get("combo_bonus", 0) > 0:
+			detail_parts.append("combo:%d" % breakdown.combo_bonus)
+		if detail_parts.size() > 0:
+			lines.append("  (%s)" % " + ".join(detail_parts))
+
 	stats_label.text = "\n".join(lines)
 
 	if data.run_tags.size() > 0:

@@ -41,13 +41,17 @@ var _boss_defeated: bool = false
 var _run_seed: int = 0
 var _pvp_active: bool = false
 var _match_ended: bool = false
+var _profile: PlayerProfile
+var _scavenger_healed_this_room: bool = false
 
 
 func _ready() -> void:
+	_profile = PlayerProfile.load_profile()
 	_detect_network()
 	_detect_game_mode()
 	_setup_multiplayer_spawning()
 	_resolve_player_refs()
+	_apply_meta_bonuses()
 
 	player.player_damaged.connect(_on_player_damaged)
 	player.player_dashed.connect(_on_player_dashed)
@@ -82,6 +86,7 @@ func _ready() -> void:
 	fracture_manager.bind(player)
 	combo_tracker.bind(player)
 	run_hud.bind_run_manager(run_manager)
+	run_hud.bind_pvp(pvp_manager)
 
 	if is_host_or_solo():
 		_start_run()
@@ -119,6 +124,8 @@ func _detect_game_mode() -> void:
 			game_mode._ensure_score(peer_id)
 			if game_mode.is_race():
 				game_mode.register_race_peer(peer_id)
+	else:
+		game_mode._ensure_score(1)
 
 
 func _setup_multiplayer_spawning() -> void:
@@ -268,7 +275,8 @@ func _on_player_damaged(amount: int) -> void:
 	game_feel.camera_punch(camera, effective * 0.3)
 	if player.health <= 0:
 		_on_death()
-		if is_host_or_solo():
+		# pvp death is handled by pvp_manager, not run failure
+		if not _pvp_active and is_host_or_solo():
 			run_manager.fail_run()
 			if _is_online():
 				_rpc_fail_run.rpc()
@@ -289,8 +297,14 @@ func _on_weapon_kill() -> void:
 	difficulty_tracker.on_enemy_killed()
 
 	# mode scoring
-	if game_mode and _is_online():
-		game_mode.register_kill(network_manager.local_peer_id)
+	if game_mode:
+		var local_id: int = network_manager.local_peer_id if _is_online() else 1
+		game_mode.register_kill(local_id)
+
+	# scavenger perk: first kill per room heals
+	if not _scavenger_healed_this_room and _profile and _profile.has_unlock("scavenger"):
+		_scavenger_healed_this_room = true
+		player.health = mini(player.health + 10, player.max_health)
 
 	audio.play("enemy_death", -4.0, 0.15)
 	game_feel.kill_freeze()
@@ -351,6 +365,7 @@ func _rpc_room_cleared() -> void:
 func _on_room_entered(room: RunData.RoomData) -> void:
 	var data: RunData = run_manager.data
 	_reset_player_position()
+	_scavenger_healed_this_room = false
 
 	# apply dynamic difficulty subtly
 	var diff_mod: float = difficulty_tracker.get_difficulty_modifier()
@@ -604,6 +619,10 @@ func _show_match_summary() -> void:
 		data.status = RunData.RunStatus.COMPLETED
 		run_manager.is_active = false
 
+		# save profile for pvp match
+		var best: int = combo_tracker.best_combo
+		_save_run_to_profile(data, best)
+
 		# encode match scores into run tags for display
 		var winner: int = game_mode.get_winner()
 		var is_winner: bool = not _is_online() or winner == network_manager.local_peer_id
@@ -638,6 +657,7 @@ func _on_run_failed(data: RunData) -> void:
 	combo_tracker.reset()
 	data.run_tags = RunTags.generate(data, best)
 	BestStats.update_from_run(data, best)
+	_save_run_to_profile(data, best)
 	summary_ui.show_summary(data)
 
 
@@ -647,6 +667,7 @@ func _on_run_completed(data: RunData) -> void:
 	combo_tracker.reset()
 	data.run_tags = RunTags.generate(data, best)
 	BestStats.update_from_run(data, best)
+	_save_run_to_profile(data, best)
 	summary_ui.show_summary(data)
 
 
@@ -654,10 +675,17 @@ func _on_restart() -> void:
 	awaiting_upgrade = false
 	awaiting_mutation = false
 	awaiting_transition = false
+	_pvp_active = false
+	_match_ended = false
 	upgrade_ui.visible = false
 	mutation_ui.visible = false
+	if pvp_manager and pvp_manager.is_active():
+		pvp_manager.stop_pvp()
+	_set_pvp_on_weapons(false)
 	room_controller.clear_current_room()
 	_resolve_player_refs()
+	_profile = PlayerProfile.load_profile()
+	_apply_meta_bonuses()
 	if is_host_or_solo():
 		_start_run()
 
@@ -714,6 +742,97 @@ func _set_pvp_on_weapons(active: bool) -> void:
 			continue
 		for w: BaseWeapon in wm.weapons:
 			w.pvp_manager = ref
+
+
+func _apply_meta_bonuses() -> void:
+	if not _profile:
+		return
+	# damage
+	var dmg_mult: float = MetaProgression.get_damage_multiplier(_profile)
+	if dmg_mult > 1.0:
+		weapon_manager.damage_multiplier *= dmg_mult
+	# speed
+	var spd_mult: float = MetaProgression.get_speed_multiplier(_profile)
+	if spd_mult > 1.0 and "move_speed" in player:
+		player.move_speed *= spd_mult
+	# health
+	var hp_bonus: int = MetaProgression.get_health_bonus(_profile)
+	if hp_bonus > 0:
+		player.max_health += hp_bonus
+		player.health += hp_bonus
+	# dash
+	var dash_mult: float = MetaProgression.get_dash_multiplier(_profile)
+	if dash_mult < 1.0 and "dash_cooldown" in player:
+		player.dash_cooldown *= dash_mult
+	# weapon variant unlocks
+	_apply_weapon_unlocks()
+	# starting perks
+	_apply_starting_perks()
+
+
+func _apply_weapon_unlocks() -> void:
+	if not _profile:
+		return
+	# rapid beam: beam fires faster, less damage
+	if _profile.has_unlock("rapid_beam"):
+		var beam: BeamEmitter = weapon_manager.weapons[WeaponManager.WeaponSlot.BEAM_EMITTER] as BeamEmitter
+		if beam:
+			beam.base_fire_rate *= 0.8
+			beam.base_damage = int(beam.base_damage * 0.9)
+	# wide scatter: more pellets, wider spread
+	if _profile.has_unlock("wide_scatter"):
+		var scatter: ScatterCannon = weapon_manager.weapons[WeaponManager.WeaponSlot.SCATTER_CANNON] as ScatterCannon
+		if scatter:
+			scatter.pellet_count += 3
+			scatter.spread_angle *= 1.3
+	# marksman rifle: more damage, slower fire rate
+	if _profile.has_unlock("marksman_rifle"):
+		var pulse: PulseRifle = weapon_manager.weapons[WeaponManager.WeaponSlot.PULSE_RIFLE] as PulseRifle
+		if pulse:
+			pulse.base_damage = int(pulse.base_damage * 1.5)
+			pulse.base_fire_rate *= 1.3
+
+
+func _apply_starting_perks() -> void:
+	if not _profile:
+		return
+	# head start: temporary speed boost
+	if _profile.has_unlock("head_start") and "move_speed" in player:
+		var base_speed: float = player.move_speed
+		player.move_speed *= 1.15
+		# revert after 30s
+		get_tree().create_timer(30.0).timeout.connect(func():
+			if is_instance_valid(player) and "move_speed" in player:
+				player.move_speed = base_speed
+		)
+	# glass cannon: more damage, less health
+	if _profile.has_unlock("glass_cannon"):
+		weapon_manager.damage_multiplier *= 1.2
+		player.max_health = maxi(player.max_health - 20, 30)
+		player.health = mini(player.health, player.max_health)
+
+
+func _save_run_to_profile(data: RunData, combo_best: int) -> void:
+	if not _profile:
+		return
+	var pvp_won: bool = _match_ended and game_mode and game_mode.get_winner() >= 0
+	if pvp_won and _is_online():
+		pvp_won = game_mode.get_winner() == network_manager.local_peer_id
+	elif pvp_won and not _is_online():
+		pvp_won = false
+
+	_profile.update_from_run(data, combo_best, pvp_won)
+
+	# award shards
+	var shard_data: Dictionary = MetaProgression.calculate_shards(data, combo_best, pvp_won)
+	var shard_mult: float = MetaProgression.get_shard_multiplier(_profile)
+	var total_shards: int = int(shard_data.total * shard_mult)
+	_profile.fracture_shards += total_shards
+	_profile.save()
+
+	# store shard breakdown for summary display
+	data.metadata["shards_earned"] = total_shards
+	data.metadata["shard_breakdown"] = shard_data
 
 
 func _on_node_added(node: Node) -> void:

@@ -21,6 +21,7 @@ var chosen_upgrades: Array[Dictionary] = []
 var chosen_mutations: Array[Dictionary] = []
 var run_tags: PackedStringArray = []
 var difficulty_scale: float = 1.0
+var metadata: Dictionary = {}
 
 
 func current_room() -> RoomData:
