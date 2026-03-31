@@ -80,6 +80,9 @@ func _register_sounds() -> void:
 	_try_load("run_start", "res://assets/audio/sfx/run_start.wav")
 	_try_load("boss_warning", "res://assets/audio/sfx/boss_warning.wav")
 
+	# movement
+	_try_load("dash", "res://assets/audio/sfx/dash.wav")
+
 	# generate placeholder tones for missing sounds
 	_fill_placeholders()
 
@@ -97,49 +100,66 @@ func _fill_placeholders() -> void:
 		"boss_slam", "boss_shockwave", "boss_phase", "boss_death",
 		"ui_select", "ui_hover", "room_clear", "upgrade_pick",
 		"run_start", "boss_warning",
+		"dash",
 	]
 	for name in needed:
 		if not _sounds.has(name):
 			_sounds[name] = _generate_tone(name)
 
 
-func _generate_tone(name: String) -> AudioStream:
-	# procedural placeholder — short noise burst
+func _generate_tone(sound_name: String) -> AudioStream:
+	# procedural placeholder — distinct per sound type
 	var sample_rate: int = 22050
 	var duration: float = 0.08
+
+	match sound_name:
+		"pulse_fire": duration = 0.06
+		"scatter_fire": duration = 0.1
+		"beam_fire": duration = 0.03
+		"enemy_hit": duration = 0.06
+		"enemy_death": duration = 0.15
+		"player_damage": duration = 0.12
+		"boss_slam", "boss_shockwave": duration = 0.2
+		"boss_phase", "boss_death": duration = 0.3
+		"room_clear", "run_start", "boss_warning": duration = 0.25
+		"ui_select", "ui_hover", "upgrade_pick": duration = 0.05
+		"dash": duration = 0.08
+
 	var samples: int = int(sample_rate * duration)
-
-	match name:
-		"pulse_fire":
-			duration = 0.06
-		"scatter_fire":
-			duration = 0.1
-		"beam_fire":
-			duration = 0.03
-		"enemy_death":
-			duration = 0.15
-		"boss_slam", "boss_shockwave":
-			duration = 0.2
-		"boss_phase", "boss_death":
-			duration = 0.3
-		"room_clear", "run_start", "boss_warning":
-			duration = 0.25
-		"ui_select", "ui_hover", "upgrade_pick":
-			duration = 0.05
-
-	samples = int(sample_rate * duration)
 	var data: PackedVector2Array = PackedVector2Array()
 	data.resize(samples)
 
-	# simple synthesis
-	var freq: float = _freq_for_sound(name)
+	var freq: float = _freq_for_sound(sound_name)
 	for i in samples:
 		var t: float = float(i) / float(sample_rate)
 		var envelope: float = 1.0 - (t / duration)
+		# sharper attack for weapons
+		if sound_name in ["pulse_fire", "scatter_fire"]:
+			envelope *= envelope
 		var wave: float = sin(t * freq * TAU) * envelope
-		# add noise for impact sounds
-		if name in ["scatter_fire", "boss_slam", "enemy_death", "player_damage"]:
+		# layered harmonics for richer weapon sounds
+		if sound_name == "pulse_fire":
+			wave += sin(t * freq * 2.0 * TAU) * envelope * 0.3
+		elif sound_name == "scatter_fire":
+			wave += randf_range(-0.4, 0.4) * envelope
+			wave += sin(t * freq * 0.5 * TAU) * envelope * 0.5
+		elif sound_name == "beam_fire":
+			wave = sin(t * freq * TAU) * envelope * 0.6
+			wave += sin(t * (freq + 50.0) * TAU) * envelope * 0.3
+		elif sound_name in ["boss_slam", "enemy_death", "player_damage"]:
 			wave += randf_range(-0.3, 0.3) * envelope
+		elif sound_name == "boss_warning":
+			wave = sin(t * freq * TAU) * envelope
+			wave += sin(t * freq * 1.5 * TAU) * envelope * 0.4
+		elif sound_name == "room_clear":
+			# ascending tone
+			var sweep: float = freq + (t / duration) * 200.0
+			wave = sin(t * sweep * TAU) * envelope * 0.8
+		elif sound_name == "dash":
+			# whoosh: noise with descending filter
+			wave = randf_range(-0.5, 0.5) * envelope
+			wave += sin(t * (freq - t * 1000.0) * TAU) * envelope * 0.3
+
 		wave = clamp(wave, -1.0, 1.0) * 0.4
 		data[i] = Vector2(wave, wave)
 
@@ -179,4 +199,5 @@ func _freq_for_sound(name: String) -> float:
 		"upgrade_pick": return 700.0
 		"run_start": return 330.0
 		"boss_warning": return 180.0
+		"dash": return 600.0
 	return 440.0

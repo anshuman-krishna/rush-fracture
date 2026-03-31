@@ -148,6 +148,11 @@ func _handle_dash(delta: float) -> void:
 		dash_timer = dash_duration
 		dash_cooldown_timer = dash_cooldown
 		velocity = dash_direction * dash_force
+		# camera feedback
+		if head:
+			var cam: Camera3D = head.get_node_or_null("Camera3D") as Camera3D
+			if cam and cam.has_method("dash_kick"):
+				cam.dash_kick()
 		player_dashed.emit()
 
 	if is_dashing:

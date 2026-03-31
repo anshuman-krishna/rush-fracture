@@ -4,26 +4,34 @@ extends Camera3D
 @export var max_fov: float = 110.0
 @export var fov_lerp_speed: float = 8.0
 @export var shake_decay: float = 8.0
+@export var max_shake: float = 15.0
 
 var target_fov: float = 90.0
 var shake_intensity: float = 0.0
 var shake_offset: Vector3 = Vector3.ZERO
 var recoil_offset: float = 0.0
 var recoil_recovery_speed: float = 12.0
+var _dash_fov_boost: float = 0.0
 
 
 func _process(delta: float) -> void:
 	_update_fov(delta)
 	_update_shake(delta)
 	_update_recoil(delta)
+	_update_dash_fov(delta)
 
 
 func add_shake(intensity: float) -> void:
-	shake_intensity = max(shake_intensity, intensity)
+	shake_intensity = minf(maxf(shake_intensity, intensity), max_shake)
 
 
 func add_recoil(amount: float) -> void:
 	recoil_offset += amount
+
+
+func dash_kick() -> void:
+	_dash_fov_boost = 12.0
+	add_shake(3.0)
 
 
 func _update_fov(delta: float) -> void:
@@ -33,7 +41,7 @@ func _update_fov(delta: float) -> void:
 
 	var speed: float = player.velocity.length()
 	var speed_ratio: float = clamp(speed / 20.0, 0.0, 1.0)
-	target_fov = lerp(base_fov, max_fov, speed_ratio)
+	target_fov = lerp(base_fov, max_fov, speed_ratio) + _dash_fov_boost
 	fov = lerp(fov, target_fov, fov_lerp_speed * delta)
 
 
@@ -57,3 +65,10 @@ func _update_recoil(delta: float) -> void:
 		recoil_offset = lerp(recoil_offset, 0.0, recoil_recovery_speed * delta)
 	else:
 		recoil_offset = 0.0
+
+
+func _update_dash_fov(delta: float) -> void:
+	if _dash_fov_boost > 0.1:
+		_dash_fov_boost = lerp(_dash_fov_boost, 0.0, 10.0 * delta)
+	else:
+		_dash_fov_boost = 0.0

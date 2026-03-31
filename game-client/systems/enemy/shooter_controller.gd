@@ -35,7 +35,8 @@ func _physics_process(delta: float) -> void:
 	_apply_gravity(delta)
 	attack_timer = max(0, attack_timer - delta)
 
-	if not target:
+	if not target or not is_instance_valid(target):
+		target = null
 		_find_target()
 		move_and_slide()
 		return
@@ -85,7 +86,7 @@ func _elite_burst_fire() -> void:
 	# two extra rapid shots at reduced damage
 	for i in 2:
 		await get_tree().create_timer(0.15).timeout
-		if is_dying or not target:
+		if is_dying or not target or not is_instance_valid(target):
 			return
 		if target.has_method("take_damage"):
 			target.take_damage(int(attack_damage * 0.6))

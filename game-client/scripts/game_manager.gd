@@ -87,6 +87,7 @@ func _ready() -> void:
 	combo_tracker.bind(player)
 	run_hud.bind_run_manager(run_manager)
 	run_hud.bind_pvp(pvp_manager)
+	run_hud.bind_player(player, weapon_manager)
 
 	if is_host_or_solo():
 		_start_run()
@@ -249,7 +250,8 @@ func _reset_player() -> void:
 func _on_death() -> void:
 	if damage_vignette:
 		damage_vignette.flash(3.0)
-	game_feel.camera_punch(camera, 12.0)
+	if camera and is_instance_valid(camera):
+		game_feel.camera_punch(camera, 12.0)
 	audio.play("player_damage", 0.0, 0.05)
 	# brief death slow-mo
 	Engine.time_scale = 0.3
@@ -272,7 +274,8 @@ func _on_player_damaged(amount: int) -> void:
 	var intensity: float = clamp(float(effective) / 30.0, 0.5, 2.0)
 	if damage_vignette:
 		damage_vignette.flash(intensity)
-	game_feel.camera_punch(camera, effective * 0.3)
+	if camera and is_instance_valid(camera):
+		game_feel.camera_punch(camera, effective * 0.3)
 	if player.health <= 0:
 		_on_death()
 		# pvp death is handled by pvp_manager, not run failure
@@ -304,7 +307,8 @@ func _on_weapon_kill() -> void:
 	# scavenger perk: first kill per room heals
 	if not _scavenger_healed_this_room and _profile and _profile.has_unlock("scavenger"):
 		_scavenger_healed_this_room = true
-		player.health = mini(player.health + 10, player.max_health)
+		if is_instance_valid(player):
+			player.health = mini(player.health + 10, player.max_health)
 
 	audio.play("enemy_death", -4.0, 0.15)
 	game_feel.kill_freeze()
@@ -322,6 +326,7 @@ func _on_weapon_hit(hit_position: Vector3) -> void:
 
 func _on_player_dashed() -> void:
 	upgrade_manager.on_player_dashed()
+	audio.play("dash", -5.0, 0.1)
 
 
 func _on_weapon_switched(_weapon_name: String) -> void:
@@ -337,7 +342,8 @@ func _on_room_enemy_killed() -> void:
 func _on_boss_phase_changed(_phase: int) -> void:
 	audio.play("boss_phase", 0.0)
 	game_feel.boss_phase_slowmo()
-	game_feel.camera_punch(camera, 8.0)
+	if camera and is_instance_valid(camera):
+		game_feel.camera_punch(camera, 8.0)
 
 
 func _on_boss_defeated() -> void:
@@ -381,6 +387,8 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 		audio.play("boss_warning", 0.0)
 		room_announce.show_boss_warning()
 		await get_tree().create_timer(2.0).timeout
+		if not is_instance_valid(room_announce):
+			return
 		room_announce.show_room_enter(room, data.current_room_index + 1, data.total_rooms())
 	else:
 		room_announce.show_room_enter(room, data.current_room_index + 1, data.total_rooms())
@@ -391,7 +399,9 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 	var is_boss_room: bool = room.type == RoomDefinitions.RoomType.BOSS or room.type == RoomDefinitions.RoomType.ELITE_CHAMBER
 	if is_boss_room:
 		await get_tree().create_timer(0.5).timeout
-		if room_controller.active_boss and room_controller.active_boss.has_signal("phase_changed"):
+		if not is_instance_valid(room_controller):
+			return
+		if room_controller.active_boss and is_instance_valid(room_controller.active_boss) and room_controller.active_boss.has_signal("phase_changed"):
 			room_controller.active_boss.phase_changed.connect(_on_boss_phase_changed)
 
 	# no fracture events during boss fights
@@ -550,6 +560,8 @@ func _transition_to_pvp() -> void:
 
 	# start pvp after brief delay
 	await get_tree().create_timer(2.0).timeout
+	if not is_instance_valid(self):
+		return
 	if pvp_manager:
 		pvp_manager.start_pvp()
 		game_mode.start_pvp()
@@ -609,6 +621,8 @@ func _on_pvp_match_over(winner_peer_id: int) -> void:
 
 	# show match summary after delay
 	await get_tree().create_timer(2.0).timeout
+	if not is_instance_valid(self):
+		return
 	_show_match_summary()
 
 
@@ -841,9 +855,14 @@ func _on_node_added(node: Node) -> void:
 
 
 func _connect_enemy_hit(enemy: Node) -> void:
+	if not is_instance_valid(enemy):
+		return
 	var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
-	if health:
-		health.damaged.connect(func(_a, _b): crosshair.show_hit())
+	if health and crosshair and is_instance_valid(crosshair):
+		health.damaged.connect(func(_a, _b):
+			if is_instance_valid(crosshair):
+				crosshair.show_hit()
+		)
 
 
 func _spawn_kill_explosion() -> void:
@@ -860,7 +879,7 @@ func _spawn_kill_explosion() -> void:
 	var aim_point: Vector3 = from + forward * 20.0
 
 	for enemy in enemies:
-		if not enemy is Node3D:
+		if not enemy is Node3D or not is_instance_valid(enemy):
 			continue
 		var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
 		if not health or not health.is_alive():

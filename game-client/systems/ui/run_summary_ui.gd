@@ -51,17 +51,18 @@ func show_summary(data: RunData) -> void:
 	lines.append("time: %s" % time_str)
 	lines.append("upgrades: %d" % data.chosen_upgrades.size())
 	lines.append("mutations: %d" % data.chosen_mutations.size())
-	lines.append("best combo: %d" % best_combo)
+	if best_combo > 0:
+		lines.append("best combo: %d" % best_combo)
 
 	# show personal best markers
 	var saved: BestStats = BestStats.load_stats()
-	if data.total_enemies_killed >= saved.best_kills and saved.best_kills > 0:
+	if saved and data.total_enemies_killed >= saved.best_kills and saved.best_kills > 0:
 		lines.append(">> new best kills!")
-	if best_combo >= saved.best_combo and saved.best_combo > 0:
+	if saved and best_combo >= saved.best_combo and saved.best_combo > 0:
 		lines.append(">> new best combo!")
 
 	# shard rewards
-	var shards_earned: int = data.metadata.get("shards_earned", 0)
+	var shards_earned: int = data.metadata.get("shards_earned", 0) if data.metadata else 0
 	if shards_earned > 0:
 		lines.append("")
 		lines.append("+%d fracture shards" % shards_earned)
@@ -90,8 +91,19 @@ func show_summary(data: RunData) -> void:
 	else:
 		tags_label.visible = false
 
+	# staggered reveal animation
+	status_label.modulate.a = 0.0
+	stats_label.modulate.a = 0.0
+	tags_label.modulate.a = 0.0
 	modulate.a = 0.0
 	visible = true
+
 	var tween: Tween = create_tween()
-	tween.tween_property(self, "modulate:a", 1.0, 0.3)
+	tween.tween_property(self, "modulate:a", 1.0, 0.2)
+	tween.tween_property(status_label, "modulate:a", 1.0, 0.2)
+	tween.tween_interval(0.15)
+	tween.tween_property(stats_label, "modulate:a", 1.0, 0.25)
+	tween.tween_interval(0.1)
+	tween.tween_property(tags_label, "modulate:a", 1.0, 0.2)
+
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

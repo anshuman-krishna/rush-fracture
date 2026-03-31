@@ -36,7 +36,8 @@ func _physics_process(delta: float) -> void:
 	attack_timer = max(0, attack_timer - delta)
 	slam_cooldown = max(0, slam_cooldown - delta)
 
-	if not target:
+	if not target or not is_instance_valid(target):
+		target = null
 		_find_target()
 		move_and_slide()
 		return

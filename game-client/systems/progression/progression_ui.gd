@@ -18,16 +18,28 @@ var _profile: PlayerProfile
 
 func _ready() -> void:
 	visible = false
-	close_button.pressed.connect(func():
-		visible = false
-		closed.emit()
-	)
+	close_button.pressed.connect(_close)
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if not visible:
+		return
+	if event is InputEventKey and event.pressed and event.keycode == KEY_ESCAPE:
+		_close()
+		get_viewport().set_input_as_handled()
+
+
+func _close() -> void:
+	visible = false
+	closed.emit()
 
 
 func show_progression() -> void:
 	_profile = PlayerProfile.load_profile()
 	_refresh()
 	visible = true
+	# focus first interactive element
+	close_button.call_deferred("grab_focus")
 
 
 func _refresh() -> void:

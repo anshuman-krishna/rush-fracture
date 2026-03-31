@@ -10,8 +10,19 @@ var _active_tween: Tween
 func show_room_enter(room: RunData.RoomData, room_number: int, total: int) -> void:
 	var type_name: String = RoomDefinitions.type_to_string(room.type)
 	announce_label.text = "%s — %d/%d" % [type_name, room_number, total]
-	announce_label.remove_theme_color_override("font_color")
-	_slide_in(1.2)
+	# color-code by room type
+	match room.type:
+		RoomDefinitions.RoomType.BOSS, RoomDefinitions.RoomType.ELITE_CHAMBER:
+			announce_label.add_theme_color_override("font_color", Color(1.0, 0.15, 0.1, 1))
+		RoomDefinitions.RoomType.ELITE:
+			announce_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.1, 1))
+		RoomDefinitions.RoomType.SWARM, RoomDefinitions.RoomType.GAUNTLET:
+			announce_label.add_theme_color_override("font_color", Color(0.9, 0.2, 0.3, 1))
+		RoomDefinitions.RoomType.HAZARD:
+			announce_label.add_theme_color_override("font_color", Color(1.0, 0.4, 0.0, 1))
+		_:
+			announce_label.remove_theme_color_override("font_color")
+	_slide_in(1.2, true)
 
 
 func show_room_clear() -> void:

@@ -34,7 +34,8 @@ func _physics_process(delta: float) -> void:
 	_apply_gravity(delta)
 	_update_attack_timer(delta)
 
-	if not target:
+	if not target or not is_instance_valid(target):
+		target = null
 		_find_target()
 		move_and_slide()
 		return
