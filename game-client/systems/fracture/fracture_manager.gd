@@ -11,6 +11,8 @@ var is_active: bool = false
 var _player: CharacterBody3D
 var _original_gravity: float
 var _original_speed: float
+var _original_dash_force: float
+var _original_jump_force: float
 var _explosion_timer: float = 0.0
 var _camera: Camera3D
 
@@ -89,6 +91,8 @@ func _apply_effect(type: FractureDefinitions.FractureType) -> void:
 		return
 
 	_original_speed = _player.move_speed
+	_original_dash_force = _player.dash_force
+	_original_jump_force = _player.jump_force
 
 	match type:
 		FractureDefinitions.FractureType.VELOCITY_SURGE:
@@ -117,15 +121,15 @@ func _revert_effect(type: FractureDefinitions.FractureType) -> void:
 	match type:
 		FractureDefinitions.FractureType.VELOCITY_SURGE:
 			_player.move_speed = _original_speed
-			_player.dash_force = 28.0
+			_player.dash_force = _original_dash_force
 		FractureDefinitions.FractureType.UNSTABLE_GRAVITY:
 			_player.gravity = _original_gravity
-			_player.jump_force = 10.0
+			_player.jump_force = _original_jump_force
 		FractureDefinitions.FractureType.ENEMY_DUPLICATION:
 			pass
 		FractureDefinitions.FractureType.LOW_GRAVITY:
 			_player.gravity = _original_gravity
-			_player.jump_force = 10.0
+			_player.jump_force = _original_jump_force
 		FractureDefinitions.FractureType.DOUBLE_SPEED_ENEMIES:
 			_buff_all_enemy_speeds(0.5)
 		FractureDefinitions.FractureType.RANDOM_EXPLOSIONS:
@@ -192,7 +196,10 @@ func _spawn_explosion_visual(pos: Vector3, radius: float) -> void:
 	tween.set_parallel(true)
 	tween.tween_property(indicator, "scale", Vector3(radius, radius, radius), 0.25)
 	tween.tween_property(mat, "albedo_color:a", 0.0, 0.35)
-	tween.chain().tween_callback(indicator.queue_free)
+	tween.chain().tween_callback(func():
+		if is_instance_valid(indicator):
+			indicator.queue_free()
+	)
 
 
 func _apply_vision_distortion() -> void:

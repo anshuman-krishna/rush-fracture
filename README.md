@@ -5,8 +5,7 @@ a fast-paced fps roguelike built in godot 4.6, with procedural runs, build varie
 
 ---
 
-## quick note
-before anything else, i started this project without knowing gd-script. this project is co-developed with claude, which helped me learn godot scripting, structure systems properly, and assist with testing and validation throughout development.
+**quick note:** before anything else, i started this project without knowing gd-script. this project is co-developed with claude, which helped me learn godot scripting, structure systems properly, and assist with testing and validation throughout development.
 
 ---
 

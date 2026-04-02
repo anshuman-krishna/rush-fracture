@@ -70,7 +70,11 @@ func _on_fullscreen_toggled(pressed: bool) -> void:
 
 func _update_labels() -> void:
 	volume_value.text = "%d%%" % int(_settings.master_volume * 100)
-	sens_value.text = "%.1f" % (_settings.mouse_sensitivity * 1000.0)
+	var sens_display: float = _settings.mouse_sensitivity * 1000.0
+	if absf(sens_display - roundf(sens_display)) < 0.05:
+		sens_value.text = "%d" % int(sens_display)
+	else:
+		sens_value.text = "%.1f" % sens_display
 
 
 func _close() -> void:

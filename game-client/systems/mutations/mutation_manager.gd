@@ -23,6 +23,8 @@ var _momentum_shield_active: bool = false
 
 # fracture echo state
 var _fracture_echo_active: bool = false
+var _fracture_echo_base_multiplier: float = 0.0
+var _fracture_echo_in_fracture: bool = false
 
 
 func bind(player: CharacterBody3D, weapon_manager: WeaponManager) -> void:
@@ -60,7 +62,8 @@ func apply(mutation: Dictionary) -> void:
 		MutationDefinitions.MutationType.FRACTURE_ECHO:
 			_fracture_echo_active = true
 			if _weapon_manager:
-				_weapon_manager.damage_multiplier *= 0.8
+				_fracture_echo_base_multiplier = _weapon_manager.damage_multiplier
+				_weapon_manager.damage_multiplier = _fracture_echo_base_multiplier * 0.8
 
 	mutation_applied.emit(mutation)
 
@@ -115,16 +118,14 @@ func get_damage_multiplier() -> float:
 
 func on_fracture_started() -> void:
 	if _fracture_echo_active and _weapon_manager:
-		# revert the -20% and apply +35%
-		_weapon_manager.damage_multiplier /= 0.8
-		_weapon_manager.damage_multiplier *= 1.35
+		_fracture_echo_in_fracture = true
+		_weapon_manager.damage_multiplier = _fracture_echo_base_multiplier * 1.35
 
 
 func on_fracture_ended() -> void:
 	if _fracture_echo_active and _weapon_manager:
-		# revert +35% and reapply -20%
-		_weapon_manager.damage_multiplier /= 1.35
-		_weapon_manager.damage_multiplier *= 0.8
+		_fracture_echo_in_fracture = false
+		_weapon_manager.damage_multiplier = _fracture_echo_base_multiplier * 0.8
 
 
 func reset() -> void:
@@ -134,6 +135,8 @@ func reset() -> void:
 	_unstable_core_active = false
 	_momentum_shield_active = false
 	_fracture_echo_active = false
+	_fracture_echo_base_multiplier = 0.0
+	_fracture_echo_in_fracture = false
 
 
 func _apply_glass_cannon() -> void:

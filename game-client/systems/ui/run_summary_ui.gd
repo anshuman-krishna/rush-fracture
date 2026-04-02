@@ -17,6 +17,7 @@ func _ready() -> void:
 		restart_requested.emit()
 	)
 	menu_button.pressed.connect(func():
+		Engine.time_scale = 1.0
 		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 	)
 
@@ -98,12 +99,13 @@ func show_summary(data: RunData) -> void:
 	modulate.a = 0.0
 	visible = true
 
-	var tween: Tween = create_tween()
+	var tween: Tween = create_tween().set_ignore_time_scale(true)
 	tween.tween_property(self, "modulate:a", 1.0, 0.2)
 	tween.tween_property(status_label, "modulate:a", 1.0, 0.2)
-	tween.tween_interval(0.15)
-	tween.tween_property(stats_label, "modulate:a", 1.0, 0.25)
 	tween.tween_interval(0.1)
-	tween.tween_property(tags_label, "modulate:a", 1.0, 0.2)
+	tween.tween_property(stats_label, "modulate:a", 1.0, 0.2)
+	tween.tween_interval(0.08)
+	tween.tween_property(tags_label, "modulate:a", 1.0, 0.15)
+	tween.tween_callback(func(): restart_button.call_deferred("grab_focus"))
 
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE

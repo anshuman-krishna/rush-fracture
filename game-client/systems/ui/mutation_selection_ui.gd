@@ -7,7 +7,7 @@ signal mutation_selected(mutation: Dictionary)
 signal mutation_skipped
 
 var choices: Array[Dictionary] = []
-var _active: bool = false
+var _chosen: bool = false
 
 @onready var container: VBoxContainer = $Panel/VBoxContainer
 @onready var title_label: Label = $Panel/TitleLabel
@@ -15,14 +15,14 @@ var _active: bool = false
 
 func show_choices(mutation_choices: Array[Dictionary]) -> void:
 	choices = mutation_choices
-	_active = false
+	_chosen = false
 	_build_buttons()
 	_animate_in()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if not visible or _active:
+	if not visible or _chosen:
 		return
 	if event is InputEventKey and event.pressed:
 		var idx: int = -1
@@ -126,16 +126,16 @@ func _animate_out(callback: Callable) -> void:
 
 
 func _on_choice(mutation: Dictionary) -> void:
-	if _active:
+	if _chosen:
 		return
-	_active = true
+	_chosen = true
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_animate_out(func(): mutation_selected.emit(mutation))
 
 
 func _on_skip() -> void:
-	if _active:
+	if _chosen:
 		return
-	_active = true
+	_chosen = true
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_animate_out(func(): mutation_skipped.emit())

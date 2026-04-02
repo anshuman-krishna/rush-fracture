@@ -17,6 +17,7 @@ var _update_timer: float = 0.0
 @onready var weapon_label: Label = $WeaponLabel
 @onready var combo_label: Label = $ComboLabel
 @onready var mode_label: Label = $ModeLabel
+@onready var prompt_label: Label = $PromptLabel
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -45,6 +46,21 @@ func update_weapon_display(weapon_name: String) -> void:
 	if weapon_label:
 		weapon_label.text = weapon_name
 		weapon_label.add_theme_color_override("font_color", Color(0.3, 0.9, 1.0))
+
+
+func show_prompt(text: String) -> void:
+	if not prompt_label:
+		return
+	prompt_label.text = text
+	prompt_label.visible = true
+	prompt_label.modulate.a = 0.0
+	var tween: Tween = create_tween()
+	tween.tween_property(prompt_label, "modulate:a", 1.0, 0.3)
+
+
+func hide_prompt() -> void:
+	if prompt_label:
+		prompt_label.visible = false
 
 
 func update_combo(multiplier: int, kill_count: int) -> void:

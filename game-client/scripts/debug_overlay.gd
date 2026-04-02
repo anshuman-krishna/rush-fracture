@@ -1,4 +1,4 @@
-extends Label
+ extends Label
 
 var player: CharacterBody3D
 var run_manager: RunManager

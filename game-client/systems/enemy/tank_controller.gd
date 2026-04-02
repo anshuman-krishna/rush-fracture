@@ -111,7 +111,10 @@ func _spawn_slam_ring(radius: float) -> void:
 	tween.set_parallel(true)
 	tween.tween_property(ring, "scale", Vector3(radius, 1, radius), 0.3)
 	tween.tween_property(mat, "albedo_color:a", 0.0, 0.4)
-	tween.chain().tween_callback(ring.queue_free)
+	tween.chain().tween_callback(func():
+		if is_instance_valid(ring):
+			ring.queue_free()
+	)
 
 
 func _face_target() -> void:

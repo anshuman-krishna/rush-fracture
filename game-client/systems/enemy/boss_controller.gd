@@ -202,6 +202,8 @@ func _do_charge() -> void:
 
 	# damage on arrival
 	await get_tree().create_timer(0.3).timeout
+	if not is_instance_valid(self) or not is_inside_tree():
+		return
 	if not is_dying and target:
 		var dist: float = global_position.distance_to(target.global_position)
 		if dist <= 3.5 and target.has_method("take_damage"):
@@ -313,7 +315,10 @@ func _spawn_slam_visual() -> void:
 
 	var tween: Tween = get_tree().create_tween()
 	tween.tween_property(mat, "albedo_color:a", 0.0, 0.4)
-	tween.tween_callback(indicator.queue_free)
+	tween.tween_callback(func():
+		if is_instance_valid(indicator):
+			indicator.queue_free()
+	)
 
 
 func _spawn_shockwave_visual() -> void:
@@ -339,7 +344,10 @@ func _spawn_shockwave_visual() -> void:
 	tween.set_parallel(true)
 	tween.tween_property(ring, "scale", Vector3(shockwave_radius, 1, shockwave_radius), 0.5)
 	tween.tween_property(mat, "albedo_color:a", 0.0, 0.5)
-	tween.chain().tween_callback(ring.queue_free)
+	tween.chain().tween_callback(func():
+		if is_instance_valid(ring):
+			ring.queue_free()
+	)
 
 
 func _flash_phase_transition() -> void:

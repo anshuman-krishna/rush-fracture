@@ -86,6 +86,8 @@ func _elite_burst_fire() -> void:
 	# two extra rapid shots at reduced damage
 	for i in 2:
 		await get_tree().create_timer(0.15).timeout
+		if not is_instance_valid(self) or not is_inside_tree():
+			return
 		if is_dying or not target or not is_instance_valid(target):
 			return
 		if target.has_method("take_damage"):

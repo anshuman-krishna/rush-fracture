@@ -119,11 +119,13 @@ func _build_hint(upgrade: Dictionary) -> String:
 	var mode: String = upgrade.get("apply_mode", "")
 	if stat.is_empty() or modifier == 0.0:
 		return ""
-	var sign: String = "+" if modifier > 0 else ""
+	if mode == "special":
+		return ""
 	if mode == "multiply":
 		var pct: int = int((modifier - 1.0) * 100)
 		if pct == 0:
 			return ""
 		var pct_sign: String = "+" if pct > 0 else ""
 		return "%s%d%% %s" % [pct_sign, pct, stat.replace("_", " ")]
+	var sign: String = "+" if modifier > 0 else ""
 	return "%s%s %s" % [sign, str(modifier), stat.replace("_", " ")]

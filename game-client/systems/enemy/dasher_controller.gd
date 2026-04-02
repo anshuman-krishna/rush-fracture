@@ -83,6 +83,8 @@ func _start_dash() -> void:
 func _start_chain_dash() -> void:
 	# second dash after brief pause, re-targeted
 	await get_tree().create_timer(0.15).timeout
+	if not is_instance_valid(self) or not is_inside_tree():
+		return
 	if is_dying or not target or not is_instance_valid(target):
 		return
 	dash_direction = (target.global_position - global_position).normalized()

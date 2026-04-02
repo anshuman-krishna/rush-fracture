@@ -16,8 +16,10 @@ func _ready() -> void:
 
 func _process(_delta: float) -> void:
 	# detect death from synced health in multiplayer (non-authority)
+	if not _is_multiplayer_active():
+		return
 	if not _died_triggered and current_health <= 0 and max_health > 0:
-		if _is_multiplayer_active() and not _is_authority():
+		if not _is_authority():
 			_died_triggered = true
 			died.emit()
 

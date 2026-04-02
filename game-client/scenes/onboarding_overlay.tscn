@@ -27,69 +27,48 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -200.0
-offset_top = -180.0
-offset_right = 200.0
-offset_bottom = 180.0
+offset_left = -180.0
+offset_top = -130.0
+offset_right = 180.0
+offset_bottom = 130.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/separation = 12
+theme_override_constants/separation = 14
 
 [node name="Title" type="Label" parent="Panel"]
 layout_mode = 2
 theme_override_colors/font_color = Color(1, 0.1, 0.05, 1)
-theme_override_font_sizes/font_size = 26
-text = "controls"
+theme_override_font_sizes/font_size = 28
+text = "rush-fracture"
 horizontal_alignment = 1
 
 [node name="Spacer" type="Control" parent="Panel"]
-custom_minimum_size = Vector2(0, 8)
+custom_minimum_size = Vector2(0, 4)
 layout_mode = 2
 
-[node name="Move" type="Label" parent="Panel"]
+[node name="Line1" type="Label" parent="Panel"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
 theme_override_font_sizes/font_size = 16
-text = "W A S D — move"
+text = "WASD move  /  MOUSE look  /  CLICK shoot"
 horizontal_alignment = 1
 
-[node name="Look" type="Label" parent="Panel"]
+[node name="Line2" type="Label" parent="Panel"]
 layout_mode = 2
 theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
 theme_override_font_sizes/font_size = 16
-text = "mouse — look"
+text = "SPACE jump  /  SHIFT dash"
 horizontal_alignment = 1
 
-[node name="Shoot" type="Label" parent="Panel"]
+[node name="Line3" type="Label" parent="Panel"]
 layout_mode = 2
-theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 16
-text = "left click — shoot"
-horizontal_alignment = 1
-
-[node name="Jump" type="Label" parent="Panel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 16
-text = "space — jump"
-horizontal_alignment = 1
-
-[node name="Dash" type="Label" parent="Panel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 16
-text = "shift — dash"
-horizontal_alignment = 1
-
-[node name="Weapons" type="Label" parent="Panel"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
-theme_override_font_sizes/font_size = 16
-text = "1 2 3 — switch weapons"
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "1  2  3  switch weapons"
 horizontal_alignment = 1
 
 [node name="Spacer2" type="Control" parent="Panel"]
-custom_minimum_size = Vector2(0, 16)
+custom_minimum_size = Vector2(0, 12)
 layout_mode = 2
 
 [node name="Hint" type="Label" parent="Panel"]

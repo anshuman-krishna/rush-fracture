@@ -52,7 +52,6 @@ func _ready() -> void:
 	_detect_game_mode()
 	_setup_multiplayer_spawning()
 	_resolve_player_refs()
-	_apply_meta_bonuses()
 
 	player.player_damaged.connect(_on_player_damaged)
 	player.player_dashed.connect(_on_player_dashed)
@@ -174,6 +173,7 @@ func _resolve_player_refs() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if awaiting_transition and event.is_action_pressed("jump"):
 		awaiting_transition = false
+		run_hud.hide_prompt()
 		if is_host_or_solo():
 			_advance_room()
 		else:
@@ -204,6 +204,7 @@ func _do_start_run(seed_value: int) -> void:
 	_pvp_active = false
 	_match_ended = false
 	game_feel.reset()
+	_apply_meta_bonuses()
 	audio.play("run_start", -3.0)
 
 	# race and pvp_encounter modes use shorter race generator
@@ -283,6 +284,16 @@ func _on_player_damaged(amount: int) -> void:
 		game_feel.camera_punch(camera, effective * 0.3)
 	if player.health <= 0:
 		_on_death()
+		# dismiss any open selection ui
+		if awaiting_upgrade:
+			awaiting_upgrade = false
+			upgrade_ui.visible = false
+		if awaiting_mutation:
+			awaiting_mutation = false
+			mutation_ui.visible = false
+		if awaiting_transition:
+			awaiting_transition = false
+		_pending_mutation_after_upgrade = false
 		# pvp death is handled by pvp_manager, not run failure
 		if not _pvp_active and is_host_or_solo():
 			run_manager.fail_run()
@@ -392,7 +403,7 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 		audio.play("boss_warning", 0.0)
 		room_announce.show_boss_warning()
 		await get_tree().create_timer(2.0).timeout
-		if not is_instance_valid(room_announce):
+		if not is_instance_valid(room_announce) or not run_manager.is_active:
 			return
 		room_announce.show_room_enter(room, data.current_room_index + 1, data.total_rooms())
 	else:
@@ -404,7 +415,7 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 	var is_boss_room: bool = room.type == RoomDefinitions.RoomType.BOSS or room.type == RoomDefinitions.RoomType.ELITE_CHAMBER
 	if is_boss_room:
 		await get_tree().create_timer(0.5).timeout
-		if not is_instance_valid(room_controller):
+		if not is_instance_valid(room_controller) or not run_manager.is_active:
 			return
 		if room_controller.active_boss and is_instance_valid(room_controller.active_boss) and room_controller.active_boss.has_signal("phase_changed"):
 			room_controller.active_boss.phase_changed.connect(_on_boss_phase_changed)
@@ -547,6 +558,7 @@ func _on_mutation_skipped() -> void:
 
 func _prompt_next_room() -> void:
 	awaiting_transition = true
+	run_hud.show_prompt("press SPACE to continue")
 
 
 # --- pvp encounter ---
@@ -671,6 +683,7 @@ func _rpc_pvp_match_over(winner_peer: int) -> void:
 # --- run end ---
 
 func _on_run_failed(data: RunData) -> void:
+	run_hud.hide_prompt()
 	fracture_manager.end_fracture()
 	var best: int = combo_tracker.best_combo
 	combo_tracker.reset()
@@ -681,6 +694,7 @@ func _on_run_failed(data: RunData) -> void:
 
 
 func _on_run_completed(data: RunData) -> void:
+	run_hud.hide_prompt()
 	fracture_manager.end_fracture()
 	var best: int = combo_tracker.best_combo
 	combo_tracker.reset()
@@ -698,13 +712,13 @@ func _on_restart() -> void:
 	_match_ended = false
 	upgrade_ui.visible = false
 	mutation_ui.visible = false
+	run_hud.hide_prompt()
 	if pvp_manager and pvp_manager.is_active():
 		pvp_manager.stop_pvp()
 	_set_pvp_on_weapons(false)
 	room_controller.clear_current_room()
 	_resolve_player_refs()
 	_profile = PlayerProfile.load_profile()
-	_apply_meta_bonuses()
 	if is_host_or_solo():
 		_start_run()
 
@@ -733,8 +747,14 @@ func _on_combo_reset() -> void:
 # --- network events ---
 
 func _on_server_disconnected() -> void:
-	# host dropped — clean up and return to menu
+	# host dropped — full cleanup before returning to menu
 	Engine.time_scale = 1.0
+	fracture_manager.end_fracture()
+	mutation_manager.reset()
+	weapon_manager.reset_multipliers()
+	if pvp_manager and pvp_manager.is_active():
+		pvp_manager.stop_pvp()
+	room_controller.clear_current_room()
 	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 
 
