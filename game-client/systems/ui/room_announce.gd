@@ -8,6 +8,8 @@ var _active_tween: Tween
 
 
 func show_room_enter(room: RunData.RoomData, room_number: int, total: int) -> void:
+	if not announce_label:
+		return
 	var type_name: String = RoomDefinitions.type_to_string(room.type)
 	announce_label.text = "%s — %d/%d" % [type_name, room_number, total]
 	# color-code by room type
@@ -26,12 +28,16 @@ func show_room_enter(room: RunData.RoomData, room_number: int, total: int) -> vo
 
 
 func show_room_clear() -> void:
+	if not announce_label:
+		return
 	announce_label.text = "cleared"
 	announce_label.add_theme_color_override("font_color", Color(0.4, 1.0, 0.4, 1))
 	_slide_in(0.6, true)
 
 
 func show_boss_warning() -> void:
+	if not announce_label:
+		return
 	_kill_tween()
 	announce_label.text = "WARNING — BOSS INCOMING"
 	announce_label.add_theme_color_override("font_color", Color(1, 0.05, 0.0, 1))
@@ -53,6 +59,8 @@ func show_boss_warning() -> void:
 
 
 func show_boss_defeated() -> void:
+	if not announce_label:
+		return
 	_kill_tween()
 	announce_label.text = "BOSS DEFEATED"
 	announce_label.add_theme_color_override("font_color", Color(0.2, 1.0, 0.3, 1))
@@ -75,6 +83,8 @@ func show_boss_defeated() -> void:
 
 
 func show_fracture(fracture_name: String) -> void:
+	if not announce_label:
+		return
 	announce_label.text = "fracture — %s" % fracture_name
 	announce_label.add_theme_color_override("font_color", Color(0.9, 0.2, 1.0, 1))
 	_slide_in(1.2, true)

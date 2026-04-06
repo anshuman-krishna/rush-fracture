@@ -1,7 +1,7 @@
 extends Control
 
 # main menu — entry point. aggressive, minimal.
-# supports solo play and multiplayer host/join.
+# supports solo play and multiplayer via room codes.
 
 @onready var title_label: Label = $Panel/ContentMargin/Content/TitleLabel
 @onready var tagline_label: Label = $Panel/ContentMargin/Content/TaglineLabel
@@ -9,8 +9,8 @@ extends Control
 @onready var best_stats_label: Label = $Panel/ContentMargin/Content/BestStatsLabel
 @onready var quit_button: Button = $Panel/ContentMargin/Content/QuitButton
 @onready var host_button: Button = $Panel/ContentMargin/Content/HostButton
+@onready var code_input: LineEdit = $Panel/ContentMargin/Content/CodeInput
 @onready var join_button: Button = $Panel/ContentMargin/Content/JoinButton
-@onready var ip_input: LineEdit = $Panel/ContentMargin/Content/IpInput
 @onready var status_label: Label = $Panel/ContentMargin/Content/StatusLabel
 @onready var mode_button: Button = $Panel/ContentMargin/Content/ModeButton
 @onready var upgrades_button: Button = $Panel/ContentMargin/Content/UpgradesButton
@@ -41,11 +41,7 @@ func _ready() -> void:
 	_show_shards()
 	_animate_in()
 
-	# set default ip
-	if ip_input and ip_input.text.strip_edges().is_empty():
-		ip_input.text = "127.0.0.1"
-
-	# create network manager as autoload-like node
+	# create network manager as root-level node
 	_network_manager = NetworkManager.new()
 	_network_manager.name = "NetworkManager"
 	get_tree().root.add_child(_network_manager)
@@ -75,15 +71,13 @@ func _ready() -> void:
 
 
 func _on_start() -> void:
-	print("starting game")
-	# set the selected game mode
+	print("starting game — mode: %s" % _game_mode_manager.get_mode_name())
 	_game_mode_manager.set_mode(_selected_mode)
 
-	# solo mode — clean up network manager if not connected
+	# solo mode — clean up network manager
 	if _network_manager and not _network_manager.is_online():
 		_network_manager.queue_free()
-		# force coop for solo play
-		_game_mode_manager.set_mode(GameModeManager.GameMode.COOP)
+		_network_manager = null
 	_animate_out(func():
 		var err: Error = get_tree().change_scene_to_file("res://scenes/main.tscn")
 		if err != OK:
@@ -93,27 +87,30 @@ func _on_start() -> void:
 
 func _on_host() -> void:
 	print("hosting game")
-	status_label.text = "starting server..."
+	status_label.text = "creating room..."
 	status_label.visible = true
 	var err: Error = _network_manager.host_game()
 	if err != OK:
 		status_label.text = "failed to host: %s" % error_string(err)
 		return
-	status_label.text = "hosting — waiting for players..."
+	status_label.text = "room code: %s — share this code" % _network_manager.room_code
 	join_button.disabled = true
 	host_button.disabled = true
-	# host can start immediately
+	code_input.text = _network_manager.room_code
+	code_input.editable = false
 	start_button.text = "start run (host)"
 
 
 func _on_join() -> void:
 	print("joining game")
-	var ip: String = ip_input.text.strip_edges()
-	if ip.is_empty():
-		ip = "127.0.0.1"
-	status_label.text = "connecting to %s..." % ip
+	var code: String = code_input.text.strip_edges().to_upper()
+	if code.length() != NetworkManager.CODE_LENGTH:
+		status_label.text = "enter a %d-character room code" % NetworkManager.CODE_LENGTH
+		status_label.visible = true
+		return
+	status_label.text = "connecting with code %s..." % code
 	status_label.visible = true
-	var err: Error = _network_manager.join_game(ip)
+	var err: Error = _network_manager.join_by_code(code)
 	if err != OK:
 		status_label.text = "failed to connect: %s" % error_string(err)
 		return
@@ -129,9 +126,10 @@ func _on_connection_succeeded() -> void:
 
 
 func _on_connection_failed() -> void:
-	status_label.text = "connection failed"
+	status_label.text = "connection failed — check code and try again"
 	host_button.disabled = false
 	join_button.disabled = false
+	code_input.editable = true
 
 
 func _on_mode_cycle() -> void:

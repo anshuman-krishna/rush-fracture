@@ -21,9 +21,8 @@ var _update_timer: float = 0.0
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and event.keycode == KEY_F2:
+	if event is InputEventKey and event.pressed and event.keycode == KEY_F3:
 		visible = not visible
-		# toggle crosshair alongside hud for screenshot mode
 		var crosshair: Node = get_node_or_null("../Crosshair")
 		if crosshair:
 			crosshair.visible = visible
@@ -76,28 +75,33 @@ func update_combo(multiplier: int, kill_count: int) -> void:
 func _process(delta: float) -> void:
 	if not run_manager or not run_manager.data:
 		return
+	if not run_manager.is_active:
+		return
 
 	var data: RunData = run_manager.data
 
-	room_label.text = "room %d/%d" % [data.current_room_index + 1, data.total_rooms()]
-	timer_label.text = _format_time(data.elapsed_time)
+	if room_label:
+		room_label.text = "room %d/%d" % [data.current_room_index + 1, data.total_rooms()]
+	if timer_label:
+		timer_label.text = _format_time(data.elapsed_time)
 
 	# throttle expensive lookups
 	_update_timer += delta
 	if _update_timer >= 0.1:
 		_update_timer = 0.0
-		enemy_label.text = "x%d" % get_tree().get_nodes_in_group("enemies").size()
+		if enemy_label:
+			enemy_label.text = "x%d" % get_tree().get_nodes_in_group("enemies").size()
 		_update_mode_display()
 
 	# resolve player refs if missing
 	if not _primary_player or not is_instance_valid(_primary_player):
 		_resolve_refs()
 
-	if _primary_player and is_instance_valid(_primary_player):
+	if _primary_player and is_instance_valid(_primary_player) and hp_label:
 		hp_label.text = "%d hp" % _primary_player.health
 
 	# beam emitter heat display
-	if _weapon_manager and is_instance_valid(_weapon_manager):
+	if _weapon_manager and is_instance_valid(_weapon_manager) and weapon_label:
 		if _weapon_manager.active_slot == WeaponManager.WeaponSlot.BEAM_EMITTER:
 			var ratio: float = _weapon_manager.get_beam_heat_ratio()
 			var oh: bool = _weapon_manager.is_beam_overheated()

@@ -2,8 +2,8 @@ class_name NetworkManager
 extends Node
 
 # manages multiplayer connections using godot high-level api.
-# host starts enet server, clients connect via ip.
-# tracks connection state and peer ids.
+# uses a room code system (like among us) instead of raw ip.
+# host creates a code, clients enter the code to join.
 
 signal connection_succeeded
 signal connection_failed
@@ -15,10 +15,12 @@ enum State { OFFLINE, HOSTING, JOINING, CONNECTED }
 
 const DEFAULT_PORT: int = 27015
 const MAX_CLIENTS: int = 4
+const CODE_LENGTH: int = 6
 
 var state: State = State.OFFLINE
 var local_peer_id: int = 0
 var connected_peers: Array[int] = []
+var room_code: String = ""
 
 
 func _ready() -> void:
@@ -26,7 +28,7 @@ func _ready() -> void:
 
 
 func is_ready() -> bool:
-	return get_tree() != null and get_tree().get_multiplayer() != null
+	return is_inside_tree() and get_tree() != null and get_tree().get_multiplayer() != null
 
 
 func _get_mp() -> MultiplayerAPI:
@@ -36,23 +38,46 @@ func _get_mp() -> MultiplayerAPI:
 	return get_tree().get_multiplayer()
 
 
-func host_game(port: int = DEFAULT_PORT) -> Error:
+func generate_room_code() -> String:
+	var chars: String = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+	var code: String = ""
+	for i in CODE_LENGTH:
+		code += chars[randi() % chars.length()]
+	return code
+
+
+func code_to_port(code: String) -> int:
+	# deterministic port from code so host and client resolve the same port
+	var hash_val: int = 0
+	for i in code.length():
+		hash_val = hash_val * 31 + code.unicode_at(i)
+	# port range 10000-60000
+	return 10000 + (absi(hash_val) % 50000)
+
+
+func host_game(port: int = -1) -> Error:
 	var mp: MultiplayerAPI = _get_mp()
 	if mp == null:
 		push_error("multiplayer api is null — cannot host")
 		return ERR_UNAVAILABLE
 
+	# generate room code and derive port
+	room_code = generate_room_code()
+	if port < 0:
+		port = code_to_port(room_code)
+
 	var peer: ENetMultiplayerPeer = ENetMultiplayerPeer.new()
 	var err: Error = peer.create_server(port, MAX_CLIENTS)
 	if err != OK:
 		push_error("enet create_server failed: %s" % error_string(err))
+		room_code = ""
 		return err
 
 	mp.multiplayer_peer = peer
 
-	# verify peer assignment succeeded
 	if not mp.has_multiplayer_peer():
 		push_error("multiplayer peer assignment failed after host")
+		room_code = ""
 		return ERR_UNAVAILABLE
 
 	state = State.HOSTING
@@ -62,7 +87,7 @@ func host_game(port: int = DEFAULT_PORT) -> Error:
 	mp.peer_connected.connect(_on_peer_connected)
 	mp.peer_disconnected.connect(_on_peer_disconnected)
 
-	print("hosting on port %d — peer id: %d" % [port, local_peer_id])
+	print("hosting with code %s on port %d — peer id: %d" % [room_code, port, local_peer_id])
 	connection_succeeded.emit()
 	return OK
 
@@ -81,7 +106,6 @@ func join_game(address: String, port: int = DEFAULT_PORT) -> Error:
 
 	mp.multiplayer_peer = peer
 
-	# verify peer assignment succeeded
 	if not mp.has_multiplayer_peer():
 		push_error("multiplayer peer assignment failed after join")
 		return ERR_UNAVAILABLE
@@ -98,6 +122,16 @@ func join_game(address: String, port: int = DEFAULT_PORT) -> Error:
 	return OK
 
 
+func join_by_code(code: String, address: String = "127.0.0.1") -> Error:
+	room_code = code.strip_edges().to_upper()
+	if room_code.length() != CODE_LENGTH:
+		push_error("invalid room code: %s" % room_code)
+		return ERR_INVALID_PARAMETER
+	var port: int = code_to_port(room_code)
+	print("joining room %s → %s:%d" % [room_code, address, port])
+	return join_game(address, port)
+
+
 func disconnect_game() -> void:
 	if state == State.OFFLINE:
 		return
@@ -108,6 +142,7 @@ func disconnect_game() -> void:
 	state = State.OFFLINE
 	local_peer_id = 0
 	connected_peers.clear()
+	room_code = ""
 
 	_disconnect_signals()
 	print("disconnected")
@@ -183,6 +218,7 @@ func _on_connected_to_server() -> void:
 func _on_connection_failed() -> void:
 	state = State.OFFLINE
 	local_peer_id = 0
+	room_code = ""
 	print("connection failed")
 	connection_failed.emit()
 	_disconnect_signals()
@@ -192,6 +228,7 @@ func _on_server_disconnected() -> void:
 	state = State.OFFLINE
 	local_peer_id = 0
 	connected_peers.clear()
+	room_code = ""
 	print("server disconnected")
 	server_disconnected.emit()
 	_disconnect_signals()

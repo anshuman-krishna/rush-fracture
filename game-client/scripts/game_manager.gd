@@ -91,7 +91,11 @@ func _ready() -> void:
 	run_hud.bind_pvp(pvp_manager)
 	run_hud.bind_player(player, weapon_manager)
 
-	# show onboarding on first run
+	# defer run start to next frame so all sibling nodes have _ready() resolved
+	call_deferred("_deferred_start")
+
+
+func _deferred_start() -> void:
 	var settings: GameSettings = GameSettings.load_settings()
 	if not settings.has_seen_onboarding:
 		_show_onboarding()
@@ -116,14 +120,14 @@ func _detect_game_mode() -> void:
 		game_mode.name = "GameModeManager"
 		get_tree().root.add_child(game_mode)
 
-	# setup pvp manager for competitive modes
+	# setup pvp manager for all modes that need it
 	pvp_manager = PvPManager.new()
 	pvp_manager.name = "PvPManager"
 	add_child(pvp_manager)
 	if _is_online() and player_manager and network_manager:
 		pvp_manager.setup(game_mode, player_manager, network_manager)
-		pvp_manager.player_eliminated.connect(_on_pvp_player_eliminated)
-		pvp_manager.match_over.connect(_on_pvp_match_over)
+	pvp_manager.player_eliminated.connect(_on_pvp_player_eliminated)
+	pvp_manager.match_over.connect(_on_pvp_match_over)
 
 	# register peers for scoring
 	if _is_online():
@@ -133,6 +137,8 @@ func _detect_game_mode() -> void:
 				game_mode.register_race_peer(peer_id)
 	else:
 		game_mode._ensure_score(1)
+		if game_mode.is_race():
+			game_mode.register_race_peer(1)
 
 
 func _setup_multiplayer_spawning() -> void:
@@ -450,8 +456,9 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 	audio.play("room_clear", -3.0)
 
 	# race mode: track room progress and check for encounter
-	if game_mode and game_mode.is_race() and _is_online():
-		game_mode.on_race_room_cleared(network_manager.local_peer_id)
+	if game_mode and game_mode.is_race():
+		var local_id: int = network_manager.local_peer_id if _is_online() else 1
+		game_mode.on_race_room_cleared(local_id)
 		if is_host_or_solo() and game_mode.should_start_encounter():
 			_transition_to_pvp()
 			return
@@ -581,6 +588,18 @@ func _prompt_next_room() -> void:
 # --- pvp encounter ---
 
 func _transition_to_pvp() -> void:
+	# solo: no opponents — complete the run with a victory screen
+	if not _is_online():
+		room_controller.clear_current_room()
+		fracture_manager.end_fracture()
+		room_announce.show_fracture("run complete")
+		audio.play("boss_death", 0.0)
+		await get_tree().create_timer(1.5).timeout
+		if not is_instance_valid(self):
+			return
+		_complete_run()
+		return
+
 	_pvp_active = true
 	room_controller.clear_current_room()
 	fracture_manager.end_fracture()

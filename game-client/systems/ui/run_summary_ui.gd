@@ -18,11 +18,17 @@ func _ready() -> void:
 	)
 	menu_button.pressed.connect(func():
 		Engine.time_scale = 1.0
-		get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+		var err: Error = get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+		if err != OK:
+			push_error("failed to return to menu: %s" % error_string(err))
 	)
 
 
 func show_summary(data: RunData) -> void:
+	if not status_label or not stats_label or not tags_label:
+		push_error("run summary ui labels missing")
+		return
+
 	var is_win: bool = data.status == RunData.RunStatus.COMPLETED
 	var beat_boss: bool = false
 	for room in data.room_sequence:

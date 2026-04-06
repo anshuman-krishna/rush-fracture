@@ -27,10 +27,6 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 0.0
-offset_bottom = 0.0
 alignment = 1
 theme_override_constants/separation = 12
 
@@ -113,13 +109,13 @@ theme_override_colors/font_hover_color = Color(0.5, 1, 0.7, 1)
 theme_override_font_sizes/font_size = 16
 text = "host game"
 
-[node name="IpInput" type="LineEdit" parent="Panel/ContentMargin/Content"]
+[node name="CodeInput" type="LineEdit" parent="Panel/ContentMargin/Content"]
 custom_minimum_size = Vector2(0, 40)
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
-text = "127.0.0.1"
-placeholder_text = "ip address"
+placeholder_text = "enter room code"
 alignment = 1
+max_length = 6
 
 [node name="JoinButton" type="Button" parent="Panel/ContentMargin/Content"]
 custom_minimum_size = Vector2(0, 40)
