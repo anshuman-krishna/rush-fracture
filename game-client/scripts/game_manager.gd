@@ -47,11 +47,13 @@ var _onboarding: OnboardingOverlay
 
 
 func _ready() -> void:
+	print("game manager ready")
 	_profile = PlayerProfile.load_profile()
 	_detect_network()
 	_detect_game_mode()
 	_setup_multiplayer_spawning()
 	_resolve_player_refs()
+	_validate_dependencies()
 
 	player.player_damaged.connect(_on_player_damaged)
 	player.player_dashed.connect(_on_player_dashed)
@@ -162,6 +164,21 @@ func is_host_or_solo() -> bool:
 
 func _is_online() -> bool:
 	return network_manager and network_manager.is_online()
+
+
+func _validate_dependencies() -> void:
+	if not player_manager:
+		push_error("player_manager missing")
+	if not run_manager:
+		push_error("run_manager missing")
+	if not room_controller:
+		push_error("room_controller missing")
+	if not upgrade_manager:
+		push_error("upgrade_manager missing")
+	if not player:
+		push_error("player not found — check player_manager registration")
+	if not weapon_manager:
+		push_error("weapon_manager not found on player")
 
 
 func _resolve_player_refs() -> void:
@@ -589,7 +606,7 @@ func _transition_to_pvp() -> void:
 
 
 func _reset_pvp_players() -> void:
-	var players: Array[Node] = player_manager.get_all_players()
+	var players: Array[CharacterBody3D] = player_manager.get_all_players()
 	for i in players.size():
 		var p: CharacterBody3D = players[i] as CharacterBody3D
 		if not p:
@@ -755,7 +772,9 @@ func _on_server_disconnected() -> void:
 	if pvp_manager and pvp_manager.is_active():
 		pvp_manager.stop_pvp()
 	room_controller.clear_current_room()
-	get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	var err: Error = get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	if err != OK:
+		push_error("failed to change scene to main_menu: %s" % error_string(err))
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
@@ -793,7 +812,7 @@ func _reset_player_position() -> void:
 
 func _set_pvp_on_weapons(active: bool) -> void:
 	var ref: Node = pvp_manager if active else null
-	var players: Array[Node] = player_manager.get_all_players()
+	var players: Array[CharacterBody3D] = player_manager.get_all_players()
 	for p in players:
 		if not p is CharacterBody3D:
 			continue

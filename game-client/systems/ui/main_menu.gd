@@ -3,19 +3,19 @@ extends Control
 # main menu — entry point. aggressive, minimal.
 # supports solo play and multiplayer host/join.
 
-@onready var title_label: Label = $Panel/TitleLabel
-@onready var tagline_label: Label = $Panel/TaglineLabel
-@onready var start_button: Button = $Panel/StartButton
-@onready var best_stats_label: Label = $Panel/BestStatsLabel
-@onready var quit_button: Button = $Panel/QuitButton
-@onready var host_button: Button = $Panel/HostButton
-@onready var join_button: Button = $Panel/JoinButton
-@onready var ip_input: LineEdit = $Panel/IpInput
-@onready var status_label: Label = $Panel/StatusLabel
-@onready var mode_button: Button = $Panel/ModeButton
-@onready var upgrades_button: Button = $Panel/UpgradesButton
-@onready var shards_label: Label = $Panel/ShardsLabel
-@onready var settings_button: Button = $Panel/SettingsButton
+@onready var title_label: Label = $Panel/ContentMargin/Content/TitleLabel
+@onready var tagline_label: Label = $Panel/ContentMargin/Content/TaglineLabel
+@onready var start_button: Button = $Panel/ContentMargin/Content/StartButton
+@onready var best_stats_label: Label = $Panel/ContentMargin/Content/BestStatsLabel
+@onready var quit_button: Button = $Panel/ContentMargin/Content/QuitButton
+@onready var host_button: Button = $Panel/ContentMargin/Content/HostButton
+@onready var join_button: Button = $Panel/ContentMargin/Content/JoinButton
+@onready var ip_input: LineEdit = $Panel/ContentMargin/Content/IpInput
+@onready var status_label: Label = $Panel/ContentMargin/Content/StatusLabel
+@onready var mode_button: Button = $Panel/ContentMargin/Content/ModeButton
+@onready var upgrades_button: Button = $Panel/ContentMargin/Content/UpgradesButton
+@onready var shards_label: Label = $Panel/ContentMargin/Content/ShardsLabel
+@onready var settings_button: Button = $Panel/ContentMargin/Content/SettingsButton
 
 var _network_manager: NetworkManager
 var _game_mode_manager: GameModeManager
@@ -25,6 +25,7 @@ var _settings_menu: SettingsMenu
 
 
 func _ready() -> void:
+	print("main menu ready")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 	# apply saved settings on startup
@@ -39,6 +40,10 @@ func _ready() -> void:
 	_show_best_stats()
 	_show_shards()
 	_animate_in()
+
+	# set default ip
+	if ip_input and ip_input.text.strip_edges().is_empty():
+		ip_input.text = "127.0.0.1"
 
 	# create network manager as autoload-like node
 	_network_manager = NetworkManager.new()
@@ -70,6 +75,7 @@ func _ready() -> void:
 
 
 func _on_start() -> void:
+	print("starting game")
 	# set the selected game mode
 	_game_mode_manager.set_mode(_selected_mode)
 
@@ -79,11 +85,14 @@ func _on_start() -> void:
 		# force coop for solo play
 		_game_mode_manager.set_mode(GameModeManager.GameMode.COOP)
 	_animate_out(func():
-		get_tree().change_scene_to_file("res://scenes/main.tscn")
+		var err: Error = get_tree().change_scene_to_file("res://scenes/main.tscn")
+		if err != OK:
+			push_error("failed to change scene to main: %s" % error_string(err))
 	)
 
 
 func _on_host() -> void:
+	print("hosting game")
 	status_label.text = "starting server..."
 	status_label.visible = true
 	var err: Error = _network_manager.host_game()
@@ -98,6 +107,7 @@ func _on_host() -> void:
 
 
 func _on_join() -> void:
+	print("joining game")
 	var ip: String = ip_input.text.strip_edges()
 	if ip.is_empty():
 		ip = "127.0.0.1"

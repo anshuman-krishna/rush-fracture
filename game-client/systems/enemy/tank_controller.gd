@@ -80,7 +80,7 @@ func _elite_ground_slam() -> void:
 	slam_cooldown = 6.0
 	var slam_radius: float = 5.0
 	var slam_damage: int = int(attack_damage * 0.8)
-	var players: Array[Node]
+	var players: Array = []
 	if _player_manager:
 		players = _player_manager.get_all_players()
 	else:

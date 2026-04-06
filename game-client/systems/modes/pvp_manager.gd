@@ -28,7 +28,7 @@ func start_pvp() -> void:
 	_pvp_health.clear()
 
 	# set pvp health for all players
-	var players: Array[Node] = _player_manager.get_all_players()
+	var players: Array[CharacterBody3D] = _player_manager.get_all_players()
 	for p in players:
 		if p is CharacterBody3D:
 			var peer_id: int = _get_peer_id(p)
@@ -107,7 +107,7 @@ func get_pvp_max_health() -> int:
 
 
 func _find_player_by_peer(peer_id: int) -> CharacterBody3D:
-	var players: Array[Node] = _player_manager.get_all_players()
+	var players: Array[CharacterBody3D] = _player_manager.get_all_players()
 	for p in players:
 		if p is CharacterBody3D and _get_peer_id(p) == peer_id:
 			return p
@@ -115,7 +115,8 @@ func _find_player_by_peer(peer_id: int) -> CharacterBody3D:
 
 
 func _get_peer_id(player: CharacterBody3D) -> int:
-	if not player.multiplayer or not player.multiplayer.has_multiplayer_peer():
+	var mp: MultiplayerAPI = player.get_tree().get_multiplayer() if player.get_tree() else null
+	if not mp or not mp.has_multiplayer_peer():
 		return 1
 	return player.get_multiplayer_authority()
 

@@ -161,7 +161,7 @@ func _do_slam() -> void:
 	# ground slam — damages everything in radius
 	if not target:
 		return
-	var players: Array[Node]
+	var players: Array = []
 	if _player_manager:
 		players = _player_manager.get_all_players()
 	else:
@@ -177,7 +177,7 @@ func _do_shockwave() -> void:
 	# expanding ring — damages at distance
 	if not target:
 		return
-	var players: Array[Node]
+	var players: Array = []
 	if _player_manager:
 		players = _player_manager.get_all_players()
 	else:

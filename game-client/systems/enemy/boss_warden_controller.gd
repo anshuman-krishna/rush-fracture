@@ -180,7 +180,7 @@ func _handle_cooldown(delta: float) -> void:
 
 func _do_pulse() -> void:
 	# expanding damage ring
-	var players: Array[Node] = _get_players()
+	var players: Array = _get_players()
 	for p in players:
 		if p is Node3D and global_position.distance_to(p.global_position) <= pulse_radius:
 			if p.has_method("take_damage"):
@@ -192,7 +192,7 @@ func _do_pulse() -> void:
 
 
 func _do_slam() -> void:
-	var players: Array[Node] = _get_players()
+	var players: Array = _get_players()
 	for p in players:
 		if p is Node3D and global_position.distance_to(p.global_position) <= slam_radius:
 			if p.has_method("take_damage"):
@@ -474,7 +474,7 @@ func _find_target() -> void:
 			target = players[0] as CharacterBody3D
 
 
-func _get_players() -> Array[Node]:
+func _get_players() -> Array:
 	if _player_manager:
 		return _player_manager.get_all_players()
 	return get_tree().get_nodes_in_group("player")
