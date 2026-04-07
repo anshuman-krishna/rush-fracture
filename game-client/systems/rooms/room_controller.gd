@@ -34,6 +34,19 @@ func _ready() -> void:
 	_preload_warden_scene()
 
 
+func _process(_delta: float) -> void:
+	if not room_active or enemies_alive <= 0:
+		return
+	# safety net: kill any enemy that fell off the map
+	for child in enemy_root.get_children():
+		if not is_instance_valid(child) or not child is Node3D:
+			continue
+		if child.global_position.y < -20.0:
+			var hc: HealthComponent = child.get_node_or_null("HealthComponent") as HealthComponent
+			if hc and hc.is_alive():
+				hc._apply_damage(hc.max_health * 10)
+
+
 func enter_room(room: RunData.RoomData) -> void:
 	_clear_room()
 	active_room = room
@@ -300,11 +313,34 @@ func _apply_palette() -> void:
 
 
 func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
-	var pillar: StaticBody3D = StaticBody3D.new()
+	var obstacle_type: int = randi() % 5  # 0=pillar, 1=low wall, 2=crate, 3=ramp, 4=tall pillar
 	var angle: float = (float(index) / float(total)) * TAU + randf() * 0.5
-	var dist: float =6.0 + randf() * 10.0
-	pillar.position = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
+	var dist: float = 6.0 + randf() * 10.0
+	var pos: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 
+	match obstacle_type:
+		0:
+			_spawn_pillar(pos, room)
+		1:
+			_spawn_low_wall(pos, angle, room)
+		2:
+			_spawn_crate_cluster(pos, room)
+		3:
+			_spawn_ramp(pos, angle, room)
+		4:
+			_spawn_tall_pillar(pos, room)
+
+
+func _get_obstacle_color(variation: float = 0.0) -> Color:
+	if current_palette:
+		var c: Color = current_palette.obstacle_color
+		return Color(c.r + randf() * 0.03 + variation, c.g + randf() * 0.03 + variation, c.b + randf() * 0.03 + variation, 1)
+	return Color(0.1 + variation, 0.1 + variation, 0.12 + variation, 1)
+
+
+func _spawn_pillar(pos: Vector3, room: RunData.RoomData) -> void:
+	var pillar: StaticBody3D = StaticBody3D.new()
+	pillar.position = pos
 	var height: float = 1.5 + randf() * 2.0
 	var width: float = 0.8 + randf() * 0.6
 
@@ -313,14 +349,8 @@ func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
 	box.size = Vector3(width, height, width)
 	mesh.mesh = box
 	mesh.position.y = height / 2.0
-
 	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	if current_palette:
-		var c: Color = current_palette.obstacle_color
-		mat.albedo_color = Color(c.r + randf() * 0.03, c.g + randf() * 0.03, c.b + randf() * 0.03, 1)
-	else:
-		var shade: float = 0.08 + room.difficulty * 0.02
-		mat.albedo_color = Color(shade, shade, shade + 0.02, 1)
+	mat.albedo_color = _get_obstacle_color()
 	mesh.material_override = mat
 
 	var col: CollisionShape3D = CollisionShape3D.new()
@@ -333,6 +363,172 @@ func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
 	pillar.add_child(col)
 	pillar.collision_layer = 1
 	arena_root.add_child(pillar)
+
+	# accent stripe on pillar
+	var stripe: MeshInstance3D = MeshInstance3D.new()
+	var stripe_box: BoxMesh = BoxMesh.new()
+	stripe_box.size = Vector3(width + 0.02, 0.08, width + 0.02)
+	stripe.mesh = stripe_box
+	stripe.position.y = height * 0.7
+	var stripe_mat: StandardMaterial3D = StandardMaterial3D.new()
+	stripe_mat.albedo_color = _get_obstacle_color(0.06)
+	stripe_mat.emission_enabled = true
+	stripe_mat.emission = _get_obstacle_color(0.08)
+	stripe_mat.emission_energy_multiplier = 0.4
+	stripe.material_override = stripe_mat
+	pillar.add_child(stripe)
+
+
+func _spawn_low_wall(pos: Vector3, angle: float, room: RunData.RoomData) -> void:
+	var wall: StaticBody3D = StaticBody3D.new()
+	wall.position = pos
+	wall.rotation.y = angle + randf() * 0.3
+	var length: float = 2.5 + randf() * 3.0
+	var height: float = 0.8 + randf() * 0.5
+
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	box.size = Vector3(length, height, 0.4)
+	mesh.mesh = box
+	mesh.position.y = height / 2.0
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = _get_obstacle_color(-0.02)
+	mesh.material_override = mat
+
+	var col: CollisionShape3D = CollisionShape3D.new()
+	var shape: BoxShape3D = BoxShape3D.new()
+	shape.size = Vector3(length, height, 0.4)
+	col.shape = shape
+	col.position.y = height / 2.0
+
+	wall.add_child(mesh)
+	wall.add_child(col)
+	wall.collision_layer = 1
+	arena_root.add_child(wall)
+
+
+func _spawn_crate_cluster(pos: Vector3, room: RunData.RoomData) -> void:
+	var count: int = 2 + randi() % 3
+	for i in count:
+		var crate: StaticBody3D = StaticBody3D.new()
+		var offset: Vector3 = Vector3((randf() - 0.5) * 2.0, 0, (randf() - 0.5) * 2.0)
+		crate.position = pos + offset
+		var s: float = 0.5 + randf() * 0.5
+		var h: float = 0.4 + randf() * 0.8
+
+		var mesh: MeshInstance3D = MeshInstance3D.new()
+		var box: BoxMesh = BoxMesh.new()
+		box.size = Vector3(s, h, s)
+		mesh.mesh = box
+		mesh.position.y = h / 2.0
+		var mat: StandardMaterial3D = StandardMaterial3D.new()
+		mat.albedo_color = _get_obstacle_color(0.03 * i)
+		mesh.material_override = mat
+
+		var col: CollisionShape3D = CollisionShape3D.new()
+		var shape: BoxShape3D = BoxShape3D.new()
+		shape.size = Vector3(s, h, s)
+		col.shape = shape
+		col.position.y = h / 2.0
+
+		crate.add_child(mesh)
+		crate.add_child(col)
+		crate.collision_layer = 1
+		arena_root.add_child(crate)
+
+
+func _spawn_ramp(pos: Vector3, angle: float, room: RunData.RoomData) -> void:
+	# ramp = angled platform you can walk up
+	var ramp: StaticBody3D = StaticBody3D.new()
+	ramp.position = pos
+	ramp.rotation.y = angle
+
+	var length: float = 3.0 + randf() * 2.0
+	var width: float = 1.5 + randf() * 1.0
+	var height: float = 0.8 + randf() * 0.6
+
+	# ramp body
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	box.size = Vector3(width, 0.15, length)
+	mesh.mesh = box
+	mesh.position = Vector3(0, height / 2.0, 0)
+	mesh.rotation.x = -atan2(height, length)
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = _get_obstacle_color(0.04)
+	mesh.material_override = mat
+
+	# collision — use a box tilted to match ramp angle
+	var col: CollisionShape3D = CollisionShape3D.new()
+	var shape: BoxShape3D = BoxShape3D.new()
+	shape.size = Vector3(width, 0.15, length)
+	col.shape = shape
+	col.position = Vector3(0, height / 2.0, 0)
+	col.rotation.x = -atan2(height, length)
+
+	ramp.add_child(mesh)
+	ramp.add_child(col)
+	ramp.collision_layer = 1
+	arena_root.add_child(ramp)
+
+	# edge trim
+	var trim: MeshInstance3D = MeshInstance3D.new()
+	var trim_box: BoxMesh = BoxMesh.new()
+	trim_box.size = Vector3(width + 0.1, 0.06, 0.15)
+	trim.mesh = trim_box
+	trim.position = Vector3(0, height, -length * 0.4)
+	var trim_mat: StandardMaterial3D = StandardMaterial3D.new()
+	trim_mat.albedo_color = _get_obstacle_color(0.06)
+	trim_mat.emission_enabled = true
+	trim_mat.emission = trim_mat.albedo_color
+	trim_mat.emission_energy_multiplier = 0.5
+	trim.material_override = trim_mat
+	ramp.add_child(trim)
+
+
+func _spawn_tall_pillar(pos: Vector3, room: RunData.RoomData) -> void:
+	var pillar: StaticBody3D = StaticBody3D.new()
+	pillar.position = pos
+	var width: float = 0.5 + randf() * 0.3
+	var height: float = 3.5 + randf() * 2.0
+
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	box.size = Vector3(width, height, width)
+	mesh.mesh = box
+	mesh.position.y = height / 2.0
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = _get_obstacle_color(-0.03)
+	mesh.material_override = mat
+
+	var col: CollisionShape3D = CollisionShape3D.new()
+	var shape: BoxShape3D = BoxShape3D.new()
+	shape.size = Vector3(width, height, width)
+	col.shape = shape
+	col.position.y = height / 2.0
+
+	pillar.add_child(mesh)
+	pillar.add_child(col)
+	pillar.collision_layer = 1
+	arena_root.add_child(pillar)
+
+	# glow cap on top
+	var cap: MeshInstance3D = MeshInstance3D.new()
+	var cap_box: BoxMesh = BoxMesh.new()
+	cap_box.size = Vector3(width + 0.1, 0.1, width + 0.1)
+	cap.mesh = cap_box
+	cap.position.y = height
+	var cap_mat: StandardMaterial3D = StandardMaterial3D.new()
+	cap_mat.emission_enabled = true
+	if current_palette:
+		cap_mat.albedo_color = current_palette.floor_emission
+		cap_mat.emission = current_palette.floor_emission
+	else:
+		cap_mat.albedo_color = Color(0.3, 0.1, 0.1)
+		cap_mat.emission = Color(0.3, 0.1, 0.1)
+	cap_mat.emission_energy_multiplier = 1.0
+	cap.material_override = cap_mat
+	pillar.add_child(cap)
 
 
 func _place_hazards(room: RunData.RoomData) -> void:

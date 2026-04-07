@@ -1,7 +1,6 @@
 extends Control
 
-# presents mutation choices after specific rooms.
-# mutations have visible upsides and downsides.
+# mutation choices after specific rooms. visible upsides and downsides.
 
 signal mutation_selected(mutation: Dictionary)
 signal mutation_skipped
@@ -40,68 +39,99 @@ func _build_buttons() -> void:
 	for child in container.get_children():
 		child.queue_free()
 
+	if title_label:
+		title_label.add_theme_font_size_override("font_size", 22)
+		title_label.text = "choose mutation"
+
 	for i in choices.size():
 		var mutation: Dictionary = choices[i]
 
-		var wrapper: VBoxContainer = VBoxContainer.new()
-		wrapper.add_theme_constant_override("separation", 2)
+		# row: info left, select button right
+		var row: HBoxContainer = HBoxContainer.new()
+		row.add_theme_constant_override("separation", 12)
+		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-		var btn: Button = Button.new()
-		btn.text = "[%d] %s — %s" % [i + 1, mutation.name, mutation.description]
-		btn.custom_minimum_size = Vector2(450, 50)
+		var info_col: VBoxContainer = VBoxContainer.new()
+		info_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		info_col.add_theme_constant_override("separation", 3)
 
-		btn.add_theme_color_override("font_color", Color(1.0, 0.6, 0.1))
-		btn.add_theme_color_override("font_hover_color", Color(1.0, 0.3, 0.0))
-		btn.add_theme_font_size_override("font_size", 15)
+		var name_label: Label = Label.new()
+		name_label.text = "[%d] %s" % [i + 1, mutation.name]
+		name_label.add_theme_font_size_override("font_size", 18)
+		name_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.1))
+		info_col.add_child(name_label)
 
-		var captured: Dictionary = mutation
-		btn.pressed.connect(func(): _on_choice(captured))
-		wrapper.add_child(btn)
+		var desc_label: Label = Label.new()
+		desc_label.text = mutation.description
+		desc_label.add_theme_font_size_override("font_size", 14)
+		desc_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
+		desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		info_col.add_child(desc_label)
 
-		# upside/downside hint
+		# upside/downside
 		var upside: String = mutation.get("upside", "")
 		var downside: String = mutation.get("downside", "")
 		if upside.length() > 0 or downside.length() > 0:
-			var hint_label: Label = Label.new()
-			var parts: PackedStringArray = PackedStringArray()
+			var hint_row: HBoxContainer = HBoxContainer.new()
+			hint_row.add_theme_constant_override("separation", 8)
 			if upside.length() > 0:
-				parts.append(upside)
+				var up_lbl: Label = Label.new()
+				up_lbl.text = upside
+				up_lbl.add_theme_font_size_override("font_size", 13)
+				up_lbl.add_theme_color_override("font_color", Color(0.4, 0.9, 0.4))
+				hint_row.add_child(up_lbl)
 			if downside.length() > 0:
-				parts.append(downside)
-			hint_label.text = " | ".join(parts)
-			hint_label.add_theme_font_size_override("font_size", 11)
-			hint_label.add_theme_color_override("font_color", Color(0.6, 0.4, 0.2))
-			hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-			wrapper.add_child(hint_label)
+				var down_lbl: Label = Label.new()
+				down_lbl.text = downside
+				down_lbl.add_theme_font_size_override("font_size", 13)
+				down_lbl.add_theme_color_override("font_color", Color(1.0, 0.4, 0.3))
+				hint_row.add_child(down_lbl)
+			info_col.add_child(hint_row)
 
-		container.add_child(wrapper)
+		row.add_child(info_col)
 
-		# staggered fade
-		wrapper.modulate.a = 0.0
+		# select button
+		var select_btn: Button = Button.new()
+		select_btn.text = "select"
+		select_btn.custom_minimum_size = Vector2(100, 50)
+		select_btn.add_theme_font_size_override("font_size", 17)
+		select_btn.add_theme_color_override("font_color", Color(1.0, 0.6, 0.1))
+		select_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.8, 0.3))
+		select_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+		var captured: Dictionary = mutation
+		select_btn.pressed.connect(func(): _on_choice(captured))
+		row.add_child(select_btn)
+
+		container.add_child(row)
+
+		# stagger fade
+		row.modulate.a = 0.0
 		var delay: float = i * 0.05
 		get_tree().create_timer(delay).timeout.connect(func():
-			if is_instance_valid(wrapper):
+			if is_instance_valid(row):
 				var t: Tween = create_tween()
-				t.tween_property(wrapper, "modulate:a", 1.0, 0.1)
+				t.tween_property(row, "modulate:a", 1.0, 0.1)
 		)
+
+		if i < choices.size() - 1:
+			var sep: HSeparator = HSeparator.new()
+			container.add_child(sep)
 
 	# skip button
 	var skip: Button = Button.new()
-	skip.text = "[%d] skip — no mutation" % (choices.size() + 1)
-	skip.custom_minimum_size = Vector2(450, 40)
+	skip.text = "skip — no mutation"
+	skip.custom_minimum_size = Vector2(0, 44)
 	skip.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5))
-	skip.add_theme_color_override("font_hover_color", Color(0.7, 0.7, 0.7))
-	skip.add_theme_font_size_override("font_size", 14)
+	skip.add_theme_color_override("font_hover_color", Color(0.75, 0.75, 0.75))
+	skip.add_theme_font_size_override("font_size", 16)
 	skip.pressed.connect(_on_skip)
 	container.add_child(skip)
 
-	# focus first button
+	# focus first select button
 	if container.get_child_count() > 0:
-		var first: Node = container.get_child(0)
-		if first is VBoxContainer and first.get_child_count() > 0:
-			first.get_child(0).call_deferred("grab_focus")
-		else:
-			first.call_deferred("grab_focus")
+		var first_row: Node = container.get_child(0)
+		if first_row is HBoxContainer and first_row.get_child_count() > 1:
+			first_row.get_child(1).call_deferred("grab_focus")
 
 
 func _animate_in() -> void:

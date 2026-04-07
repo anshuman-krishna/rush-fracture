@@ -23,6 +23,28 @@ func _ready() -> void:
 	shake_on_fire = 3.0
 	camera = get_viewport().get_camera_3d()
 	_create_muzzle_flash()
+	_create_viewmodel()
+
+
+func _create_viewmodel() -> void:
+	var body_color := Color(0.12, 0.12, 0.14)
+	var accent_color := Color(1.0, 0.4, 0.05)
+	var parts: Array[Dictionary] = [
+		# main body — chunky
+		{ "size": Vector3(0.08, 0.08, 0.32), "offset": Vector3.ZERO, "color": body_color },
+		# wide barrel
+		{ "size": Vector3(0.07, 0.07, 0.12), "offset": Vector3(0, 0, -0.2), "color": Color(0.08, 0.08, 0.1) },
+		# barrel flare
+		{ "size": Vector3(0.09, 0.09, 0.03), "offset": Vector3(0, 0, -0.27), "color": Color(0.1, 0.1, 0.1) },
+		# grip
+		{ "size": Vector3(0.05, 0.11, 0.05), "offset": Vector3(0, -0.08, 0.08), "color": body_color },
+		# pump handle
+		{ "size": Vector3(0.04, 0.04, 0.12), "offset": Vector3(0, -0.04, -0.1), "color": Color(0.2, 0.18, 0.14) },
+		# accent
+		{ "size": Vector3(0.085, 0.01, 0.06), "offset": Vector3(0, 0.045, -0.04), "color": accent_color, "emission": accent_color },
+	]
+	viewmodel = _build_viewmodel_mesh(parts)
+	add_child(viewmodel)
 
 
 func _process(delta: float) -> void:

@@ -29,6 +29,7 @@ func _ready() -> void:
 	health.damaged.connect(_on_damaged)
 	add_to_group("enemies")
 	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
+	_build_visual()
 
 
 func _physics_process(delta: float) -> void:
@@ -185,6 +186,39 @@ func _on_damaged(_amount: int, _current: int) -> void:
 func _on_died() -> void:
 	is_dying = true
 	_play_death()
+
+
+func _build_visual() -> void:
+	# healing staff — tall green rod with orb on top
+	var staff: MeshInstance3D = _make_box(Vector3(0.05, 0.9, 0.05), Vector3(0.3, 0.9, 0), Color(0.1, 0.45, 0.15))
+	add_child(staff)
+	var staff_orb: MeshInstance3D = _make_box(Vector3(0.12, 0.12, 0.12), Vector3(0.3, 1.45, 0), Color(0.2, 1.0, 0.3), Color(0.15, 0.9, 0.25))
+	add_child(staff_orb)
+	# staff cross piece
+	var cross: MeshInstance3D = _make_box(Vector3(0.2, 0.04, 0.04), Vector3(0.3, 1.3, 0), Color(0.12, 0.5, 0.18), Color(0.1, 0.7, 0.15))
+	add_child(cross)
+	# robes/skirt at bottom
+	var robe: MeshInstance3D = _make_box(Vector3(0.45, 0.35, 0.45), Vector3(0, 0.2, 0), Color(0.1, 0.4, 0.15))
+	add_child(robe)
+	# green visor
+	var visor: MeshInstance3D = _make_box(Vector3(0.22, 0.04, 0.06), Vector3(0, 1.1, -0.22), Color(0.2, 0.9, 0.3), Color(0.15, 0.8, 0.2))
+	add_child(visor)
+
+
+func _make_box(size: Vector3, offset: Vector3, color: Color, emission: Color = Color.BLACK) -> MeshInstance3D:
+	var m: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	box.size = size
+	m.mesh = box
+	m.position = offset
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = color
+	if emission != Color.BLACK:
+		mat.emission_enabled = true
+		mat.emission = emission
+		mat.emission_energy_multiplier = 1.5
+	m.material_override = mat
+	return m
 
 
 func _flash_hit() -> void:

@@ -28,6 +28,7 @@ func _ready() -> void:
 	health.damaged.connect(_on_damaged)
 	add_to_group("enemies")
 	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
+	_build_visual()
 
 
 func _physics_process(delta: float) -> void:
@@ -138,6 +139,39 @@ func _on_damaged(_amount: int, _current: int) -> void:
 func _on_died() -> void:
 	is_dying = true
 	_play_death()
+
+
+func _build_visual() -> void:
+	# speed fins on back
+	var fin_l: MeshInstance3D = _make_box(Vector3(0.04, 0.4, 0.25), Vector3(-0.3, 0.9, 0.15), Color(1.0, 0.7, 0.05), Color(0.9, 0.5, 0.0))
+	var fin_r: MeshInstance3D = _make_box(Vector3(0.04, 0.4, 0.25), Vector3(0.3, 0.9, 0.15), Color(1.0, 0.7, 0.05), Color(0.9, 0.5, 0.0))
+	add_child(fin_l)
+	add_child(fin_r)
+	# blade weapon — large forward blade
+	var blade: MeshInstance3D = _make_box(Vector3(0.06, 0.08, 0.6), Vector3(0.3, 0.5, -0.45), Color(0.9, 0.9, 0.95), Color(1.0, 0.6, 0.0))
+	add_child(blade)
+	# blade handle
+	var handle: MeshInstance3D = _make_box(Vector3(0.08, 0.15, 0.08), Vector3(0.3, 0.5, -0.1), Color(0.4, 0.3, 0.1))
+	add_child(handle)
+	# eye slit
+	var eye: MeshInstance3D = _make_box(Vector3(0.25, 0.04, 0.06), Vector3(0, 1.1, -0.3), Color(1.0, 0.5, 0.0), Color(1.0, 0.4, 0.0))
+	add_child(eye)
+
+
+func _make_box(size: Vector3, offset: Vector3, color: Color, emission: Color = Color.BLACK) -> MeshInstance3D:
+	var m: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	box.size = size
+	m.mesh = box
+	m.position = offset
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = color
+	if emission != Color.BLACK:
+		mat.emission_enabled = true
+		mat.emission = emission
+		mat.emission_energy_multiplier = 1.5
+	m.material_override = mat
+	return m
 
 
 func _flash_hit() -> void:

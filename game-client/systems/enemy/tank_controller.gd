@@ -23,6 +23,7 @@ func _ready() -> void:
 	health.damaged.connect(_on_damaged)
 	add_to_group("enemies")
 	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
+	_build_visual()
 
 
 func _physics_process(delta: float) -> void:
@@ -147,6 +148,41 @@ func _on_damaged(_amount: int, _current: int) -> void:
 func _on_died() -> void:
 	is_dying = true
 	_play_death()
+
+
+func _build_visual() -> void:
+	# heavy shoulder armor
+	var shoulder_l: MeshInstance3D = _make_box(Vector3(0.4, 0.25, 0.35), Vector3(-0.6, 1.4, 0), Color(0.35, 0.32, 0.38))
+	var shoulder_r: MeshInstance3D = _make_box(Vector3(0.4, 0.25, 0.35), Vector3(0.6, 1.4, 0), Color(0.35, 0.32, 0.38))
+	add_child(shoulder_l)
+	add_child(shoulder_r)
+	# massive fists — melee indicator
+	var fist_l: MeshInstance3D = _make_box(Vector3(0.25, 0.25, 0.25), Vector3(-0.6, 0.6, -0.15), Color(0.4, 0.15, 0.1), Color(0.5, 0.1, 0.0))
+	var fist_r: MeshInstance3D = _make_box(Vector3(0.25, 0.25, 0.25), Vector3(0.6, 0.6, -0.15), Color(0.4, 0.15, 0.1), Color(0.5, 0.1, 0.0))
+	add_child(fist_l)
+	add_child(fist_r)
+	# chest plate
+	var chest: MeshInstance3D = _make_box(Vector3(0.7, 0.4, 0.15), Vector3(0, 1.1, -0.45), Color(0.25, 0.25, 0.3))
+	add_child(chest)
+	# visor — narrow angry slit
+	var visor: MeshInstance3D = _make_box(Vector3(0.5, 0.06, 0.1), Vector3(0, 1.5, -0.45), Color(0.8, 0.15, 0.1), Color(0.7, 0.1, 0.0))
+	add_child(visor)
+
+
+func _make_box(size: Vector3, offset: Vector3, color: Color, emission: Color = Color.BLACK) -> MeshInstance3D:
+	var m: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	box.size = size
+	m.mesh = box
+	m.position = offset
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = color
+	if emission != Color.BLACK:
+		mat.emission_enabled = true
+		mat.emission = emission
+		mat.emission_energy_multiplier = 1.5
+	m.material_override = mat
+	return m
 
 
 func _flash_hit() -> void:

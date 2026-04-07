@@ -7,6 +7,11 @@ extends Control
 var _active_tween: Tween
 
 
+func _ready() -> void:
+	if announce_label:
+		announce_label.add_theme_font_size_override("font_size", 28)
+
+
 func show_room_enter(room: RunData.RoomData, room_number: int, total: int) -> void:
 	if not announce_label:
 		return

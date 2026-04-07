@@ -15,6 +15,42 @@ var shake_on_fire: float = 0.0
 # pvp combat reference — set by game_manager when pvp is active
 var pvp_manager: Node = null
 
+# viewmodel — visible weapon mesh on screen
+var viewmodel: Node3D
+
+
+func _create_viewmodel() -> void:
+	# override in subclasses for custom shapes
+	pass
+
+
+func _build_viewmodel_mesh(parts: Array[Dictionary]) -> Node3D:
+	# builds a viewmodel from an array of box part definitions
+	# each dict: { size: Vector3, offset: Vector3, color: Color, emission: Color (optional) }
+	var root: Node3D = Node3D.new()
+	root.name = "Viewmodel"
+	# position: right side, slightly down, in front of camera
+	root.position = Vector3(0.35, -0.25, -0.5)
+	root.rotation_degrees = Vector3(0, -5, -3)
+
+	for part in parts:
+		var mesh_inst: MeshInstance3D = MeshInstance3D.new()
+		var box: BoxMesh = BoxMesh.new()
+		box.size = part.size
+		mesh_inst.mesh = box
+		mesh_inst.position = part.offset
+
+		var mat: StandardMaterial3D = StandardMaterial3D.new()
+		mat.albedo_color = part.color
+		if part.has("emission"):
+			mat.emission_enabled = true
+			mat.emission = part.emission
+			mat.emission_energy_multiplier = 1.5
+		mesh_inst.material_override = mat
+		root.add_child(mesh_inst)
+
+	return root
+
 
 func try_fire(_effective_damage: int, _effective_fire_rate: float) -> bool:
 	return false

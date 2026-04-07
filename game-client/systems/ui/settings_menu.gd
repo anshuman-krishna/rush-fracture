@@ -23,6 +23,17 @@ func _ready() -> void:
 	sens_slider.value_changed.connect(_on_sens_changed)
 	invert_check.toggled.connect(_on_invert_toggled)
 	fullscreen_check.toggled.connect(_on_fullscreen_toggled)
+	_apply_style()
+
+
+func _apply_style() -> void:
+	if close_button:
+		close_button.add_theme_font_size_override("font_size", 17)
+		close_button.custom_minimum_size = Vector2(120, 40)
+	if volume_value:
+		volume_value.add_theme_font_size_override("font_size", 16)
+	if sens_value:
+		sens_value.add_theme_font_size_override("font_size", 16)
 
 
 func _unhandled_input(event: InputEvent) -> void:

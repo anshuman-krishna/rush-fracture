@@ -22,6 +22,7 @@ func _ready() -> void:
 	health.damaged.connect(_on_damaged)
 	add_to_group("enemies")
 	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
+	_build_visual()
 
 
 func _physics_process(delta: float) -> void:
@@ -117,6 +118,44 @@ func _on_died() -> void:
 	else:
 		is_dying = true
 		_play_death()
+
+
+func _build_visual() -> void:
+	# danger spikes radiating outward — warning indicator
+	var spike_color: Color = Color(1.0, 0.5, 0.0)
+	var spike_emit: Color = Color(1.0, 0.3, 0.0)
+	for i in 6:
+		var angle: float = (float(i) / 6.0) * TAU
+		var dir: Vector3 = Vector3(cos(angle), 0, sin(angle))
+		var spike: MeshInstance3D = _make_box(
+			Vector3(0.06, 0.06, 0.25),
+			Vector3(dir.x * 0.5, 0.5, dir.z * 0.5),
+			spike_color, spike_emit
+		)
+		spike.rotation.y = -angle
+		add_child(spike)
+	# fuse on top — glowing
+	var fuse: MeshInstance3D = _make_box(Vector3(0.06, 0.2, 0.06), Vector3(0, 1.1, 0), Color(1.0, 0.8, 0.2), Color(1.0, 0.6, 0.0))
+	add_child(fuse)
+	# warning ring at base
+	var ring: MeshInstance3D = _make_box(Vector3(0.8, 0.04, 0.8), Vector3(0, 0.05, 0), Color(1.0, 0.2, 0.0), Color(1.0, 0.15, 0.0))
+	add_child(ring)
+
+
+func _make_box(size: Vector3, offset: Vector3, color: Color, emission: Color = Color.BLACK) -> MeshInstance3D:
+	var m: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	box.size = size
+	m.mesh = box
+	m.position = offset
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = color
+	if emission != Color.BLACK:
+		mat.emission_enabled = true
+		mat.emission = emission
+		mat.emission_energy_multiplier = 1.5
+	m.material_override = mat
+	return m
 
 
 func _flash_hit() -> void:

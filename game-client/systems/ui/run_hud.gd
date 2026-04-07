@@ -9,6 +9,7 @@ var _player_manager: PlayerManager
 var _primary_player: CharacterBody3D
 var _weapon_manager: WeaponManager
 var _update_timer: float = 0.0
+var _styled: bool = false
 
 @onready var room_label: Label = $RoomLabel
 @onready var timer_label: Label = $TimerLabel
@@ -18,6 +19,40 @@ var _update_timer: float = 0.0
 @onready var combo_label: Label = $ComboLabel
 @onready var mode_label: Label = $ModeLabel
 @onready var prompt_label: Label = $PromptLabel
+
+
+func _ready() -> void:
+	_apply_style()
+
+
+func _apply_style() -> void:
+	if _styled:
+		return
+	_styled = true
+
+	# bump all HUD labels to readable sizes
+	if room_label:
+		room_label.add_theme_font_size_override("font_size", 20)
+		room_label.add_theme_color_override("font_color", Color(0.9, 0.9, 0.9))
+	if timer_label:
+		timer_label.add_theme_font_size_override("font_size", 20)
+		timer_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.8))
+	if hp_label:
+		hp_label.add_theme_font_size_override("font_size", 22)
+		hp_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.2))
+	if enemy_label:
+		enemy_label.add_theme_font_size_override("font_size", 20)
+		enemy_label.add_theme_color_override("font_color", Color(1.0, 0.6, 0.2))
+	if weapon_label:
+		weapon_label.add_theme_font_size_override("font_size", 18)
+	if combo_label:
+		combo_label.add_theme_font_size_override("font_size", 22)
+		combo_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.2))
+	if mode_label:
+		mode_label.add_theme_font_size_override("font_size", 18)
+	if prompt_label:
+		prompt_label.add_theme_font_size_override("font_size", 20)
+		prompt_label.add_theme_color_override("font_color", Color(1.0, 0.9, 0.7))
 
 
 func _unhandled_input(event: InputEvent) -> void:

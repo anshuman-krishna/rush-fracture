@@ -29,6 +29,7 @@ func _ready() -> void:
 	health.damaged.connect(_on_damaged)
 	add_to_group("enemies")
 	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
+	_build_visual()
 
 
 func _physics_process(delta: float) -> void:
@@ -213,6 +214,41 @@ func _on_died() -> void:
 	is_dying = true
 	_hide_laser()
 	_play_death()
+
+
+func _build_visual() -> void:
+	# long sniper rifle — extends far forward
+	var rifle_body: MeshInstance3D = _make_box(Vector3(0.08, 0.08, 0.7), Vector3(0.25, 0.9, -0.5), Color(0.08, 0.3, 0.45))
+	add_child(rifle_body)
+	var barrel: MeshInstance3D = _make_box(Vector3(0.04, 0.04, 0.35), Vector3(0.25, 0.9, -0.95), Color(0.06, 0.25, 0.4), Color(0.1, 0.4, 0.7))
+	add_child(barrel)
+	# scope on top
+	var scope: MeshInstance3D = _make_box(Vector3(0.05, 0.05, 0.15), Vector3(0.25, 0.98, -0.55), Color(0.15, 0.5, 0.7), Color(0.1, 0.4, 0.6))
+	add_child(scope)
+	# stock
+	var stock: MeshInstance3D = _make_box(Vector3(0.07, 0.1, 0.15), Vector3(0.25, 0.85, -0.05), Color(0.08, 0.3, 0.45))
+	add_child(stock)
+	# hood/visor — narrow targeting slit
+	var hood: MeshInstance3D = _make_box(Vector3(0.35, 0.15, 0.2), Vector3(0, 1.6, -0.15), Color(0.08, 0.3, 0.5))
+	add_child(hood)
+	var visor: MeshInstance3D = _make_box(Vector3(0.25, 0.03, 0.06), Vector3(0, 1.5, -0.28), Color(0.2, 0.7, 1.0), Color(0.1, 0.5, 0.9))
+	add_child(visor)
+
+
+func _make_box(size: Vector3, offset: Vector3, color: Color, emission: Color = Color.BLACK) -> MeshInstance3D:
+	var m: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	box.size = size
+	m.mesh = box
+	m.position = offset
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = color
+	if emission != Color.BLACK:
+		mat.emission_enabled = true
+		mat.emission = emission
+		mat.emission_energy_multiplier = 1.5
+	m.material_override = mat
+	return m
 
 
 func _flash_hit() -> void:

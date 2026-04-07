@@ -32,6 +32,11 @@ var sync_rotation_y: float = 0.0
 var sync_head_rotation_x: float = 0.0
 var sync_velocity: Vector3 = Vector3.ZERO
 
+# fall death
+var _fall_timer: float = 0.0
+const FALL_DEATH_TIME: float = 2.0
+const FALL_THRESHOLD_Y: float = -10.0
+
 @onready var head: Node3D = $Head
 
 
@@ -78,6 +83,15 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	if _is_local_authority():
+		# fall death — kill player after falling for too long
+		if global_position.y < FALL_THRESHOLD_Y:
+			_fall_timer += delta
+			if _fall_timer >= FALL_DEATH_TIME and health > 0:
+				take_damage(health)
+				return
+		else:
+			_fall_timer = 0.0
+
 		_handle_dash(delta)
 		_apply_gravity(delta)
 		_handle_jump()

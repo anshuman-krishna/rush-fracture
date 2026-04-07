@@ -30,6 +30,7 @@ func _ready() -> void:
 	health.damaged.connect(_on_damaged)
 	add_to_group("enemies")
 	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
+	_build_visual()
 
 
 func _physics_process(delta: float) -> void:
@@ -223,6 +224,42 @@ func _on_damaged(_amount: int, _current: int) -> void:
 func _on_died() -> void:
 	is_dying = true
 	_play_death()
+
+
+func _build_visual() -> void:
+	# warp blades — melee daggers on both sides
+	var blade_l: MeshInstance3D = _make_box(Vector3(0.04, 0.06, 0.35), Vector3(-0.4, 0.7, -0.2), Color(0.7, 0.2, 1.0), Color(0.6, 0.0, 0.9))
+	var blade_r: MeshInstance3D = _make_box(Vector3(0.04, 0.06, 0.35), Vector3(0.4, 0.7, -0.2), Color(0.7, 0.2, 1.0), Color(0.6, 0.0, 0.9))
+	add_child(blade_l)
+	add_child(blade_r)
+	# floating orbs around body — warp energy
+	for i in 3:
+		var angle: float = (float(i) / 3.0) * TAU
+		var orb: MeshInstance3D = _make_box(
+			Vector3(0.1, 0.1, 0.1),
+			Vector3(cos(angle) * 0.55, 0.9, sin(angle) * 0.55),
+			Color(0.5, 0.1, 0.8), Color(0.6, 0.0, 1.0)
+		)
+		add_child(orb)
+	# crown spikes
+	var crown: MeshInstance3D = _make_box(Vector3(0.3, 0.15, 0.3), Vector3(0, 1.15, 0), Color(0.4, 0.08, 0.6), Color(0.5, 0.0, 0.8))
+	add_child(crown)
+
+
+func _make_box(size: Vector3, offset: Vector3, color: Color, emission: Color = Color.BLACK) -> MeshInstance3D:
+	var m: MeshInstance3D = MeshInstance3D.new()
+	var box: BoxMesh = BoxMesh.new()
+	box.size = size
+	m.mesh = box
+	m.position = offset
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = color
+	if emission != Color.BLACK:
+		mat.emission_enabled = true
+		mat.emission = emission
+		mat.emission_energy_multiplier = 1.5
+	m.material_override = mat
+	return m
 
 
 func _flash_hit() -> void:
