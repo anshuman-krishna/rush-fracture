@@ -9,6 +9,8 @@ enum PaletteType {
 	COLD,
 	BLEACH,
 	CORRUPT,
+	TOXIC,
+	VOID,
 }
 
 var floor_color: Color
@@ -28,13 +30,19 @@ static func pick_for_room(room_index: int, room_type: RoomDefinitions.RoomType) 
 	if room_type == RoomDefinitions.RoomType.ELITE_CHAMBER:
 		return _create(PaletteType.CORRUPT)
 	if room_type == RoomDefinitions.RoomType.HAZARD:
-		return _create(PaletteType.CRIMSON)
+		var hazard_options: Array = [PaletteType.CRIMSON, PaletteType.TOXIC]
+		return _create(hazard_options[randi() % hazard_options.size()])
 	if room_type == RoomDefinitions.RoomType.GAUNTLET:
 		return _create(PaletteType.BLEACH)
+	if room_type == RoomDefinitions.RoomType.SWARM:
+		var swarm_options: Array = [PaletteType.VOID, PaletteType.COLD]
+		return _create(swarm_options[randi() % swarm_options.size()])
 
-	# cycle through palettes with some randomness
-	var options: Array = [PaletteType.CRIMSON, PaletteType.COLD, PaletteType.BLEACH, PaletteType.CORRUPT]
-	var idx: int = (room_index + randi() % 2) % options.size()
+	var options: Array = [
+		PaletteType.CRIMSON, PaletteType.COLD, PaletteType.BLEACH,
+		PaletteType.CORRUPT, PaletteType.TOXIC, PaletteType.VOID
+	]
+	var idx: int = (room_index + randi() % 3) % options.size()
 	return _create(options[idx])
 
 
@@ -73,4 +81,20 @@ static func _create(type: PaletteType) -> RoomPalette:
 			p.light_energy = 0.85
 			p.ambient_color = Color(0.06, 0.0, 0.1)
 			p.hazard_tint = Color(0.7, 0.1, 0.9)
+		PaletteType.TOXIC:
+			p.floor_color = Color(0.06, 0.09, 0.05, 1)
+			p.floor_emission = Color(0.02, 0.12, 0.0)
+			p.obstacle_color = Color(0.05, 0.07, 0.04, 1)
+			p.light_color = Color(0.7, 1.0, 0.6, 1)
+			p.light_energy = 0.95
+			p.ambient_color = Color(0.03, 0.08, 0.02)
+			p.hazard_tint = Color(0.2, 1.0, 0.1)
+		PaletteType.VOID:
+			p.floor_color = Color(0.04, 0.04, 0.06, 1)
+			p.floor_emission = Color(0.02, 0.02, 0.06)
+			p.obstacle_color = Color(0.03, 0.03, 0.05, 1)
+			p.light_color = Color(0.6, 0.6, 0.8, 1)
+			p.light_energy = 0.7
+			p.ambient_color = Color(0.02, 0.02, 0.04)
+			p.hazard_tint = Color(0.4, 0.3, 0.8)
 	return p
