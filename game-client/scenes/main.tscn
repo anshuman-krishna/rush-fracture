@@ -1,4 +1,4 @@
-[gd_scene load_steps=25 format=3 uid="uid://main"]
+[gd_scene load_steps=26 format=3 uid="uid://main"]
 
 [ext_resource type="Script" path="res://systems/player/player_controller.gd" id="1"]
 [ext_resource type="Script" path="res://systems/player/camera_controller.gd" id="2"]
@@ -23,6 +23,7 @@
 [ext_resource type="Script" path="res://systems/combat/game_feel.gd" id="22"]
 [ext_resource type="Script" path="res://systems/player/player_manager.gd" id="23"]
 [ext_resource type="Script" path="res://systems/network/player_spawner.gd" id="24"]
+[ext_resource type="Script" path="res://systems/ui/pause_menu.gd" id="25"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.4
@@ -296,10 +297,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -250.0
-offset_top = -150.0
-offset_right = 250.0
-offset_bottom = 150.0
+offset_left = -300.0
+offset_top = -200.0
+offset_right = 300.0
+offset_bottom = 200.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -333,10 +334,10 @@ anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -260.0
-offset_top = -130.0
-offset_right = 260.0
-offset_bottom = 130.0
+offset_left = -300.0
+offset_top = -180.0
+offset_right = 300.0
+offset_bottom = 180.0
 grow_horizontal = 2
 grow_vertical = 2
 
@@ -419,6 +420,32 @@ theme_override_colors/font_color = Color(0.5, 0.5, 0.5, 1)
 theme_override_colors/font_hover_color = Color(0.8, 0.8, 0.8, 1)
 theme_override_font_sizes/font_size = 14
 text = "main menu"
+
+[node name="PauseMenu" type="Control" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+visible = false
+script = ExtResource("25")
+
+[node name="Panel" type="PanelContainer" parent="UI/PauseMenu"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -160.0
+offset_top = -160.0
+offset_right = 160.0
+offset_bottom = 160.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/PauseMenu/Panel"]
+layout_mode = 2
+theme_override_constants/separation = 10
 
 [node name="DebugOverlay" type="Label" parent="UI"]
 offset_left = 10.0

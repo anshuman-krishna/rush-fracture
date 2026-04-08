@@ -23,6 +23,7 @@ extends Node
 @onready var upgrade_ui: Control = $"../UI/UpgradeSelection"
 @onready var mutation_ui: Control = $"../UI/MutationSelection"
 @onready var summary_ui: Control = $"../UI/RunSummary"
+@onready var pause_menu: Control = $"../UI/PauseMenu"
 
 # resolved from player_manager each run
 var player: CharacterBody3D
@@ -80,6 +81,10 @@ func _ready() -> void:
 	mutation_ui.mutation_selected.connect(_on_mutation_selected)
 	mutation_ui.mutation_skipped.connect(_on_mutation_skipped)
 	summary_ui.restart_requested.connect(_on_restart)
+
+	if pause_menu:
+		pause_menu.restart_requested.connect(_on_restart)
+		pause_menu.main_menu_requested.connect(_on_main_menu)
 
 	get_tree().node_added.connect(_on_node_added)
 
@@ -455,18 +460,34 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 	difficulty_tracker.on_room_cleared()
 	audio.play("room_clear", -3.0)
 
-	# race mode: track room progress and check for encounter
+	# race mode: track room progress and check for pvp encounter
 	if game_mode and game_mode.is_race():
 		var local_id: int = network_manager.local_peer_id if _is_online() else 1
 		game_mode.on_race_room_cleared(local_id)
 		if is_host_or_solo() and game_mode.should_start_encounter():
 			_transition_to_pvp()
 			return
+		# race rooms still grant upgrades if flagged, then continue
+		if room.reward_flag and is_host_or_solo():
+			_show_upgrade_selection()
+			return
+		if not run_manager.data.is_final_room():
+			_prompt_next_room()
+			return
+		_complete_run()
+		return
 
 	# pvp encounter mode: transition to pvp after all rooms
-	if game_mode and game_mode.is_pvp_mode() and run_manager.data.is_final_room():
-		if is_host_or_solo():
-			_transition_to_pvp()
+	if game_mode and game_mode.is_pvp_mode():
+		if run_manager.data.is_final_room():
+			if is_host_or_solo():
+				_transition_to_pvp()
+			return
+		# pvp rooms also allow upgrades
+		if room.reward_flag and is_host_or_solo():
+			_show_upgrade_selection()
+			return
+		_prompt_next_room()
 		return
 
 	# clients wait for host-driven room transitions
@@ -741,6 +762,7 @@ func _on_run_completed(data: RunData) -> void:
 
 
 func _on_restart() -> void:
+	Engine.time_scale = 1.0
 	awaiting_upgrade = false
 	awaiting_mutation = false
 	awaiting_transition = false
@@ -748,6 +770,7 @@ func _on_restart() -> void:
 	_match_ended = false
 	upgrade_ui.visible = false
 	mutation_ui.visible = false
+	summary_ui.visible = false
 	run_hud.hide_prompt()
 	if pvp_manager and pvp_manager.is_active():
 		pvp_manager.stop_pvp()
@@ -757,6 +780,22 @@ func _on_restart() -> void:
 	_profile = PlayerProfile.load_profile()
 	if is_host_or_solo():
 		_start_run()
+
+
+func _on_main_menu() -> void:
+	Engine.time_scale = 1.0
+	awaiting_upgrade = false
+	awaiting_mutation = false
+	awaiting_transition = false
+	fracture_manager.end_fracture()
+	mutation_manager.reset()
+	weapon_manager.reset_multipliers()
+	if pvp_manager and pvp_manager.is_active():
+		pvp_manager.stop_pvp()
+	room_controller.clear_current_room()
+	var err: Error = get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
+	if err != OK:
+		push_error("failed to change scene to main_menu: %s" % error_string(err))
 
 
 # --- fracture / combo ---

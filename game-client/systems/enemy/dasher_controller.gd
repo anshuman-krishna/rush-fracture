@@ -1,7 +1,7 @@
 extends CharacterBody3D
 
 @export var move_speed: float = 3.5
-@export var detection_range: float = 20.0
+@export var detection_range: float = 60.0
 @export var dash_speed: float = 35.0
 @export var dash_duration: float = 0.25
 @export var dash_cooldown: float = 3.0

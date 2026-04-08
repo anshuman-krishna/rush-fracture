@@ -113,6 +113,8 @@ func _fire_beam(effective_damage: int) -> void:
 	var hit_pos: Vector3 = result.position
 	_show_beam(from, hit_pos)
 
+	if _handle_hit_with_breakable(hit, hit_pos, effective_damage):
+		return
 	_handle_hit(hit, hit_pos, effective_damage)
 
 	# chain beam only applies to enemies

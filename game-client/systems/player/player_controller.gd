@@ -77,8 +77,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		head.rotate_x(y_input)
 		head.rotation.x = clamp(head.rotation.x, -PI / 2, PI / 2)
 
-	if event.is_action_pressed("ui_cancel"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	# escape is handled by pause_menu — don't override here
 
 
 func _physics_process(delta: float) -> void:

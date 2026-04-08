@@ -33,27 +33,52 @@ func _build_buttons() -> void:
 	for child in container.get_children():
 		child.queue_free()
 
+	# title at top
 	if title_label:
-		title_label.add_theme_font_size_override("font_size", 22)
+		title_label.add_theme_font_size_override("font_size", 26)
+		title_label.add_theme_color_override("font_color", Color(1.0, 0.15, 0.1, 1))
 		title_label.text = "choose upgrade"
+		title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
+	# upgrade cards
 	for i in choices.size():
 		var upgrade: Dictionary = choices[i]
 		var is_cursed: bool = upgrade.get("cursed", false)
 
-		# outer row: info on left, select button on right
+		var card: PanelContainer = PanelContainer.new()
+		var card_style: StyleBoxFlat = StyleBoxFlat.new()
+		if is_cursed:
+			card_style.bg_color = Color(0.15, 0.06, 0.12, 0.9)
+			card_style.border_color = Color(0.9, 0.3, 0.8, 0.6)
+		else:
+			card_style.bg_color = Color(0.08, 0.08, 0.1, 0.9)
+			card_style.border_color = Color(1.0, 0.3, 0.15, 0.4)
+		card_style.border_width_left = 2
+		card_style.border_width_right = 2
+		card_style.border_width_top = 2
+		card_style.border_width_bottom = 2
+		card_style.corner_radius_top_left = 4
+		card_style.corner_radius_top_right = 4
+		card_style.corner_radius_bottom_left = 4
+		card_style.corner_radius_bottom_right = 4
+		card_style.content_margin_left = 12
+		card_style.content_margin_right = 12
+		card_style.content_margin_top = 10
+		card_style.content_margin_bottom = 10
+		card.add_theme_stylebox_override("panel", card_style)
+
 		var row: HBoxContainer = HBoxContainer.new()
-		row.add_theme_constant_override("separation", 12)
+		row.add_theme_constant_override("separation", 16)
 		row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-		# left side: name + description + hint stacked
+		# left: info
 		var info_col: VBoxContainer = VBoxContainer.new()
 		info_col.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		info_col.add_theme_constant_override("separation", 3)
+		info_col.add_theme_constant_override("separation", 4)
 
 		var name_label: Label = Label.new()
 		name_label.text = "[%d] %s" % [i + 1, upgrade.name]
-		name_label.add_theme_font_size_override("font_size", 19)
+		name_label.add_theme_font_size_override("font_size", 20)
 		if is_cursed:
 			name_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.8))
 		else:
@@ -74,45 +99,63 @@ func _build_buttons() -> void:
 			hint_label.text = hint
 			hint_label.add_theme_font_size_override("font_size", 13)
 			hint_label.add_theme_color_override("font_color",
-				Color(0.7, 0.3, 0.6) if is_cursed else Color(0.5, 0.8, 0.5))
+				Color(0.7, 0.3, 0.6) if is_cursed else Color(0.4, 0.9, 0.4))
 			info_col.add_child(hint_label)
 
 		row.add_child(info_col)
 
-		# select button on right
+		# right: select button — well highlighted
 		var select_btn: Button = Button.new()
 		select_btn.text = "select"
-		select_btn.custom_minimum_size = Vector2(100, 50)
-		select_btn.add_theme_font_size_override("font_size", 17)
+		select_btn.custom_minimum_size = Vector2(110, 54)
+		select_btn.add_theme_font_size_override("font_size", 18)
+
+		var btn_style: StyleBoxFlat = StyleBoxFlat.new()
 		if is_cursed:
-			select_btn.add_theme_color_override("font_color", Color(0.9, 0.3, 0.8))
-			select_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.4, 0.9))
+			btn_style.bg_color = Color(0.4, 0.1, 0.3, 0.8)
+			select_btn.add_theme_color_override("font_color", Color(1.0, 0.5, 0.9))
+			select_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.7, 1.0))
 		else:
-			select_btn.add_theme_color_override("font_color", Color(1, 0.3, 0.15))
-			select_btn.add_theme_color_override("font_hover_color", Color(1, 0.5, 0.3))
+			btn_style.bg_color = Color(0.35, 0.08, 0.04, 0.8)
+			select_btn.add_theme_color_override("font_color", Color(1.0, 0.4, 0.2))
+			select_btn.add_theme_color_override("font_hover_color", Color(1.0, 0.6, 0.4))
+		btn_style.corner_radius_top_left = 3
+		btn_style.corner_radius_top_right = 3
+		btn_style.corner_radius_bottom_left = 3
+		btn_style.corner_radius_bottom_right = 3
+		select_btn.add_theme_stylebox_override("normal", btn_style)
+
+		var btn_hover: StyleBoxFlat = btn_style.duplicate()
+		btn_hover.bg_color = btn_hover.bg_color.lightened(0.15)
+		select_btn.add_theme_stylebox_override("hover", btn_hover)
+
 		select_btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		var captured: Dictionary = upgrade
 		select_btn.pressed.connect(func(): _on_choice(captured))
 		row.add_child(select_btn)
 
-		# stagger animation
-		row.modulate.a = 0.0
-		container.add_child(row)
-		var delay: float = 0.05 * i
-		var tween: Tween = row.create_tween()
-		tween.tween_interval(delay)
-		tween.tween_property(row, "modulate:a", 1.0, 0.12)
+		card.add_child(row)
 
-		# separator between upgrades
-		if i < choices.size() - 1:
-			var sep: HSeparator = HSeparator.new()
-			container.add_child(sep)
+		# stagger animation
+		card.modulate.a = 0.0
+		container.add_child(card)
+		var delay: float = 0.06 * i
+		var tween: Tween = card.create_tween()
+		tween.tween_interval(delay)
+		tween.tween_property(card, "modulate:a", 1.0, 0.12)
 
 	# focus first select button
+	_focus_first_button()
+
+
+func _focus_first_button() -> void:
+	await get_tree().process_frame
 	if container.get_child_count() > 0:
-		var first_row: HBoxContainer = container.get_child(0) as HBoxContainer
-		if first_row and first_row.get_child_count() > 1:
-			(first_row.get_child(1) as Button).grab_focus()
+		var first_card: PanelContainer = container.get_child(0) as PanelContainer
+		if first_card and first_card.get_child_count() > 0:
+			var row: HBoxContainer = first_card.get_child(0) as HBoxContainer
+			if row and row.get_child_count() > 1:
+				(row.get_child(1) as Button).grab_focus()
 
 
 func _animate_in() -> void:

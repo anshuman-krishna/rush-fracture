@@ -67,8 +67,15 @@ func try_fire(effective_damage: int, effective_fire_rate: float) -> bool:
 
 func _fire_single(effective_damage: int) -> void:
 	var result: Dictionary = _raycast()
+	var screen_center: Vector2 = get_viewport().get_visible_rect().size / 2
+	var from: Vector3 = camera.project_ray_origin(screen_center) if camera else global_position
 	if result.is_empty():
+		# tracer to max range
+		if camera:
+			var to: Vector3 = from + camera.project_ray_normal(screen_center) * weapon_range
+			_spawn_tracer(from, to, Color(1.0, 0.7, 0.2), 0.08)
 		return
+	_spawn_tracer(from, result.position, Color(1.0, 0.7, 0.2), 0.08)
 	_apply_hit(result, effective_damage)
 
 
@@ -108,6 +115,8 @@ func _apply_hit(result: Dictionary, effective_damage: int) -> void:
 	var dmg: int = effective_damage
 	if armor_piercing:
 		dmg = int(dmg * 1.4)
+	if _handle_hit_with_breakable(hit, hit_pos, dmg):
+		return
 	_handle_hit(hit, hit_pos, dmg)
 
 

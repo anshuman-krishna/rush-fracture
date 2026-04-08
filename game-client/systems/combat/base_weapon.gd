@@ -61,10 +61,11 @@ func get_weapon_name() -> String:
 
 
 func _get_collision_mask() -> int:
-	# layer 2 = enemies, layer 1 = players
+	# layer 1 = terrain/walls, layer 2 = enemies
+	# always include layer 1 so we can hit breakable walls
 	if pvp_manager and pvp_manager.is_active():
-		return 3
-	return 2
+		return 3  # terrain + enemies + players
+	return 3  # terrain + enemies
 
 
 func _handle_hit(collider: Object, hit_pos: Vector3, damage: int) -> void:
@@ -102,3 +103,49 @@ func _get_owner_exclude() -> Array[RID]:
 	if player:
 		return [player.get_rid()]
 	return []
+
+
+func _spawn_tracer(from_pos: Vector3, to_pos: Vector3, color: Color = Color(1.0, 0.7, 0.2), duration: float = 0.1, width: float = 0.012) -> void:
+	var tracer: MeshInstance3D = MeshInstance3D.new()
+	var cyl: CylinderMesh = CylinderMesh.new()
+	var dist: float = from_pos.distance_to(to_pos)
+	if dist < 0.1:
+		return
+	cyl.top_radius = width
+	cyl.bottom_radius = width
+	cyl.height = dist
+	cyl.radial_segments = 4
+	tracer.mesh = cyl
+
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.emission_enabled = true
+	mat.emission = color
+	mat.emission_energy_multiplier = 4.0
+	mat.albedo_color = Color(color.r, color.g, color.b, 0.8)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	tracer.material_override = mat
+
+	var midpoint: Vector3 = (from_pos + to_pos) / 2.0
+	tracer.global_position = midpoint
+	var dir: Vector3 = (to_pos - from_pos).normalized()
+	if dir.length() > 0.001:
+		tracer.look_at(tracer.global_position + dir)
+		tracer.rotate_object_local(Vector3.RIGHT, PI / 2.0)
+
+	get_tree().root.add_child(tracer)
+	var tween: Tween = tracer.create_tween()
+	tween.tween_property(mat, "albedo_color:a", 0.0, duration)
+	tween.parallel().tween_property(mat, "emission_energy_multiplier", 0.0, duration)
+	tween.chain().tween_callback(tracer.queue_free)
+
+
+func _handle_hit_with_breakable(collider: Object, hit_pos: Vector3, damage: int) -> bool:
+	# returns true if hit was a breakable wall
+	if collider is StaticBody3D:
+		var wall: StaticBody3D = collider as StaticBody3D
+		if wall.has_meta("breakable"):
+			var rc: Node = get_node_or_null("/root/Main/RoomController")
+			if rc and rc.has_method("damage_breakable_wall"):
+				rc.damage_breakable_wall(wall)
+			return true
+	return false

@@ -265,9 +265,28 @@ func _on_enemy_died() -> void:
 
 
 func _get_spawn_position() -> Vector3:
-	var angle: float = randf() * TAU
-	var distance: float = min_spawn_distance + randf() * (spawn_radius - min_spawn_distance)
-	return Vector3(cos(angle) * distance, 1.0, sin(angle) * distance)
+	# try up to 10 times to find a position that doesn't overlap obstacles
+	for _attempt in 10:
+		var angle: float = randf() * TAU
+		var distance: float = min_spawn_distance + randf() * (spawn_radius - min_spawn_distance)
+		var pos: Vector3 = Vector3(cos(angle) * distance, 1.0, sin(angle) * distance)
+		# clamp inside arena
+		var flat_dist: float = Vector2(pos.x, pos.z).length()
+		if flat_dist > ARENA_RADIUS - 3.0:
+			var scale_f: float = (ARENA_RADIUS - 3.0) / flat_dist
+			pos.x *= scale_f
+			pos.z *= scale_f
+		# check against placed obstacles
+		var blocked: bool = false
+		var test_aabb: AABB = AABB(pos - Vector3(1, 0, 1), Vector3(2, 2, 2))
+		for obs in _placed_obstacles:
+			if test_aabb.intersects(obs):
+				blocked = true
+				break
+		if not blocked:
+			return pos
+	# fallback — spawn near center
+	return Vector3(randf_range(-3, 3), 1.0, randf_range(-3, 3))
 
 
 func _configure_arena(room: RunData.RoomData) -> void:
@@ -339,7 +358,7 @@ func _apply_palette() -> void:
 
 
 func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
-	var obstacle_type: int = randi() % 8
+	var obstacle_type: int = randi() % 10
 	var angle: float = (float(index) / float(total)) * TAU + randf() * 0.5
 	var dist: float = 6.0 + randf() * 14.0
 	var pos: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
@@ -368,6 +387,8 @@ func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
 			_spawn_half_cover(pos, angle, room)
 		7:
 			_spawn_barrier_arc(pos, angle, room)
+		8, 9:
+			_spawn_breakable_wall(pos, angle, room)
 
 
 func _try_register_obstacle(pos: Vector3, size: Vector3) -> bool:
@@ -528,10 +549,16 @@ func _layout_boss_arena(room: RunData.RoomData) -> void:
 		var pos: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
 		_spawn_tall_pillar(pos, room)
 
-	# inner cover ring — 4 low walls
+	# inner cover ring — breakable walls for dynamic cover
 	for i in 4:
 		var angle: float = (float(i) / 4.0) * TAU + PI * 0.25
 		var pos: Vector3 = Vector3(cos(angle) * 10.0, 0, sin(angle) * 10.0)
+		_spawn_breakable_wall(pos, angle, room)
+
+	# additional low walls between breakable ones
+	for i in 4:
+		var angle: float = (float(i) / 4.0) * TAU
+		var pos: Vector3 = Vector3(cos(angle) * 14.0, 0, sin(angle) * 14.0)
 		_spawn_low_wall(pos, angle, room)
 
 
@@ -1114,6 +1141,134 @@ func _spawn_elevated_platform_at(pos: Vector3, w: float, d: float, h: float, roo
 	platform.add_child(ramp_col)
 
 
+func _spawn_breakable_wall(pos: Vector3, angle: float, room: RunData.RoomData) -> void:
+	# destructible cover — blocks shots until broken. reduces damage while intact.
+	var length: float = 3.0 + randf() * 2.0
+	var height: float = 1.5 + randf() * 0.5
+	var hit_points: int = 4
+
+	if not _try_register_obstacle(pos, Vector3(length, height, 0.5)):
+		return
+
+	var wall: StaticBody3D = StaticBody3D.new()
+	wall.position = pos
+	wall.rotation.y = angle + randf() * 0.3
+	wall.collision_layer = 1
+	wall.set_meta("breakable", true)
+	wall.set_meta("hit_points", hit_points)
+	wall.set_meta("max_hit_points", hit_points)
+
+	var emit: Color = _get_emission_color()
+
+	var mesh: MeshInstance3D = MeshInstance3D.new()
+	mesh.name = "WallMesh"
+	var box: BoxMesh = BoxMesh.new()
+	box.size = Vector3(length, height, 0.35)
+	mesh.mesh = box
+	mesh.position.y = height / 2.0
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.albedo_color = _get_obstacle_color(0.05)
+	mat.roughness = 0.7
+	mesh.material_override = mat
+
+	var col: CollisionShape3D = CollisionShape3D.new()
+	col.name = "WallCollision"
+	var shape: BoxShape3D = BoxShape3D.new()
+	shape.size = Vector3(length, height, 0.35)
+	col.shape = shape
+	col.position.y = height / 2.0
+
+	wall.add_child(mesh)
+	wall.add_child(col)
+
+	# crack overlay — starts invisible, fades in as wall takes damage
+	var crack: MeshInstance3D = MeshInstance3D.new()
+	crack.name = "CrackOverlay"
+	var crack_box: BoxMesh = BoxMesh.new()
+	crack_box.size = Vector3(length + 0.02, height + 0.02, 0.37)
+	crack.mesh = crack_box
+	crack.position.y = height / 2.0
+	var crack_mat: StandardMaterial3D = StandardMaterial3D.new()
+	crack_mat.albedo_color = Color(emit.r, emit.g, emit.b, 0.0)
+	crack_mat.emission_enabled = true
+	crack_mat.emission = emit
+	crack_mat.emission_energy_multiplier = 0.0
+	crack_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	crack.material_override = crack_mat
+	wall.add_child(crack)
+
+	# glow trim at top
+	var trim: MeshInstance3D = MeshInstance3D.new()
+	var trim_box: BoxMesh = BoxMesh.new()
+	trim_box.size = Vector3(length + 0.04, 0.06, 0.4)
+	trim.mesh = trim_box
+	trim.position.y = height
+	var trim_mat: StandardMaterial3D = StandardMaterial3D.new()
+	trim_mat.emission_enabled = true
+	trim_mat.albedo_color = emit * 0.8
+	trim_mat.emission = emit * 0.8
+	trim_mat.emission_energy_multiplier = 0.6
+	trim.material_override = trim_mat
+	wall.add_child(trim)
+
+	arena_root.add_child(wall)
+
+
+func damage_breakable_wall(wall: StaticBody3D) -> void:
+	if not wall.has_meta("breakable"):
+		return
+	var hp: int = wall.get_meta("hit_points") - 1
+	wall.set_meta("hit_points", hp)
+	var max_hp: int = wall.get_meta("max_hit_points")
+
+	# update crack visual
+	var crack: MeshInstance3D = wall.get_node_or_null("CrackOverlay") as MeshInstance3D
+	if crack and crack.material_override is StandardMaterial3D:
+		var damage_ratio: float = 1.0 - float(hp) / float(max_hp)
+		var crack_mat: StandardMaterial3D = crack.material_override
+		crack_mat.albedo_color.a = damage_ratio * 0.6
+		crack_mat.emission_energy_multiplier = damage_ratio * 2.0
+
+	# shake the wall
+	var mesh: MeshInstance3D = wall.get_node_or_null("WallMesh") as MeshInstance3D
+	if mesh:
+		var tween: Tween = mesh.create_tween()
+		tween.tween_property(mesh, "position:x", mesh.position.x + 0.05, 0.03)
+		tween.tween_property(mesh, "position:x", mesh.position.x - 0.05, 0.03)
+		tween.tween_property(mesh, "position:x", mesh.position.x, 0.03)
+
+	if hp <= 0:
+		_destroy_breakable_wall(wall)
+
+
+func _destroy_breakable_wall(wall: StaticBody3D) -> void:
+	# explode into fragments
+	var pos: Vector3 = wall.global_position
+	var emit: Color = _get_emission_color()
+	for i in 5:
+		var frag: MeshInstance3D = MeshInstance3D.new()
+		var box: BoxMesh = BoxMesh.new()
+		box.size = Vector3(0.3 + randf() * 0.3, 0.2 + randf() * 0.3, 0.2 + randf() * 0.2)
+		frag.mesh = box
+		frag.global_position = pos + Vector3(randf_range(-1, 1), randf_range(0.2, 1.5), randf_range(-1, 1))
+		var mat: StandardMaterial3D = StandardMaterial3D.new()
+		mat.albedo_color = _get_obstacle_color(0.05)
+		mat.emission_enabled = true
+		mat.emission = emit
+		mat.emission_energy_multiplier = 0.8
+		frag.material_override = mat
+		arena_root.add_child(frag)
+
+		var tween: Tween = frag.create_tween()
+		tween.set_parallel(true)
+		tween.tween_property(frag, "position:y", frag.position.y - 1.0, 0.5)
+		tween.tween_property(frag, "scale", Vector3.ZERO, 0.4).set_delay(0.2)
+		tween.chain().tween_callback(frag.queue_free)
+
+	arena_root.remove_child(wall)
+	wall.free()
+
+
 func _place_hazards(room: RunData.RoomData) -> void:
 	_clear_hazards()
 	if room.type == RoomDefinitions.RoomType.RECOVERY or room.type == RoomDefinitions.RoomType.BOSS:
@@ -1331,15 +1486,19 @@ func _get_border_sides(size: float, thickness: float) -> Array[Dictionary]:
 func _clear_obstacles() -> void:
 	if not arena_root:
 		return
-	for child in arena_root.get_children():
-		child.queue_free()
+	var children: Array[Node] = arena_root.get_children()
+	for child in children:
+		arena_root.remove_child(child)
+		child.free()
 
 
 func _clear_hazards() -> void:
 	if not hazard_root:
 		return
-	for child in hazard_root.get_children():
-		child.queue_free()
+	var children: Array[Node] = hazard_root.get_children()
+	for child in children:
+		hazard_root.remove_child(child)
+		child.free()
 
 
 func spawn_duplicate_enemy() -> void:
@@ -1375,8 +1534,10 @@ func _clear_room() -> void:
 	_clear_hazards()
 	_placed_obstacles.clear()
 	if enemy_root:
-		for child in enemy_root.get_children():
-			child.queue_free()
+		var children: Array[Node] = enemy_root.get_children()
+		for child in children:
+			enemy_root.remove_child(child)
+			child.free()
 	enemies_alive = 0
 	room_active = false
 	active_room = null

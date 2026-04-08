@@ -4,7 +4,7 @@ extends CharacterBody3D
 # periodically heals or speeds up nearby enemies. priority target.
 
 @export var move_speed: float = 3.5
-@export var detection_range: float = 30.0
+@export var detection_range: float = 60.0
 @export var preferred_range: float = 16.0
 @export var attack_damage: int = 5
 @export var attack_cooldown: float = 2.5

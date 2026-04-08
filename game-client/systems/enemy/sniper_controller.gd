@@ -4,7 +4,7 @@ extends CharacterBody3D
 # telegraphs attacks with a laser sight before firing.
 
 @export var move_speed: float = 2.5
-@export var detection_range: float = 40.0
+@export var detection_range: float = 60.0
 @export var preferred_range: float = 20.0
 @export var attack_damage: int = 18
 @export var attack_cooldown: float = 3.5
@@ -106,17 +106,75 @@ func _handle_telegraph(delta: float) -> void:
 
 func _fire() -> void:
 	attack_timer = attack_cooldown
-	if not target:
+	if not target or not is_instance_valid(target):
 		return
 
 	var damage: int = attack_damage
 	if is_elite:
 		damage = int(damage * 1.5)
 
-	if target.has_method("take_damage"):
-		target.take_damage(damage)
+	var from_pos: Vector3 = global_position + Vector3(0, 0.7, 0)
+	var to_pos: Vector3 = target.global_position + Vector3(0, 0.8, 0)
 
+	# raycast for line of sight
+	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from_pos, to_pos)
+	query.collision_mask = 3
+	query.exclude = [get_rid()]
+	var result: Dictionary = space_state.intersect_ray(query)
+
+	var end_pos: Vector3 = to_pos
+	if result.is_empty() or result.collider == target:
+		if target.has_method("take_damage"):
+			target.take_damage(damage)
+		if not result.is_empty():
+			end_pos = result.position
+	else:
+		end_pos = result.get("position", to_pos)
+		# break walls
+		if result.collider is StaticBody3D and result.collider.has_meta("breakable"):
+			var rc: Node = get_node_or_null("/root/Main/RoomController")
+			if rc and rc.has_method("damage_breakable_wall"):
+				rc.damage_breakable_wall(result.collider)
+		# reduced damage through cover
+		if target.has_method("take_damage"):
+			target.take_damage(maxi(int(damage * 0.15), 1))
+
+	# spawn tracer
+	_spawn_tracer(from_pos, end_pos)
 	_flash_muzzle()
+
+
+func _spawn_tracer(from_pos: Vector3, to_pos: Vector3) -> void:
+	var tracer: MeshInstance3D = MeshInstance3D.new()
+	var cyl: CylinderMesh = CylinderMesh.new()
+	var dist: float = from_pos.distance_to(to_pos)
+	cyl.top_radius = 0.025
+	cyl.bottom_radius = 0.015
+	cyl.height = dist
+	cyl.radial_segments = 4
+	tracer.mesh = cyl
+
+	var mat: StandardMaterial3D = StandardMaterial3D.new()
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.2, 0.0)
+	mat.emission_energy_multiplier = 4.0
+	mat.albedo_color = Color(1.0, 0.3, 0.1, 0.9)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	tracer.material_override = mat
+
+	var midpoint: Vector3 = (from_pos + to_pos) / 2.0
+	tracer.global_position = midpoint
+	var dir: Vector3 = (to_pos - from_pos).normalized()
+	if dir.length() > 0.001:
+		tracer.look_at(tracer.global_position + dir)
+		tracer.rotate_object_local(Vector3.RIGHT, PI / 2.0)
+
+	get_tree().root.add_child(tracer)
+	var tween: Tween = tracer.create_tween()
+	tween.tween_property(mat, "albedo_color:a", 0.0, 0.2)
+	tween.parallel().tween_property(mat, "emission_energy_multiplier", 0.0, 0.2)
+	tween.chain().tween_callback(tracer.queue_free)
 
 
 func _show_laser() -> void:

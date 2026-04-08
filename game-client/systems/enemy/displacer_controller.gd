@@ -5,7 +5,7 @@ extends CharacterBody3D
 # disorienting and hard to track.
 
 @export var move_speed: float = 4.0
-@export var detection_range: float = 30.0
+@export var detection_range: float = 60.0
 @export var attack_damage: int = 14
 @export var attack_cooldown: float = 3.0
 @export var warp_cooldown: float = 4.0

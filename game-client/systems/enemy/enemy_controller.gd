@@ -1,10 +1,12 @@
 extends CharacterBody3D
 
 @export var move_speed: float = 5.0
-@export var detection_range: float = 25.0
+@export var detection_range: float = 60.0
 @export var attack_range: float = 2.0
 @export var attack_damage: int = 10
 @export var attack_cooldown: float = 1.5
+
+const ARENA_RADIUS: float = 33.0
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target: CharacterBody3D
@@ -58,6 +60,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		_try_attack()
 
+	_clamp_to_arena()
 	move_and_slide()
 
 
@@ -101,6 +104,14 @@ func _find_target() -> void:
 		var players: Array[Node] = get_tree().get_nodes_in_group("player")
 		if players.size() > 0:
 			target = players[0] as CharacterBody3D
+
+
+func _clamp_to_arena() -> void:
+	var flat_pos: Vector2 = Vector2(global_position.x, global_position.z)
+	if flat_pos.length() > ARENA_RADIUS:
+		flat_pos = flat_pos.normalized() * ARENA_RADIUS
+		global_position.x = flat_pos.x
+		global_position.z = flat_pos.y
 
 
 func _on_damaged(_amount: int, _current: int) -> void:

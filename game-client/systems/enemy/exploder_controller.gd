@@ -1,7 +1,7 @@
 extends CharacterBody3D
 
 @export var move_speed: float = 6.0
-@export var detection_range: float = 22.0
+@export var detection_range: float = 60.0
 @export var explode_range: float = 3.0
 @export var explosion_damage: int = 30
 @export var explosion_radius: float = 5.0

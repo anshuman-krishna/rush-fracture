@@ -102,8 +102,12 @@ func _fire_spread(effective_damage: int) -> void:
 
 		var result: Dictionary = space_state.intersect_ray(query)
 		if result.is_empty():
+			_spawn_tracer(from, to, Color(1.0, 0.4, 0.05), 0.06, 0.008)
 			continue
 
+		_spawn_tracer(from, result.position, Color(1.0, 0.4, 0.05), 0.06, 0.008)
+		if _handle_hit_with_breakable(result.collider, result.position, effective_damage):
+			continue
 		_handle_hit(result.collider, result.position, effective_damage)
 
 
