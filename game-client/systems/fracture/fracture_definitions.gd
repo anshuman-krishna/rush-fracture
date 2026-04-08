@@ -52,9 +52,9 @@ static var events: Dictionary = {
 }
 
 
-static func get_name(type: FractureType) -> String:
-	return events[type].name
+static func get_event_name(type: FractureType) -> String:
+	return events[type].get("name", "")
 
 
 static func get_duration(type: FractureType) -> float:
-	return events[type].duration
+	return events[type].get("duration", 10.0)

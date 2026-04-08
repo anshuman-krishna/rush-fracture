@@ -268,7 +268,7 @@ static var catalog: Array[Dictionary] = [
 static func pick_choices(count: int, exclude: Array = []) -> Array[Dictionary]:
 	var available: Array[Dictionary] = []
 	for upgrade in catalog:
-		if upgrade.type not in exclude:
+		if upgrade.get("type") not in exclude:
 			available.append(upgrade)
 
 	available.shuffle()

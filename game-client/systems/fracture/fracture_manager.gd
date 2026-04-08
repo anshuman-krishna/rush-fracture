@@ -79,7 +79,7 @@ func end_fracture() -> void:
 func get_active_name() -> String:
 	if not is_active:
 		return ""
-	return FractureDefinitions.get_name(active_fracture)
+	return FractureDefinitions.get_event_name(active_fracture)
 
 
 func get_time_remaining() -> float:

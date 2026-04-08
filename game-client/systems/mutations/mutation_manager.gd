@@ -41,7 +41,7 @@ func _process(delta: float) -> void:
 
 
 func apply(mutation: Dictionary) -> void:
-	var type: MutationDefinitions.MutationType = mutation.type
+	var type: MutationDefinitions.MutationType = mutation.get("type")
 	active_mutations.append(mutation)
 
 	match type:
@@ -73,7 +73,7 @@ func on_enemy_killed() -> void:
 		_player.health = mini(_player.health + 8, _player.max_health)
 
 	for m in active_mutations:
-		if m.type == MutationDefinitions.MutationType.TEMPORAL_DISTORTION:
+		if m.get("type") == MutationDefinitions.MutationType.TEMPORAL_DISTORTION:
 			_trigger_time_slow()
 			break
 
@@ -93,7 +93,7 @@ func on_enemy_hit(hit_position: Vector3) -> void:
 
 func has_mutation(type: MutationDefinitions.MutationType) -> bool:
 	for m in active_mutations:
-		if m.type == type:
+		if m.get("type") == type:
 			return true
 	return false
 
@@ -101,7 +101,7 @@ func has_mutation(type: MutationDefinitions.MutationType) -> bool:
 func get_mutation_names() -> PackedStringArray:
 	var names: PackedStringArray = PackedStringArray()
 	for m in active_mutations:
-		names.append(m.name)
+		names.append(m.get("name", ""))
 	return names
 
 

@@ -78,7 +78,7 @@ static var catalog: Array[Dictionary] = [
 static func pick_choices(count: int, exclude: Array = []) -> Array[Dictionary]:
 	var available: Array[Dictionary] = []
 	for mutation in catalog:
-		if mutation.type not in exclude:
+		if mutation.get("type") not in exclude:
 			available.append(mutation)
 
 	available.shuffle()
@@ -90,6 +90,6 @@ static func pick_choices(count: int, exclude: Array = []) -> Array[Dictionary]:
 
 static func get_name(type: MutationType) -> String:
 	for m in catalog:
-		if m.type == type:
-			return m.name
+		if m.get("type") == type:
+			return m.get("name", "")
 	return ""

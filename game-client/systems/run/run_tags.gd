@@ -64,7 +64,7 @@ static func generate(data: RunData, combo_best: int) -> PackedStringArray:
 
 static func _check_mutation_tags(data: RunData, tags: PackedStringArray) -> void:
 	for m in data.chosen_mutations:
-		match m.type:
+		match m.get("type"):
 			MutationDefinitions.MutationType.GLASS_CANNON:
 				tags.append("glass cannon")
 			MutationDefinitions.MutationType.BLOOD_PACT:

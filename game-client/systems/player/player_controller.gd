@@ -19,6 +19,8 @@ const INTERP_SPEED: float = 18.0
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var health: int = max_health
+var damage_resist: float = 1.0
+var meta_kill_heal: int = 0
 var dash_timer: float = 0.0
 var dash_cooldown_timer: float = 0.0
 var dash_direction: Vector3 = Vector3.ZERO
@@ -119,8 +121,9 @@ func _is_local_authority() -> bool:
 
 
 func take_damage(amount: int) -> void:
-	health = max(0, health - amount)
-	player_damaged.emit(amount)
+	var actual: int = max(1, int(amount * damage_resist))
+	health = max(0, health - actual)
+	player_damaged.emit(actual)
 
 
 func _handle_movement(delta: float) -> void:

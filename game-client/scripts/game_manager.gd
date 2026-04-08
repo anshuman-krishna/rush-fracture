@@ -348,6 +348,10 @@ func _on_weapon_kill() -> void:
 		var local_id: int = network_manager.local_peer_id if _is_online() else 1
 		game_mode.register_kill(local_id)
 
+	# meta kill recovery
+	if is_instance_valid(player) and player.meta_kill_heal > 0:
+		player.health = mini(player.health + player.meta_kill_heal, player.max_health)
+
 	# scavenger perk: first kill per room heals
 	if not _scavenger_healed_this_room and _profile and _profile.has_unlock("scavenger"):
 		_scavenger_healed_this_room = true
@@ -572,7 +576,7 @@ func _show_mutation_selection() -> void:
 	awaiting_mutation = true
 	var exclude: Array = []
 	for m in run_manager.data.chosen_mutations:
-		exclude.append(m.type)
+		exclude.append(m.get("type"))
 	var choices: Array[Dictionary] = MutationDefinitions.pick_choices(2, exclude)
 	mutation_ui.show_choices(choices)
 
@@ -801,7 +805,7 @@ func _on_main_menu() -> void:
 # --- fracture / combo ---
 
 func _on_fracture_started(type: FractureDefinitions.FractureType) -> void:
-	room_announce.show_fracture(FractureDefinitions.get_name(type))
+	room_announce.show_fracture(FractureDefinitions.get_event_name(type))
 	mutation_manager.on_fracture_started()
 
 
@@ -901,6 +905,26 @@ func _apply_meta_bonuses() -> void:
 	var dash_mult: float = MetaProgression.get_dash_multiplier(_profile)
 	if dash_mult < 1.0 and "dash_cooldown" in player:
 		player.dash_cooldown *= dash_mult
+	# fire rate
+	var fr_mult: float = MetaProgression.get_fire_rate_multiplier(_profile)
+	if fr_mult > 1.0:
+		weapon_manager.fire_rate_multiplier *= (1.0 / fr_mult)
+	# armor plating (damage resist)
+	var dr_mult: float = MetaProgression.get_damage_resist_multiplier(_profile)
+	if dr_mult < 1.0 and "damage_resist" in player:
+		player.damage_resist = dr_mult
+	# kill recovery
+	var kill_heal: int = MetaProgression.get_kill_heal_bonus(_profile)
+	if kill_heal > 0 and "meta_kill_heal" in player:
+		player.meta_kill_heal = kill_heal
+	# jump boost
+	var jump_mult: float = MetaProgression.get_jump_multiplier(_profile)
+	if jump_mult > 1.0 and "jump_force" in player:
+		player.jump_force *= jump_mult
+	# weapon swap speed
+	var swap_level: int = MetaProgression.get_swap_speed_level(_profile)
+	if swap_level > 0:
+		weapon_manager.swap_speed_level = swap_level
 	# weapon variant unlocks
 	_apply_weapon_unlocks()
 	# starting perks

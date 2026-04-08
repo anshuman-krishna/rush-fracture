@@ -77,7 +77,7 @@ func _build_buttons() -> void:
 		info_col.add_theme_constant_override("separation", 4)
 
 		var name_label: Label = Label.new()
-		name_label.text = "[%d] %s" % [i + 1, upgrade.name]
+		name_label.text = "[%d] %s" % [i + 1, upgrade.get("name", "")]
 		name_label.add_theme_font_size_override("font_size", 20)
 		if is_cursed:
 			name_label.add_theme_color_override("font_color", Color(0.9, 0.3, 0.8))
@@ -86,7 +86,7 @@ func _build_buttons() -> void:
 		info_col.add_child(name_label)
 
 		var desc_label: Label = Label.new()
-		desc_label.text = upgrade.description
+		desc_label.text = upgrade.get("description", "")
 		desc_label.add_theme_font_size_override("font_size", 14)
 		desc_label.add_theme_color_override("font_color", Color(0.7, 0.7, 0.7))
 		desc_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

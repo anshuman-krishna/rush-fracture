@@ -18,6 +18,7 @@ var weapons: Array[BaseWeapon] = []
 var damage_multiplier: float = 1.0
 var fire_rate_multiplier: float = 1.0
 var shake_multiplier: float = 1.0
+var swap_speed_level: int = 0
 
 # proxy properties for upgrade_manager compatibility
 var damage: int:

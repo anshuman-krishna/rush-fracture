@@ -57,9 +57,9 @@ func _build_upgrades() -> void:
 		child.queue_free()
 
 	for entry: Dictionary in MetaProgression.meta_catalog:
-		var id: String = entry.id
+		var id: String = entry.get("id", "")
 		var current: int = _profile.get_meta_level(id)
-		var max_level: int = entry.max_level
+		var max_level: int = entry.get("max_level", 0)
 		var cost: int = MetaProgression.get_upgrade_cost(id, current)
 		var maxed: bool = current >= max_level
 
@@ -74,16 +74,16 @@ func _build_upgrades() -> void:
 
 		var name_lbl: Label = Label.new()
 		if maxed:
-			name_lbl.text = "%s [max]" % entry.name
+			name_lbl.text = "%s [max]" % entry.get("name", "")
 			name_lbl.add_theme_color_override("font_color", Color(0.4, 1.0, 0.5))
 		else:
-			name_lbl.text = "%s  lv%d/%d" % [entry.name, current, max_level]
+			name_lbl.text = "%s  lv%d/%d" % [entry.get("name", ""), current, max_level]
 			name_lbl.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
 		name_lbl.add_theme_font_size_override("font_size", 16)
 		info_col.add_child(name_lbl)
 
 		var desc: Label = Label.new()
-		desc.text = entry.description
+		desc.text = entry.get("description", "")
 		desc.add_theme_font_size_override("font_size", 13)
 		desc.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -123,7 +123,7 @@ func _build_unlocks() -> void:
 		child.queue_free()
 
 	for entry: Dictionary in MetaProgression.unlock_catalog:
-		var id: String = entry.id
+		var id: String = entry.get("id", "")
 		var owned: bool = _profile.has_unlock(id)
 		var req_met: bool = MetaProgression.is_requirement_met(_profile, id)
 
@@ -137,19 +137,19 @@ func _build_unlocks() -> void:
 
 		var name_lbl: Label = Label.new()
 		if owned:
-			name_lbl.text = "%s [owned]" % entry.name
+			name_lbl.text = "%s [owned]" % entry.get("name", "")
 			name_lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.4))
 		elif not req_met:
-			name_lbl.text = "%s [locked]" % entry.name
+			name_lbl.text = "%s [locked]" % entry.get("name", "")
 			name_lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.4))
 		else:
-			name_lbl.text = entry.name
+			name_lbl.text = entry.get("name", "")
 			name_lbl.add_theme_color_override("font_color", Color(0.95, 0.95, 0.95))
 		name_lbl.add_theme_font_size_override("font_size", 16)
 		info_col.add_child(name_lbl)
 
 		var desc: Label = Label.new()
-		desc.text = entry.description
+		desc.text = entry.get("description", "")
 		desc.add_theme_font_size_override("font_size", 13)
 		desc.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6))
 		desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -159,7 +159,7 @@ func _build_unlocks() -> void:
 
 		if not owned and req_met:
 			var btn: Button = Button.new()
-			btn.text = "unlock — %d shards" % entry.cost
+			btn.text = "unlock — %d shards" % entry.get("cost", 0)
 			btn.custom_minimum_size = Vector2(160, 38)
 			btn.add_theme_font_size_override("font_size", 14)
 			btn.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -178,7 +178,7 @@ func _build_unlocks() -> void:
 			row.add_child(btn)
 		elif not owned and not req_met:
 			var req_label: Label = Label.new()
-			req_label.text = entry.requirement
+			req_label.text = entry.get("requirement", "")
 			req_label.add_theme_font_size_override("font_size", 12)
 			req_label.add_theme_color_override("font_color", Color(0.5, 0.3, 0.3))
 			req_label.size_flags_vertical = Control.SIZE_SHRINK_CENTER

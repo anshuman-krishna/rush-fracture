@@ -6,15 +6,15 @@ extends RefCounted
 # unlocks gate weapon variants and starting perks.
 
 
-# --- shard rewards ---
+# --- shard rewards (reduced to slow progression) ---
 
 const SHARDS_PER_KILL: int = 1
-const SHARDS_PER_ROOM: int = 10
-const SHARDS_RUN_COMPLETE: int = 50
-const SHARDS_BOSS_KILL: int = 30
-const SHARDS_PVP_WIN: int = 40
-const SHARDS_COMBO_BONUS_THRESHOLD: int = 8
-const SHARDS_COMBO_BONUS: int = 15
+const SHARDS_PER_ROOM: int = 5
+const SHARDS_RUN_COMPLETE: int = 25
+const SHARDS_BOSS_KILL: int = 15
+const SHARDS_PVP_WIN: int = 20
+const SHARDS_COMBO_BONUS_THRESHOLD: int = 10
+const SHARDS_COMBO_BONUS: int = 10
 
 
 static func calculate_shards(data: RunData, combo_best: int, pvp_won: bool) -> Dictionary:
@@ -63,73 +63,128 @@ enum MetaUpgradeId {
 	HEALTH_BOOST,
 	DASH_BOOST,
 	SHARD_MAGNET,
+	FIRE_RATE_BOOST,
+	ARMOR_PLATING,
+	KILL_RECOVERY,
+	JUMP_BOOST,
+	WEAPON_SWAP_SPEED,
 }
 
 static var meta_catalog: Array[Dictionary] = [
 	{
 		"id": "damage_boost",
 		"name": "hardened rounds",
-		"description": "+5% weapon damage per level",
-		"max_level": 5,
-		"cost_base": 50,
-		"cost_per_level": 30,
+		"description": "+3% weapon damage per level",
+		"max_level": 10,
+		"cost_base": 75,
+		"cost_per_level": 60,
 		"stat": "damage",
-		"bonus_per_level": 0.05,
+		"bonus_per_level": 0.03,
 	},
 	{
 		"id": "speed_boost",
 		"name": "nerve wire",
-		"description": "+3% movement speed per level",
-		"max_level": 5,
-		"cost_base": 40,
-		"cost_per_level": 25,
+		"description": "+2% movement speed per level",
+		"max_level": 8,
+		"cost_base": 60,
+		"cost_per_level": 50,
 		"stat": "move_speed",
-		"bonus_per_level": 0.03,
+		"bonus_per_level": 0.02,
 	},
 	{
 		"id": "health_boost",
 		"name": "plated core",
-		"description": "+10 max health per level",
-		"max_level": 5,
-		"cost_base": 40,
-		"cost_per_level": 25,
+		"description": "+8 max health per level",
+		"max_level": 10,
+		"cost_base": 60,
+		"cost_per_level": 45,
 		"stat": "max_health",
-		"bonus_per_level": 10,
+		"bonus_per_level": 8,
 	},
 	{
 		"id": "dash_boost",
 		"name": "reflex chip",
-		"description": "-5% dash cooldown per level",
-		"max_level": 3,
-		"cost_base": 60,
-		"cost_per_level": 40,
+		"description": "-3% dash cooldown per level",
+		"max_level": 5,
+		"cost_base": 100,
+		"cost_per_level": 75,
 		"stat": "dash_cooldown",
-		"bonus_per_level": 0.05,
+		"bonus_per_level": 0.03,
 	},
 	{
 		"id": "shard_magnet",
 		"name": "shard magnet",
-		"description": "+10% shard earnings per level",
-		"max_level": 3,
-		"cost_base": 80,
-		"cost_per_level": 50,
+		"description": "+8% shard earnings per level",
+		"max_level": 5,
+		"cost_base": 120,
+		"cost_per_level": 90,
 		"stat": "shard_bonus",
-		"bonus_per_level": 0.10,
+		"bonus_per_level": 0.08,
+	},
+	{
+		"id": "fire_rate_boost",
+		"name": "overclock chamber",
+		"description": "+2% fire rate per level",
+		"max_level": 8,
+		"cost_base": 80,
+		"cost_per_level": 55,
+		"stat": "fire_rate",
+		"bonus_per_level": 0.02,
+	},
+	{
+		"id": "armor_plating",
+		"name": "fracture plating",
+		"description": "-2% damage taken per level",
+		"max_level": 8,
+		"cost_base": 90,
+		"cost_per_level": 65,
+		"stat": "damage_resist",
+		"bonus_per_level": 0.02,
+	},
+	{
+		"id": "kill_recovery",
+		"name": "parasitic link",
+		"description": "heal 1 hp per kill per level",
+		"max_level": 5,
+		"cost_base": 150,
+		"cost_per_level": 100,
+		"stat": "kill_heal",
+		"bonus_per_level": 1,
+	},
+	{
+		"id": "jump_boost",
+		"name": "hydraulic legs",
+		"description": "+3% jump height per level",
+		"max_level": 5,
+		"cost_base": 70,
+		"cost_per_level": 50,
+		"stat": "jump_force",
+		"bonus_per_level": 0.03,
+	},
+	{
+		"id": "weapon_swap_speed",
+		"name": "quick hands",
+		"description": "faster weapon switching per level",
+		"max_level": 3,
+		"cost_base": 200,
+		"cost_per_level": 150,
+		"stat": "swap_speed",
+		"bonus_per_level": 1,
 	},
 ]
 
 
 static func get_upgrade_cost(upgrade_id: String, current_level: int) -> int:
 	for entry in meta_catalog:
-		if entry.id == upgrade_id:
-			return entry.cost_base + entry.cost_per_level * current_level
+		if entry.get("id") == upgrade_id:
+			return entry.get("cost_base", 0) + entry.get("cost_per_level", 0) * current_level
 	return 999999
 
 
 static func get_upgrade_max_level(upgrade_id: String) -> int:
 	for entry in meta_catalog:
-		if entry.id == upgrade_id:
-			return entry.max_level
+		if entry.get("id") == upgrade_id:
+			return entry.get("max_level", 0)
 	return 0
 
 
@@ -206,6 +261,81 @@ static var unlock_catalog: Array[Dictionary] = [
 		"cost": 100,
 		"requirement": "bosses_defeated >= 1",
 	},
+	# weapon variants (higher tier)
+	{
+		"id": "incendiary_scatter",
+		"name": "incendiary scatter",
+		"description": "scatter cannon pellets ignite enemies for 3s dot",
+		"category": "weapon_variant",
+		"cost": 250,
+		"requirement": "total_kills >= 500",
+	},
+	{
+		"id": "charged_beam",
+		"name": "charged beam",
+		"description": "beam emitter: hold to charge, release for 2x burst",
+		"category": "weapon_variant",
+		"cost": 300,
+		"requirement": "runs_completed >= 10",
+	},
+	{
+		"id": "ricochet_rifle",
+		"name": "ricochet rifle",
+		"description": "pulse rifle shots bounce once off walls",
+		"category": "weapon_variant",
+		"cost": 350,
+		"requirement": "total_kills >= 1000",
+	},
+	# starting perks (higher tier)
+	{
+		"id": "adrenaline_junkie",
+		"name": "adrenaline junkie",
+		"description": "start at 50% adrenaline, decays 2x faster",
+		"category": "starting_perk",
+		"cost": 200,
+		"requirement": "runs_completed >= 8",
+	},
+	{
+		"id": "shard_hunger",
+		"name": "shard hunger",
+		"description": "+15% shard drops, -10 max health",
+		"category": "starting_perk",
+		"cost": 180,
+		"requirement": "total_runs >= 20",
+	},
+	{
+		"id": "last_stand",
+		"name": "last stand",
+		"description": "below 20% hp: +40% damage, +20% speed",
+		"category": "starting_perk",
+		"cost": 250,
+		"requirement": "bosses_defeated >= 3",
+	},
+	{
+		"id": "momentum_start",
+		"name": "momentum start",
+		"description": "first dash each room grants 3s invulnerability",
+		"category": "starting_perk",
+		"cost": 300,
+		"requirement": "pvp_wins >= 5",
+	},
+	# cosmetic unlocks (pure shard sinks)
+	{
+		"id": "trail_fracture",
+		"name": "fracture trail",
+		"description": "dash leaves a glowing fracture trail",
+		"category": "cosmetic",
+		"cost": 500,
+		"requirement": "total_kills >= 2000",
+	},
+	{
+		"id": "kill_pulse",
+		"name": "kill pulse",
+		"description": "enemies explode with a visual pulse on death",
+		"category": "cosmetic",
+		"cost": 400,
+		"requirement": "best_combo >= 15",
+	},
 ]
 
 
@@ -214,10 +344,10 @@ static func can_unlock(profile: PlayerProfile, unlock_id: String) -> bool:
 		return false
 
 	for entry in unlock_catalog:
-		if entry.id == unlock_id:
-			if profile.fracture_shards < entry.cost:
+		if entry.get("id") == unlock_id:
+			if profile.fracture_shards < entry.get("cost", 0):
 				return false
-			return _check_requirement(profile, entry.requirement)
+			return _check_requirement(profile, entry.get("requirement", ""))
 	return false
 
 
@@ -226,8 +356,8 @@ static func purchase_unlock(profile: PlayerProfile, unlock_id: String) -> bool:
 		return false
 
 	for entry in unlock_catalog:
-		if entry.id == unlock_id:
-			profile.fracture_shards -= entry.cost
+		if entry.get("id") == unlock_id:
+			profile.fracture_shards -= entry.get("cost", 0)
 			profile.unlocks[unlock_id] = true
 			profile.save()
 			return true
@@ -236,8 +366,8 @@ static func purchase_unlock(profile: PlayerProfile, unlock_id: String) -> bool:
 
 static func is_requirement_met(profile: PlayerProfile, unlock_id: String) -> bool:
 	for entry in unlock_catalog:
-		if entry.id == unlock_id:
-			return _check_requirement(profile, entry.requirement)
+		if entry.get("id") == unlock_id:
+			return _check_requirement(profile, entry.get("requirement", ""))
 	return false
 
 
@@ -271,24 +401,48 @@ static func _check_requirement(profile: PlayerProfile, req: String) -> bool:
 
 static func get_damage_multiplier(profile: PlayerProfile) -> float:
 	var level: int = profile.get_meta_level("damage_boost")
-	return 1.0 + level * 0.05
+	return 1.0 + level * 0.03
 
 
 static func get_speed_multiplier(profile: PlayerProfile) -> float:
 	var level: int = profile.get_meta_level("speed_boost")
-	return 1.0 + level * 0.03
+	return 1.0 + level * 0.02
 
 
 static func get_health_bonus(profile: PlayerProfile) -> int:
 	var level: int = profile.get_meta_level("health_boost")
-	return level * 10
+	return level * 8
 
 
 static func get_dash_multiplier(profile: PlayerProfile) -> float:
 	var level: int = profile.get_meta_level("dash_boost")
-	return 1.0 - level * 0.05
+	return 1.0 - level * 0.03
 
 
 static func get_shard_multiplier(profile: PlayerProfile) -> float:
 	var level: int = profile.get_meta_level("shard_magnet")
-	return 1.0 + level * 0.10
+	return 1.0 + level * 0.08
+
+
+static func get_fire_rate_multiplier(profile: PlayerProfile) -> float:
+	var level: int = profile.get_meta_level("fire_rate_boost")
+	return 1.0 + level * 0.02
+
+
+static func get_damage_resist_multiplier(profile: PlayerProfile) -> float:
+	var level: int = profile.get_meta_level("armor_plating")
+	return 1.0 - level * 0.02
+
+
+static func get_kill_heal_bonus(profile: PlayerProfile) -> int:
+	var level: int = profile.get_meta_level("kill_recovery")
+	return level * 1
+
+
+static func get_jump_multiplier(profile: PlayerProfile) -> float:
+	var level: int = profile.get_meta_level("jump_boost")
+	return 1.0 + level * 0.03
+
+
+static func get_swap_speed_level(profile: PlayerProfile) -> int:
+	return profile.get_meta_level("weapon_swap_speed")
