@@ -1020,8 +1020,9 @@ func _spawn_kill_explosion() -> void:
 	if not aim_camera:
 		return
 
+# project ray origin should return to player's current position and not to the center of the screen 
 	var screen_center: Vector2 = get_viewport().get_visible_rect().size / 2
-	var from: Vector3 = aim_camera.project_ray_origin(screen_center)
+	var from: Vector3 = aim_camera.project_ray_origin(screen_center) 
 	var forward: Vector3 = aim_camera.project_ray_normal(screen_center)
 	var aim_point: Vector3 = from + forward * 20.0
 
