@@ -12,6 +12,8 @@ var base_damage: int = 0
 var base_fire_rate: float = 0.0
 var shake_on_fire: float = 0.0
 
+var muzzle: Marker3D # Tip of the gun, where the laser originates
+
 # pvp combat reference — set by game_manager when pvp is active
 var pvp_manager: Node = null
 
@@ -25,11 +27,8 @@ func _create_viewmodel() -> void:
 
 
 func _build_viewmodel_mesh(parts: Array[Dictionary]) -> Node3D:
-	# builds a viewmodel from an array of box part definitions
-	# each dict: { size: Vector3, offset: Vector3, color: Color, emission: Color (optional) }
 	var root: Node3D = Node3D.new()
 	root.name = "Viewmodel"
-	# position: right side, slightly down, in front of camera
 	root.position = Vector3(0.35, -0.25, -0.5)
 	root.rotation_degrees = Vector3(0, -5, -3)
 
@@ -47,7 +46,14 @@ func _build_viewmodel_mesh(parts: Array[Dictionary]) -> Node3D:
 			mat.emission = part.emission
 			mat.emission_energy_multiplier = 1.5
 		mesh_inst.material_override = mat
+
 		root.add_child(mesh_inst)
+
+	# Point de sortie du laser / balle
+	muzzle = Marker3D.new()
+	muzzle.name = "Muzzle"
+	muzzle.position = Vector3(0.0, 0.02, -0.35)
+	root.add_child(muzzle)
 
 	return root
 
@@ -106,11 +112,12 @@ func _get_owner_exclude() -> Array[RID]:
 
 
 func _spawn_tracer(from_pos: Vector3, to_pos: Vector3, color: Color = Color(1.0, 0.7, 0.2), duration: float = 0.1, width: float = 0.012) -> void:
-	var tracer: MeshInstance3D = MeshInstance3D.new()
-	var cyl: CylinderMesh = CylinderMesh.new()
 	var dist: float = from_pos.distance_to(to_pos)
 	if dist < 0.1:
 		return
+
+	var tracer: MeshInstance3D = MeshInstance3D.new()
+	var cyl: CylinderMesh = CylinderMesh.new()
 	cyl.top_radius = width
 	cyl.bottom_radius = width
 	cyl.height = dist
@@ -125,14 +132,16 @@ func _spawn_tracer(from_pos: Vector3, to_pos: Vector3, color: Color = Color(1.0,
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 	tracer.material_override = mat
 
+	get_tree().root.add_child(tracer)
+
 	var midpoint: Vector3 = (from_pos + to_pos) / 2.0
 	tracer.global_position = midpoint
+
 	var dir: Vector3 = (to_pos - from_pos).normalized()
 	if dir.length() > 0.001:
 		tracer.look_at(tracer.global_position + dir)
 		tracer.rotate_object_local(Vector3.RIGHT, PI / 2.0)
 
-	get_tree().root.add_child(tracer)
 	var tween: Tween = tracer.create_tween()
 	tween.tween_property(mat, "albedo_color:a", 0.0, duration)
 	tween.parallel().tween_property(mat, "emission_energy_multiplier", 0.0, duration)
@@ -149,3 +158,12 @@ func _handle_hit_with_breakable(collider: Object, hit_pos: Vector3, damage: int)
 				rc.damage_breakable_wall(wall)
 			return true
 	return false
+
+func _get_muzzle_position() -> Vector3:
+	if muzzle and is_instance_valid(muzzle):
+		return muzzle.global_position
+
+	if viewmodel and is_instance_valid(viewmodel):
+		return viewmodel.global_position
+
+	return global_position

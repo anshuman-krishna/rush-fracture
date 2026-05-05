@@ -1,28 +1,27 @@
-[gd_scene load_steps=5 format=3]
+[gd_scene format=3 uid="uid://dh14kgmx1lxif"]
 
-[ext_resource type="Script" path="res://systems/player/player_controller.gd" id="1"]
-[ext_resource type="Script" path="res://systems/player/camera_controller.gd" id="2"]
-[ext_resource type="Script" path="res://systems/combat/weapon_manager.gd" id="3"]
+[ext_resource type="Script" uid="uid://clmfunpr0kwcj" path="res://systems/player/player_controller.gd" id="1"]
+[ext_resource type="Script" uid="uid://8di0vp51w1s3" path="res://systems/player/camera_controller.gd" id="2"]
+[ext_resource type="Script" uid="uid://d0t1qfy5guoed" path="res://systems/combat/weapon_manager.gd" id="3"]
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
 radius = 0.4
 height = 1.8
 
-[node name="Player" type="CharacterBody3D"]
+[node name="Player" type="CharacterBody3D" unique_id=800911832]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, 0)
-collision_layer = 1
 collision_mask = 3
 script = ExtResource("1")
 
-[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+[node name="CollisionShape3D" type="CollisionShape3D" parent="." unique_id=313280176]
 shape = SubResource("CapsuleShape3D_player")
 
-[node name="Head" type="Node3D" parent="."]
+[node name="Head" type="Node3D" parent="." unique_id=637070132]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
 
-[node name="Camera3D" type="Camera3D" parent="Head"]
+[node name="Camera3D" type="Camera3D" parent="Head" unique_id=61634260]
 fov = 90.0
 script = ExtResource("2")
 
-[node name="WeaponManager" type="Node3D" parent="Head"]
+[node name="WeaponManager" type="Node3D" parent="Head/Camera3D" unique_id=1462427089]
 script = ExtResource("3")

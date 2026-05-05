@@ -112,17 +112,22 @@ func reset_multipliers() -> void:
 
 
 func _init_weapons() -> void:
+	var cam: Camera3D = get_node_or_null("../Camera3D") as Camera3D
+
 	var pulse: BaseWeapon = PulseRifle.new()
 	pulse.name = "PulseRifle"
 	add_child(pulse)
+	pulse.camera = cam
 
 	var scatter: BaseWeapon = ScatterCannon.new()
 	scatter.name = "ScatterCannon"
 	add_child(scatter)
+	scatter.camera = cam
 
 	var beam: BaseWeapon = BeamEmitter.new()
 	beam.name = "BeamEmitter"
 	add_child(beam)
+	beam.camera = cam
 
 	weapons = [pulse, scatter, beam]
 

@@ -29,9 +29,10 @@ func _ready() -> void:
 	base_damage = 6
 	base_fire_rate = 0.05
 	shake_on_fire = 0.4
-	camera = get_viewport().get_camera_3d()
+
 	_create_beam_visual()
 	_create_viewmodel()
+
 	if extended_capacity:
 		max_heat = 150.0
 		overheat_threshold = 150.0
@@ -41,20 +42,15 @@ func _create_viewmodel() -> void:
 	var body_color := Color(0.13, 0.13, 0.16)
 	var accent_color := Color(0.2, 0.8, 1.0)
 	var parts: Array[Dictionary] = [
-		# main body — sleek
 		{ "size": Vector3(0.055, 0.06, 0.36), "offset": Vector3.ZERO, "color": body_color },
-		# emitter barrel — tapered
 		{ "size": Vector3(0.035, 0.035, 0.18), "offset": Vector3(0, 0, -0.25), "color": Color(0.08, 0.08, 0.1) },
-		# emitter tip ring
 		{ "size": Vector3(0.045, 0.045, 0.02), "offset": Vector3(0, 0, -0.35), "color": accent_color, "emission": accent_color },
-		# grip
 		{ "size": Vector3(0.04, 0.1, 0.04), "offset": Vector3(0, -0.07, 0.08), "color": body_color },
-		# heat sink fins
 		{ "size": Vector3(0.07, 0.015, 0.08), "offset": Vector3(0, 0.035, -0.08), "color": Color(0.18, 0.18, 0.2) },
 		{ "size": Vector3(0.07, 0.015, 0.08), "offset": Vector3(0, 0.035, -0.16), "color": Color(0.18, 0.18, 0.2) },
-		# energy core accent
 		{ "size": Vector3(0.02, 0.02, 0.12), "offset": Vector3(0, 0.04, 0.02), "color": accent_color, "emission": accent_color },
 	]
+
 	viewmodel = _build_viewmodel_mesh(parts)
 	add_child(viewmodel)
 
@@ -88,39 +84,56 @@ func try_fire(effective_damage: int, effective_fire_rate: float) -> bool:
 	_fire_beam(effective_damage)
 	return true
 
-
 func _fire_beam(effective_damage: int) -> void:
 	if not camera:
 		return
 
 	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
-	var screen_center: Vector2 = get_viewport().get_visible_rect().size / 2
-	var from: Vector3 = camera.project_ray_origin(screen_center)
-	var forward: Vector3 = camera.project_ray_normal(screen_center)
-	var to: Vector3 = from + forward * weapon_range
 
-	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(from, to)
+	# Rayon EXACT depuis le centre de l'écran.
+	var viewport_size: Vector2 = get_viewport().get_visible_rect().size
+	var screen_center: Vector2 = viewport_size * 0.5
+
+	var ray_from: Vector3 = camera.project_ray_origin(screen_center)
+	var ray_dir: Vector3 = camera.project_ray_normal(screen_center).normalized()
+	var ray_to: Vector3 = ray_from + ray_dir * weapon_range
+
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(ray_from, ray_to)
 	query.collision_mask = _get_collision_mask()
 	query.collide_with_areas = false
 	query.exclude = _get_owner_exclude()
 
 	var result: Dictionary = space_state.intersect_ray(query)
+
+	# Origine visuelle stable du laser, relative à la caméra.
+	var visual_from: Vector3 = camera.global_position
+	visual_from += camera.global_transform.basis.x * 0.22
+	visual_from += camera.global_transform.basis.y * -0.16
+	visual_from += -camera.global_transform.basis.z * 0.35
+
+	var visual_to: Vector3 = ray_to
+
 	if result.is_empty():
-		_show_beam(from, to)
+		_show_beam(visual_from, visual_to)
 		return
 
 	var hit: Object = result.collider
 	var hit_pos: Vector3 = result.position
-	_show_beam(from, hit_pos)
+
+	visual_to = hit_pos
+	_show_beam(visual_from, visual_to)
+
+	# Très important : pas de dégâts si on appelle _fire_beam juste pour le visuel.
+	if effective_damage <= 0:
+		return
 
 	if _handle_hit_with_breakable(hit, hit_pos, effective_damage):
 		return
+
 	_handle_hit(hit, hit_pos, effective_damage)
 
-	# chain beam only applies to enemies
 	if chain_beam and hit is CharacterBody3D and not hit.is_in_group("player"):
 		_apply_chain(hit_pos, hit, effective_damage)
-
 
 func _apply_chain(origin: Vector3, exclude: Node, effective_damage: int) -> void:
 	var chain_dmg: int = int(effective_damage * chain_damage_ratio)
@@ -133,6 +146,7 @@ func _apply_chain(origin: Vector3, exclude: Node, effective_damage: int) -> void
 			continue
 		if enemy.global_position.distance_to(origin) > chain_range:
 			continue
+
 		var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
 		if health and health.is_alive():
 			var was_alive: bool = health.is_alive()
@@ -144,6 +158,8 @@ func _apply_chain(origin: Vector3, exclude: Node, effective_damage: int) -> void
 
 func _create_beam_visual() -> void:
 	beam_mesh = MeshInstance3D.new()
+	beam_mesh.top_level = true
+
 	var mesh: CylinderMesh = CylinderMesh.new()
 	mesh.top_radius = 0.015
 	mesh.bottom_radius = 0.015
@@ -154,10 +170,10 @@ func _create_beam_visual() -> void:
 	mat.emission_enabled = true
 	mat.emission = Color(0.2, 0.8, 1.0)
 	mat.emission_energy_multiplier = 4.0
-	mat.albedo_color = Color(0.3, 0.9, 1.0)
+	mat.albedo_color = Color(0.3, 0.9, 1.0, 0.7)
 	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.albedo_color.a = 0.7
 	beam_mesh.material_override = mat
+
 	beam_mesh.visible = false
 	add_child(beam_mesh)
 
@@ -165,19 +181,26 @@ func _create_beam_visual() -> void:
 func _show_beam(from: Vector3, to: Vector3) -> void:
 	if not beam_mesh:
 		return
-	var midpoint: Vector3 = (from + to) / 2.0
-	var distance: float = from.distance_to(to)
-	beam_mesh.global_position = midpoint
 
-	var direction: Vector3 = (to - from).normalized()
-	if direction.length() > 0.001:
-		beam_mesh.look_at(beam_mesh.global_position + direction)
-		beam_mesh.rotate_object_local(Vector3.RIGHT, PI / 2.0)
+	var direction: Vector3 = to - from
+	var distance: float = direction.length()
+
+	if distance <= 0.001:
+		return
 
 	var mesh: CylinderMesh = beam_mesh.mesh as CylinderMesh
 	mesh.height = distance
-	beam_mesh.visible = true
 
+	var center: Vector3 = from + direction * 0.5
+	var dir: Vector3 = direction.normalized()
+
+	beam_mesh.global_transform = Transform3D.IDENTITY
+	beam_mesh.global_position = center
+
+	beam_mesh.look_at(center + dir, Vector3.UP)
+	beam_mesh.rotate_object_local(Vector3.RIGHT, PI / 2.0)
+
+	beam_mesh.visible = true
 
 func _hide_beam() -> void:
 	if beam_mesh:
@@ -199,3 +222,7 @@ func is_overheated() -> bool:
 
 func get_weapon_name() -> String:
 	return "beam emitter"
+	
+func _exit_tree() -> void:
+	if beam_mesh and is_instance_valid(beam_mesh):
+		beam_mesh.queue_free()

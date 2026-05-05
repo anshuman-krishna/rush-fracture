@@ -67,20 +67,38 @@ func _get_player_manager() -> PlayerManager:
 	return get_node_or_null("/root/Main/PlayerManager") as PlayerManager
 
 
-func _unhandled_input(event: InputEvent) -> void:
+#func _unhandled_input(event: InputEvent) -> void:
+	#if not _is_local_authority():
+		#return
+#
+	#if event is InputEventMouseMotion:
+		#rotate_y(-event.screen_relative.x * mouse_sensitivity)
+		#print("mouse motion received: ", event.screen_relative)
+#
+		#var y_input: float = -event.screen_relative.y * mouse_sensitivity
+		#if invert_mouse_y:
+			#y_input = -y_input
+#
+		#head.rotate_x(y_input)
+		#head.rotation.x = clamp(head.rotation.x, -PI / 2, PI / 2)
+
+	# escape is handled by pause_menu — don't override here
+
+func _input(event: InputEvent) -> void:
 	if not _is_local_authority():
 		return
 
 	if event is InputEventMouseMotion:
-		rotate_y(-event.relative.x * mouse_sensitivity)
-		var y_input: float = -event.relative.y * mouse_sensitivity
+		#print("mouse motion received: ", event.screen_relative)
+
+		rotate_y(-event.screen_relative.x * mouse_sensitivity)
+
+		var y_input: float = -event.screen_relative.y * mouse_sensitivity
 		if invert_mouse_y:
 			y_input = -y_input
+
 		head.rotate_x(y_input)
 		head.rotation.x = clamp(head.rotation.x, -PI / 2, PI / 2)
-
-	# escape is handled by pause_menu — don't override here
-
 
 func _physics_process(delta: float) -> void:
 	if _is_local_authority():

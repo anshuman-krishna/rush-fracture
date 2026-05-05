@@ -160,12 +160,22 @@ func _flash_hit() -> void:
 		return
 
 	var mat: Material = mesh.get_surface_override_material(0)
-	if mat is StandardMaterial3D:
-		var original_color: Color = mat.albedo_color
-		mat.albedo_color = Color.WHITE
-		var tween: Tween = create_tween()
-		tween.tween_property(mat, "albedo_color", original_color, 0.1)
 
+	if not mat:
+		mat = mesh.get_active_material(0)
+
+	if not mat is StandardMaterial3D:
+		return
+
+	# IMPORTANT : dupliquer le matériau pour cet ennemi uniquement
+	var unique_mat: StandardMaterial3D = mat.duplicate() as StandardMaterial3D
+	mesh.set_surface_override_material(0, unique_mat)
+
+	var original_color: Color = unique_mat.albedo_color
+	unique_mat.albedo_color = Color.WHITE
+
+	var tween: Tween = create_tween()
+	tween.tween_property(unique_mat, "albedo_color", original_color, 0.1)
 
 func _play_death() -> void:
 	var tween: Tween = create_tween()

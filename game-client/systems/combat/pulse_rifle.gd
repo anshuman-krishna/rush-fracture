@@ -20,8 +20,9 @@ func _ready() -> void:
 	base_fire_rate = 0.12
 	shake_on_fire = 1.5
 	camera = get_viewport().get_camera_3d()
-	_create_muzzle_flash()
+
 	_create_viewmodel()
+	_create_muzzle_flash()
 
 
 func _create_viewmodel() -> void:
@@ -68,15 +69,22 @@ func try_fire(effective_damage: int, effective_fire_rate: float) -> bool:
 func _fire_single(effective_damage: int) -> void:
 	var result: Dictionary = _raycast()
 	var screen_center: Vector2 = get_viewport().get_visible_rect().size / 2
-	var from: Vector3 = camera.project_ray_origin(screen_center) if camera else global_position
-	if result.is_empty():
-		# tracer to max range
-		if camera:
-			var to: Vector3 = from + camera.project_ray_normal(screen_center) * weapon_range
-			_spawn_tracer(from, to, Color(1.0, 0.7, 0.2), 0.08)
-		return
-	_spawn_tracer(from, result.position, Color(1.0, 0.7, 0.2), 0.08)
-	_apply_hit(result, effective_damage)
+
+	var visual_from: Vector3 = _get_muzzle_position()
+	var visual_to: Vector3 = visual_from + -global_transform.basis.z * weapon_range
+
+	if camera:
+		var ray_from: Vector3 = camera.project_ray_origin(screen_center)
+		var ray_dir: Vector3 = camera.project_ray_normal(screen_center).normalized()
+		visual_to = ray_from + ray_dir * weapon_range
+
+	if not result.is_empty():
+		visual_to = result.position
+
+	_spawn_tracer(visual_from, visual_to, Color(1.0, 0.7, 0.2), 0.08)
+
+	if not result.is_empty():
+		_apply_hit(result, effective_damage)
 
 
 func _fire_burst(effective_damage: int, effective_fire_rate: float) -> void:
@@ -122,6 +130,7 @@ func _apply_hit(result: Dictionary, effective_damage: int) -> void:
 
 func _create_muzzle_flash() -> void:
 	muzzle_flash = MeshInstance3D.new()
+
 	var mesh: SphereMesh = SphereMesh.new()
 	mesh.radius = 0.03
 	mesh.height = 0.06
@@ -133,10 +142,15 @@ func _create_muzzle_flash() -> void:
 	mat.emission_energy_multiplier = 5.0
 	mat.albedo_color = Color(1.0, 0.8, 0.3)
 	muzzle_flash.material_override = mat
-	muzzle_flash.visible = false
-	muzzle_flash.position = Vector3(0.15, -0.08, -0.4)
-	add_child(muzzle_flash)
 
+	muzzle_flash.visible = false
+
+	if muzzle:
+		muzzle.add_child(muzzle_flash)
+		muzzle_flash.position = Vector3.ZERO
+	else:
+		add_child(muzzle_flash)
+		muzzle_flash.position = Vector3(0.0, 0.0, -0.38)
 
 func _show_muzzle_flash() -> void:
 	if not muzzle_flash:
