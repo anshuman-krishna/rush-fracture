@@ -12,6 +12,15 @@ extends CharacterBody3D
 const ARENA_RADIUS: float = 33.0
 const FALL_DEATH_Y: float = -20.0
 
+const STEER_PROBE_DISTANCE: float = 1.5
+# small enough to clear either origin convention used across enemy scenes
+# (some sit at floor level, some at capsule-center) while still landing
+# inside any obstacle's vertical span (shortest pillar is 1.5m tall).
+const STEER_PROBE_HEIGHT: float = 0.5
+# probe angles in radians, straight ahead first then widening left/right —
+# 0, ±25, ±50, ±75 degrees
+const STEER_ANGLES: PackedFloat32Array = [0.0, 0.436, -0.436, 0.873, -0.873, 1.309, -1.309]
+
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target: CharacterBody3D
 var is_dying: bool = false
@@ -52,6 +61,39 @@ func _find_target() -> void:
 		var players: Array[Node] = get_tree().get_nodes_in_group("player")
 		if players.size() > 0:
 			target = players[0] as CharacterBody3D
+
+
+## probes the desired direction and, if something's in the way, a widening
+## fan of angles left/right of it — returns the first clear direction found.
+## melee enemies used to walk straight at the target and permanently get
+## stuck against room obstacles (a pillar was enough to fully neutralize
+## them); this is a lightweight steer-around fallback, not real pathfinding
+## (no NavigationAgent3D/navmesh — see REMAINING.md for why that's a bigger,
+## harder-to-verify change).
+func _steer_around_obstacles(desired_direction: Vector3) -> Vector3:
+	var flat_dir: Vector3 = desired_direction
+	flat_dir.y = 0
+	if flat_dir.length() < 0.01:
+		return flat_dir
+	flat_dir = flat_dir.normalized()
+
+	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var from: Vector3 = global_position + Vector3(0, STEER_PROBE_HEIGHT, 0)
+
+	for angle: float in STEER_ANGLES:
+		var probe_dir: Vector3 = flat_dir.rotated(Vector3.UP, angle)
+		var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(
+			from, from + probe_dir * STEER_PROBE_DISTANCE
+		)
+		query.collision_mask = 1  # obstacles/terrain only, not other entities
+		query.exclude = [get_rid()]
+		var result: Dictionary = space_state.intersect_ray(query)
+		if result.is_empty():
+			return probe_dir
+
+	# every probe angle blocked (fully boxed in) — fall back to the direct
+	# line; move_and_slide will still slide along whatever it hits.
+	return flat_dir
 
 
 ## keeps the enemy inside the arena disc. call before the final
