@@ -12,6 +12,7 @@ type Config struct {
 	APIKey          string
 	AllowedOrigins  []string
 	RateLimitPerMin int
+	MaxBodyBytes    int64
 }
 
 func Load() Config {
@@ -21,6 +22,7 @@ func Load() Config {
 		APIKey:          envOr("API_KEY", ""),
 		AllowedOrigins:  splitCSV(envOr("ALLOWED_ORIGINS", "")),
 		RateLimitPerMin: envOrInt("RATE_LIMIT_PER_MIN", 120),
+		MaxBodyBytes:    int64(envOrInt("MAX_BODY_BYTES", 65536)),
 	}
 }
 

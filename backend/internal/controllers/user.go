@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"rush-fracture/backend/internal/services"
+	"rush-fracture/backend/internal/validate"
 )
 
 type UserController struct {
@@ -24,8 +25,8 @@ func (c *UserController) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.Username == "" {
-		http.Error(w, "username is required", http.StatusBadRequest)
+	if err := validate.NonEmpty("username", req.Username, validate.MaxUsernameLen); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

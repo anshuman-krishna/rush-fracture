@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"rush-fracture/backend/internal/services"
+	"rush-fracture/backend/internal/validate"
 )
 
 type RoomEventController struct {
@@ -28,8 +29,8 @@ func (c *RoomEventController) RoomEntered(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if req.RoomType == "" {
-		http.Error(w, "room_type is required", http.StatusBadRequest)
+	if err := validateRoomFields(req.RoomIndex, req.RoomType, req.ElapsedTime); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -58,8 +59,12 @@ func (c *RoomEventController) RoomCleared(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if req.RoomType == "" {
-		http.Error(w, "room_type is required", http.StatusBadRequest)
+	if err := validateRoomFields(req.RoomIndex, req.RoomType, req.ElapsedTime); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := validate.Range("enemies_killed", req.EnemiesKilled, 0, validate.MaxKills); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -87,8 +92,16 @@ func (c *RoomEventController) UpgradeChosen(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if req.UpgradeID == "" {
-		http.Error(w, "upgrade_id is required", http.StatusBadRequest)
+	if err := validate.NonEmpty("upgrade_id", req.UpgradeID, validate.MaxShortStrLen); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := validate.Range("room_index", req.RoomIndex, 0, validate.MaxRoomIndex); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := validate.Range("elapsed_time", req.ElapsedTime, 0, validate.MaxDuration); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -114,4 +127,17 @@ func (c *RoomEventController) GetByRun(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(events)
+}
+
+func validateRoomFields(roomIndex int, roomType string, elapsedTime int) error {
+	if err := validate.NonEmpty("room_type", roomType, validate.MaxShortStrLen); err != nil {
+		return err
+	}
+	if err := validate.Range("room_index", roomIndex, 0, validate.MaxRoomIndex); err != nil {
+		return err
+	}
+	if err := validate.Range("elapsed_time", elapsedTime, 0, validate.MaxDuration); err != nil {
+		return err
+	}
+	return nil
 }

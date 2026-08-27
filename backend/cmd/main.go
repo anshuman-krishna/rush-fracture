@@ -42,7 +42,7 @@ func main() {
 	statController := controllers.NewStatController(statService)
 	roomEventController := controllers.NewRoomEventController(roomEventService)
 
-	wsHub := websocket.NewHub()
+	wsHub := websocket.NewHub(cfg.AllowedOrigins)
 	go wsHub.Run()
 
 	mux := http.NewServeMux()
@@ -75,6 +75,7 @@ func main() {
 		middleware.CORS(cfg.AllowedOrigins),
 		middleware.APIKeyAuth(cfg.APIKey),
 		rateLimiter.Middleware,
+		middleware.MaxBody(cfg.MaxBodyBytes),
 	)
 
 	log.Printf("server starting on %s", cfg.Address)
