@@ -1,15 +1,9 @@
 class_name BossWardenController
-extends CharacterBody3D
+extends BossBase
 
 # fracture warden — mid-run boss encounter.
 # phase 1: defensive posture, shield pulses, summons minions.
 # phase 2 (40% hp): aggressive, rapid teleport slams, arena hazards.
-
-signal phase_changed(phase: int)
-signal boss_defeated
-
-enum Phase { ONE, TWO }
-enum AttackState { IDLE, TELEGRAPH, ATTACKING, COOLDOWN }
 
 @export var move_speed: float = 2.5
 @export var detection_range: float = 35.0
@@ -19,74 +13,17 @@ enum AttackState { IDLE, TELEGRAPH, ATTACKING, COOLDOWN }
 @export var slam_damage: int = 25
 @export var slam_radius: float = 5.0
 
-var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
-var target: CharacterBody3D
-var current_phase: Phase = Phase.ONE
-var _player_manager: PlayerManager
-var attack_state: AttackState = AttackState.IDLE
-var attack_timer: float = 0.0
-var attack_cooldown: float = 3.5
-var phase_two_triggered: bool = false
-var is_dying: bool = false
-var _telegraph_timer: float = 0.0
-var _attack_duration: float = 0.0
-var _pending_attack: String = ""
-var _adds_spawned: int = 0
 var _add_timer: float = 5.0
 var _hazard_timer: float = 0.0
 
-@onready var health: HealthComponent = $HealthComponent
-@onready var mesh: MeshInstance3D = $MeshInstance3D
-
 
 func _ready() -> void:
-	health.died.connect(_on_died)
-	health.damaged.connect(_on_damaged)
-	add_to_group("enemies")
-	add_to_group("boss")
-	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
+	super._ready()
+	attack_cooldown_base = 3.5
 
 
-func _physics_process(delta: float) -> void:
-	if is_dying:
-		return
-
-	if not _is_local_authority():
-		return
-
-	_apply_gravity(delta)
-	_check_phase_transition()
-
-	if not target:
-		_find_target()
-		move_and_slide()
-		return
-
-	var distance: float = global_position.distance_to(target.global_position)
-	if distance > detection_range:
-		move_and_slide()
-		return
-
-	match attack_state:
-		AttackState.IDLE:
-			_handle_idle(delta, distance)
-		AttackState.TELEGRAPH:
-			_handle_telegraph(delta)
-		AttackState.ATTACKING:
-			_handle_attacking(delta)
-		AttackState.COOLDOWN:
-			_handle_cooldown(delta)
-
-	_face_target()
-	move_and_slide()
-
-	# phase 1: summon minions
-	if current_phase == Phase.ONE:
-		_handle_add_spawning(delta)
-
-	# phase 2: spawn arena hazards
-	if current_phase == Phase.TWO:
-		_handle_arena_hazards(delta)
+func _get_detection_range() -> float:
+	return detection_range
 
 
 func _handle_idle(delta: float, distance: float) -> void:
@@ -129,21 +66,6 @@ func _choose_attack(distance: float) -> void:
 			_begin_telegraph("pulse", 0.5)
 
 
-func _begin_telegraph(attack_name: String, duration: float) -> void:
-	attack_state = AttackState.TELEGRAPH
-	_pending_attack = attack_name
-	_telegraph_timer = duration
-	velocity.x = 0
-	velocity.z = 0
-	_show_telegraph(attack_name)
-
-
-func _handle_telegraph(delta: float) -> void:
-	_telegraph_timer -= delta
-	if _telegraph_timer <= 0:
-		_execute_attack()
-
-
 func _execute_attack() -> void:
 	attack_state = AttackState.ATTACKING
 	_attack_duration = 0.3
@@ -161,43 +83,28 @@ func _execute_attack() -> void:
 			if audio: audio.play("boss_slam", 0.0)
 
 
-func _handle_attacking(delta: float) -> void:
-	_attack_duration -= delta
-	if _attack_duration <= 0:
-		var cd: float = attack_cooldown
-		if current_phase == Phase.TWO:
-			cd *= 0.55
-		attack_timer = cd
-		attack_state = AttackState.IDLE
-		_clear_telegraph()
-
-
-func _handle_cooldown(delta: float) -> void:
-	attack_timer -= delta
-	if attack_timer <= 0:
-		attack_state = AttackState.IDLE
+func _phase_two_cooldown_mult() -> float:
+	return 0.55
 
 
 func _do_pulse() -> void:
 	# expanding damage ring
-	var players: Array = _get_players()
-	for p in players:
+	for p in _get_players():
 		if p is Node3D and global_position.distance_to(p.global_position) <= pulse_radius:
 			if p.has_method("take_damage"):
 				var dmg: int = pulse_damage
 				if current_phase == Phase.TWO:
 					dmg = int(dmg * 1.3)
 				p.take_damage(dmg)
-	_spawn_pulse_visual()
+	_spawn_expanding_ring_visual(pulse_radius, Color(0.0, 0.8, 0.8, 0.5), Color(0.0, 0.7, 0.7), 0.4, 2.0, 0.12)
 
 
 func _do_slam() -> void:
-	var players: Array = _get_players()
-	for p in players:
+	for p in _get_players():
 		if p is Node3D and global_position.distance_to(p.global_position) <= slam_radius:
 			if p.has_method("take_damage"):
 				p.take_damage(slam_damage)
-	_spawn_slam_visual()
+	_spawn_flat_ring_visual(slam_radius, Color(1.0, 0.3, 0.0, 0.5), Color(1.0, 0.4, 0.0), 2.0)
 
 
 func _do_teleport_slam() -> void:
@@ -238,6 +145,16 @@ func _check_phase_transition() -> void:
 		current_phase = Phase.TWO
 		phase_changed.emit(2)
 		_flash_phase_transition()
+
+
+func _phase_tick(delta: float) -> void:
+	# phase 1: summon minions
+	if current_phase == Phase.ONE:
+		_handle_add_spawning(delta)
+
+	# phase 2: spawn arena hazards
+	if current_phase == Phase.TWO:
+		_handle_arena_hazards(delta)
 
 
 func _handle_add_spawning(delta: float) -> void:
@@ -359,56 +276,6 @@ func _clear_telegraph() -> void:
 		mat.emission_energy_multiplier = 1.0
 
 
-func _spawn_pulse_visual() -> void:
-	var ring: MeshInstance3D = MeshInstance3D.new()
-	var cyl: CylinderMesh = CylinderMesh.new()
-	cyl.top_radius = 1.0
-	cyl.bottom_radius = 1.0
-	cyl.height = 0.12
-	ring.mesh = cyl
-
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = Color(0.0, 0.8, 0.8, 0.5)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	mat.emission = Color(0.0, 0.7, 0.7)
-	mat.emission_energy_multiplier = 2.0
-	ring.material_override = mat
-
-	ring.global_position = Vector3(global_position.x, 0.1, global_position.z)
-	get_tree().root.add_child(ring)
-
-	var tween: Tween = get_tree().create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(ring, "scale", Vector3(pulse_radius, 1, pulse_radius), 0.4)
-	tween.tween_property(mat, "albedo_color:a", 0.0, 0.4)
-	tween.chain().tween_callback(ring.queue_free)
-
-
-func _spawn_slam_visual() -> void:
-	var indicator: MeshInstance3D = MeshInstance3D.new()
-	var disc: CylinderMesh = CylinderMesh.new()
-	disc.top_radius = slam_radius
-	disc.bottom_radius = slam_radius
-	disc.height = 0.1
-	indicator.mesh = disc
-
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = Color(1.0, 0.3, 0.0, 0.5)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.4, 0.0)
-	mat.emission_energy_multiplier = 2.0
-	indicator.material_override = mat
-
-	indicator.global_position = Vector3(global_position.x, 0.1, global_position.z)
-	get_tree().root.add_child(indicator)
-
-	var tween: Tween = get_tree().create_tween()
-	tween.tween_property(mat, "albedo_color:a", 0.0, 0.4)
-	tween.tween_callback(indicator.queue_free)
-
-
 func _spawn_warp_visual(pos: Vector3) -> void:
 	var indicator: MeshInstance3D = MeshInstance3D.new()
 	var disc: CylinderMesh = CylinderMesh.new()
@@ -432,7 +299,10 @@ func _spawn_warp_visual(pos: Vector3) -> void:
 	tween.set_parallel(true)
 	tween.tween_property(indicator, "scale", Vector3(0.1, 1, 0.1), 0.35)
 	tween.tween_property(mat, "albedo_color:a", 0.0, 0.35)
-	tween.chain().tween_callback(indicator.queue_free)
+	tween.chain().tween_callback(func():
+		if is_instance_valid(indicator):
+			indicator.queue_free()
+	)
 
 
 func _flash_phase_transition() -> void:
@@ -449,80 +319,3 @@ func _flash_phase_transition() -> void:
 
 	var size_tween: Tween = create_tween()
 	size_tween.tween_property(self, "scale", Vector3(1.2, 1.2, 1.2), 0.3)
-
-
-func _face_target() -> void:
-	if not target:
-		return
-	var look_pos: Vector3 = target.global_position
-	look_pos.y = global_position.y
-	if global_position.distance_to(look_pos) > 0.1:
-		look_at(look_pos)
-
-
-func _apply_gravity(delta: float) -> void:
-	if not is_on_floor():
-		velocity.y -= gravity * delta
-
-
-func _find_target() -> void:
-	if _player_manager:
-		target = _player_manager.get_nearest_player(global_position)
-	else:
-		var players: Array[Node] = get_tree().get_nodes_in_group("player")
-		if players.size() > 0:
-			target = players[0] as CharacterBody3D
-
-
-func _get_players() -> Array:
-	if _player_manager:
-		return _player_manager.get_all_players()
-	return get_tree().get_nodes_in_group("player")
-
-
-func _on_damaged(_amount: int, _current: int) -> void:
-	_flash_hit()
-
-
-func _on_died() -> void:
-	is_dying = true
-	boss_defeated.emit()
-	_play_death()
-
-
-func _flash_hit() -> void:
-	if not mesh:
-		return
-	var mat: Material = mesh.get_surface_override_material(0)
-	if mat is StandardMaterial3D:
-		var prev_emission: Color = mat.emission
-		mat.emission = Color.WHITE
-		var tween: Tween = create_tween()
-		tween.tween_property(mat, "emission", prev_emission, 0.12)
-
-
-func _play_death() -> void:
-	var tween: Tween = create_tween()
-	tween.tween_property(self, "scale:y", 0.1, 0.8).set_ease(Tween.EASE_IN)
-	tween.parallel().tween_property(mesh, "transparency", 1.0, 1.0)
-	tween.tween_callback(queue_free)
-
-
-func get_phase() -> int:
-	return current_phase + 1
-
-
-func _get_audio() -> AudioManager:
-	return get_node_or_null("/root/Main/AudioManager") as AudioManager
-
-
-func get_health_ratio() -> float:
-	if not health:
-		return 0.0
-	return float(health.current_health) / float(health.max_health)
-
-
-func _is_local_authority() -> bool:
-	if not multiplayer or not multiplayer.has_multiplayer_peer():
-		return true
-	return is_multiplayer_authority()
