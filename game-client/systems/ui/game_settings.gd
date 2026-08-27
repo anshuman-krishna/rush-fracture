@@ -52,7 +52,8 @@ func save() -> void:
 	config.set_value("input", "invert_mouse_y", invert_mouse_y)
 	config.set_value("display", "fullscreen", fullscreen)
 	config.set_value("flags", "has_seen_onboarding", has_seen_onboarding)
-	config.save(SAVE_PATH)
+	config.set_value("save", "version", SaveUtil.SAVE_FORMAT_VERSION)
+	SaveUtil.save_atomic(config, SAVE_PATH)
 
 
 func apply() -> void:

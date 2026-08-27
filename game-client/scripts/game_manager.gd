@@ -712,6 +712,8 @@ func _show_match_summary() -> void:
 
 		# save profile for pvp match
 		var best: int = combo_tracker.best_combo
+		var prev_kills: int = _profile.best_kills_single_run if _profile else 0
+		var prev_combo: int = _profile.best_combo if _profile else 0
 		_save_run_to_profile(data, best)
 
 		# encode match scores into run tags for display
@@ -732,7 +734,7 @@ func _show_match_summary() -> void:
 				label = "you"
 			data.run_tags.append("%s: %d pts" % [label, s.total])
 
-		summary_ui.show_summary(data)
+		summary_ui.show_summary(data, prev_kills, prev_combo)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -748,9 +750,10 @@ func _on_run_failed(data: RunData) -> void:
 	var best: int = combo_tracker.best_combo
 	combo_tracker.reset()
 	data.run_tags = RunTags.generate(data, best)
-	BestStats.update_from_run(data, best)
+	var prev_kills: int = _profile.best_kills_single_run if _profile else 0
+	var prev_combo: int = _profile.best_combo if _profile else 0
 	_save_run_to_profile(data, best)
-	summary_ui.show_summary(data)
+	summary_ui.show_summary(data, prev_kills, prev_combo)
 
 
 func _on_run_completed(data: RunData) -> void:
@@ -759,9 +762,10 @@ func _on_run_completed(data: RunData) -> void:
 	var best: int = combo_tracker.best_combo
 	combo_tracker.reset()
 	data.run_tags = RunTags.generate(data, best)
-	BestStats.update_from_run(data, best)
+	var prev_kills: int = _profile.best_kills_single_run if _profile else 0
+	var prev_combo: int = _profile.best_combo if _profile else 0
 	_save_run_to_profile(data, best)
-	summary_ui.show_summary(data)
+	summary_ui.show_summary(data, prev_kills, prev_combo)
 
 
 func _on_restart() -> void:

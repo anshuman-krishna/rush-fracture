@@ -105,8 +105,9 @@ func save() -> void:
 	for key: String in unlocks:
 		unlock_keys.append(key)
 	config.set_value("unlocks", "keys", unlock_keys)
+	config.set_value("save", "version", SaveUtil.SAVE_FORMAT_VERSION)
 
-	config.save(SAVE_PATH)
+	SaveUtil.save_atomic(config, SAVE_PATH)
 
 
 func update_from_run(data: RunData, combo_best: int, pvp_won: bool) -> void:
