@@ -122,6 +122,9 @@ class _NullInputProvider extends InputProvider:
 	func get_move_vector() -> Vector2:
 		return Vector2.ZERO
 
+	func get_look_vector() -> Vector2:
+		return Vector2.ZERO
+
 	func is_jump_pressed() -> bool:
 		return false
 
