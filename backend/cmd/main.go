@@ -1,8 +1,13 @@
 package main
 
 import (
-	"log"
+	"context"
+	"errors"
+	"log/slog"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"rush-fracture/backend/internal/config"
@@ -13,17 +18,21 @@ import (
 	"rush-fracture/backend/internal/websocket"
 )
 
+const shutdownTimeout = 10 * time.Second
+
 func main() {
 	cfg := config.Load()
 
 	db, err := repositories.OpenDatabase(cfg.DatabasePath)
 	if err != nil {
-		log.Fatalf("failed to open database: %v", err)
+		slog.Error("failed to open database", "error", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
 	if err := repositories.Migrate(db); err != nil {
-		log.Fatalf("failed to run migrations: %v", err)
+		slog.Error("failed to run migrations", "error", err)
+		os.Exit(1)
 	}
 
 	userRepo := repositories.NewUserRepository(db)
@@ -63,10 +72,10 @@ func main() {
 	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitPerMin, time.Minute)
 
 	if cfg.APIKey == "" {
-		log.Printf("warning: API_KEY not set, api is open with no auth")
+		slog.Warn("API_KEY not set, api is open with no auth")
 	}
 	if len(cfg.AllowedOrigins) == 0 {
-		log.Printf("warning: ALLOWED_ORIGINS not set, no browser origin can call this api")
+		slog.Warn("ALLOWED_ORIGINS not set, no browser origin can call this api")
 	}
 
 	handler := middleware.Chain(mux,
@@ -78,8 +87,37 @@ func main() {
 		middleware.MaxBody(cfg.MaxBodyBytes),
 	)
 
-	log.Printf("server starting on %s", cfg.Address)
-	if err := http.ListenAndServe(cfg.Address, handler); err != nil {
-		log.Fatalf("server failed: %v", err)
+	srv := &http.Server{
+		Addr:    cfg.Address,
+		Handler: handler,
+	}
+
+	serverErr := make(chan error, 1)
+	go func() {
+		slog.Info("server starting", "address", cfg.Address)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
+		}
+		close(serverErr)
+	}()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case err := <-serverErr:
+		slog.Error("server failed", "error", err)
+		os.Exit(1)
+	case <-ctx.Done():
+		stop()
+		slog.Info("shutdown signal received, draining connections")
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			slog.Error("graceful shutdown failed", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("server stopped cleanly")
 	}
 }

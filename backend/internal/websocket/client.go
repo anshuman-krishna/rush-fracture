@@ -2,7 +2,7 @@ package websocket
 
 import (
 	"encoding/json"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -91,6 +91,6 @@ func (c *Client) handleMessage(msg Message) {
 		resp, _ := json.Marshal(Message{Type: TypePong})
 		c.send <- resp
 	default:
-		log.Printf("unhandled message type: %s", msg.Type)
+		slog.Warn("unhandled websocket message type", "type", msg.Type)
 	}
 }

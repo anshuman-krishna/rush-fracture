@@ -1,7 +1,7 @@
 package websocket
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/gorilla/websocket"
@@ -49,13 +49,13 @@ func (h *Hub) Run() {
 		select {
 		case client := <-h.register:
 			h.clients[client] = true
-			log.Printf("client connected, total: %d", len(h.clients))
+			slog.Info("websocket client connected", "total", len(h.clients))
 
 		case client := <-h.unregister:
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
-				log.Printf("client disconnected, total: %d", len(h.clients))
+				slog.Info("websocket client disconnected", "total", len(h.clients))
 			}
 
 		case message := <-h.broadcast:
@@ -74,7 +74,7 @@ func (h *Hub) Run() {
 func (h *Hub) HandleConnection(w http.ResponseWriter, r *http.Request) {
 	conn, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("websocket upgrade failed: %v", err)
+		slog.Error("websocket upgrade failed", "error", err)
 		return
 	}
 
