@@ -81,7 +81,7 @@ Verified against the code, not the README (the README has drifted — correction
 
 - REST API: user creation/lookup, run start/end/lookup, room-event logging, upgrade logging, stats lookup, health check, plus a websocket endpoint.
 - SQLite storage, clean parameterized-query layering (controllers → services → repositories).
-- **[correction]** The `GET /api/stats/{userId}` endpoint always 404s — nothing ever writes to the stats table. The websocket hub's broadcast channel is dead code — no real-time relay is functional. **The Godot client contains no code that calls this backend at all** — despite the README describing it as "optional: run `backend/` go server for stats tracking," there is currently no stats tracking happening even if you run it.
+- **[correction, fixed 2026-08-27]** The `GET /api/stats/{userId}` endpoint used to always 404 (nothing ever wrote to a separate `stats` table). That table was removed and stats are now computed live as a SQL aggregate over `runs`, so the endpoint works. Also hardened since the original write-up: shared-secret API key auth, CORS allow-list, per-IP rate limiting, request body size caps, per-field bounds validation on gameplay data, and websocket origin checks — see REMAINING.md §3 for exact status of each. The websocket hub's broadcast channel is still dead code — no real-time relay is functional. **The Godot client still contains no code that calls this backend at all** — despite the README describing it as "optional: run `backend/` go server for stats tracking," there is currently no stats tracking happening even if you run it.
 
 ## Platforms
 
