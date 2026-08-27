@@ -5,7 +5,7 @@ extends Node3D
 # forwards signals from active weapon to external systems.
 # preserves upgrade multipliers across weapon switches.
 
-signal enemy_killed
+signal enemy_killed(position: Vector3)
 signal enemy_hit(position: Vector3)
 signal weapon_switched(weapon_name: String)
 
@@ -132,7 +132,7 @@ func _init_weapons() -> void:
 	weapons = [pulse, scatter, beam]
 
 	for w: BaseWeapon in weapons:
-		w.enemy_killed.connect(func() -> void: enemy_killed.emit())
+		w.enemy_killed.connect(func(pos: Vector3) -> void: enemy_killed.emit(pos))
 		w.enemy_hit.connect(func(pos: Vector3) -> void: enemy_hit.emit(pos))
 		w.visible = false
 		w.set_process(false)

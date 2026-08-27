@@ -123,7 +123,7 @@ func _fire_beam(effective_damage: int) -> void:
 	visual_to = hit_pos
 	_show_beam(visual_from, visual_to)
 
-	# Très important : pas de dégâts si on appelle _fire_beam juste pour le visuel.
+	# important: no damage if _fire_beam is called for the visual only.
 	if effective_damage <= 0:
 		return
 
@@ -152,7 +152,7 @@ func _apply_chain(origin: Vector3, exclude: Node, effective_damage: int) -> void
 			var was_alive: bool = health.is_alive()
 			health.take_damage(chain_dmg)
 			if was_alive and not health.is_alive():
-				enemy_killed.emit()
+				enemy_killed.emit(enemy.global_position)
 			break
 
 

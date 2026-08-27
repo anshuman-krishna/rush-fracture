@@ -10,6 +10,7 @@ extends Control
 @onready var quit_button: Button = $Panel/ContentMargin/Content/QuitButton
 @onready var host_button: Button = $Panel/ContentMargin/Content/HostButton
 @onready var code_input: LineEdit = $Panel/ContentMargin/Content/CodeInput
+@onready var ip_input: LineEdit = $Panel/ContentMargin/Content/IpInput
 @onready var join_button: Button = $Panel/ContentMargin/Content/JoinButton
 @onready var status_label: Label = $Panel/ContentMargin/Content/StatusLabel
 @onready var mode_button: Button = $Panel/ContentMargin/Content/ModeButton
@@ -25,7 +26,6 @@ var _settings_menu: SettingsMenu
 
 
 func _ready() -> void:
-	print("main menu ready")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 	# apply saved settings on startup
@@ -71,7 +71,6 @@ func _ready() -> void:
 
 
 func _on_start() -> void:
-	print("starting game — mode: %s" % _game_mode_manager.get_mode_name())
 	_game_mode_manager.set_mode(_selected_mode)
 
 	# solo mode — clean up network manager
@@ -86,36 +85,64 @@ func _on_start() -> void:
 
 
 func _on_host() -> void:
-	print("hosting game")
 	status_label.text = "creating room..."
 	status_label.visible = true
 	var err: Error = _network_manager.host_game()
 	if err != OK:
 		status_label.text = "failed to host: %s" % error_string(err)
 		return
-	status_label.text = "room code: %s — share this code" % _network_manager.room_code
+	var local_ip: String = _get_local_lan_ip()
+	if local_ip != "":
+		status_label.text = "code: %s  ip: %s — share both with other players" % [_network_manager.room_code, local_ip]
+	else:
+		status_label.text = "room code: %s — share this code" % _network_manager.room_code
 	join_button.disabled = true
 	host_button.disabled = true
 	code_input.text = _network_manager.room_code
 	code_input.editable = false
+	ip_input.editable = false
 	start_button.text = "start run (host)"
 
 
 func _on_join() -> void:
-	print("joining game")
 	var code: String = code_input.text.strip_edges().to_upper()
 	if code.length() != NetworkManager.CODE_LENGTH:
 		status_label.text = "enter a %d-character room code" % NetworkManager.CODE_LENGTH
 		status_label.visible = true
 		return
-	status_label.text = "connecting with code %s..." % code
+	var address: String = ip_input.text.strip_edges()
+	if address == "":
+		address = "127.0.0.1"
+	status_label.text = "connecting to %s with code %s..." % [address, code]
 	status_label.visible = true
-	var err: Error = _network_manager.join_by_code(code)
+	var err: Error = _network_manager.join_by_code(code, address)
 	if err != OK:
 		status_label.text = "failed to connect: %s" % error_string(err)
 		return
 	host_button.disabled = true
 	join_button.disabled = true
+	ip_input.editable = false
+
+
+func _get_local_lan_ip() -> String:
+	# best-effort LAN ip for the host to share — prefers private-range ipv4,
+	# falls back to empty (caller shows the code alone) if nothing usable is found.
+	for addr: String in IP.get_local_addresses():
+		if addr == "127.0.0.1" or addr.begins_with("169.254.") or ":" in addr:
+			continue
+		if addr.begins_with("192.168.") or addr.begins_with("10.") or _is_172_private(addr):
+			return addr
+	return ""
+
+
+func _is_172_private(addr: String) -> bool:
+	if not addr.begins_with("172."):
+		return false
+	var parts: PackedStringArray = addr.split(".")
+	if parts.size() < 2:
+		return false
+	var second: int = parts[1].to_int()
+	return second >= 16 and second <= 31
 
 
 func _on_connection_succeeded() -> void:
@@ -126,10 +153,11 @@ func _on_connection_succeeded() -> void:
 
 
 func _on_connection_failed() -> void:
-	status_label.text = "connection failed — check code and try again"
+	status_label.text = "connection failed — check code, ip, and try again"
 	host_button.disabled = false
 	join_button.disabled = false
 	code_input.editable = true
+	ip_input.editable = true
 
 
 func _on_mode_cycle() -> void:

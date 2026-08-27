@@ -23,8 +23,9 @@ var connected_peers: Array[int] = []
 var room_code: String = ""
 
 
-func _ready() -> void:
-	print("network manager ready")
+func _debug_log(msg: String) -> void:
+	if OS.is_debug_build():
+		print(msg)
 
 
 func is_ready() -> bool:
@@ -87,7 +88,7 @@ func host_game(port: int = -1) -> Error:
 	mp.peer_connected.connect(_on_peer_connected)
 	mp.peer_disconnected.connect(_on_peer_disconnected)
 
-	print("hosting with code %s on port %d — peer id: %d" % [room_code, port, local_peer_id])
+	_debug_log("hosting with code %s on port %d — peer id: %d" % [room_code, port, local_peer_id])
 	connection_succeeded.emit()
 	return OK
 
@@ -118,7 +119,7 @@ func join_game(address: String, port: int = DEFAULT_PORT) -> Error:
 	mp.peer_connected.connect(_on_peer_connected)
 	mp.peer_disconnected.connect(_on_peer_disconnected)
 
-	print("joining %s:%d" % [address, port])
+	_debug_log("joining %s:%d" % [address, port])
 	return OK
 
 
@@ -128,7 +129,7 @@ func join_by_code(code: String, address: String = "127.0.0.1") -> Error:
 		push_error("invalid room code: %s" % room_code)
 		return ERR_INVALID_PARAMETER
 	var port: int = code_to_port(room_code)
-	print("joining room %s → %s:%d" % [room_code, address, port])
+	_debug_log("joining room %s → %s:%d" % [room_code, address, port])
 	return join_game(address, port)
 
 
@@ -145,7 +146,7 @@ func disconnect_game() -> void:
 	room_code = ""
 
 	_disconnect_signals()
-	print("disconnected")
+	_debug_log("disconnected")
 
 
 func is_host() -> bool:
@@ -211,7 +212,7 @@ func _on_connected_to_server() -> void:
 	state = State.CONNECTED
 	local_peer_id = mp.get_unique_id()
 	connected_peers.append(local_peer_id)
-	print("connected as peer %d" % local_peer_id)
+	_debug_log("connected as peer %d" % local_peer_id)
 	connection_succeeded.emit()
 
 
@@ -219,7 +220,7 @@ func _on_connection_failed() -> void:
 	state = State.OFFLINE
 	local_peer_id = 0
 	room_code = ""
-	print("connection failed")
+	_debug_log("connection failed")
 	connection_failed.emit()
 	_disconnect_signals()
 
@@ -229,7 +230,7 @@ func _on_server_disconnected() -> void:
 	local_peer_id = 0
 	connected_peers.clear()
 	room_code = ""
-	print("server disconnected")
+	_debug_log("server disconnected")
 	server_disconnected.emit()
 	_disconnect_signals()
 
@@ -237,13 +238,13 @@ func _on_server_disconnected() -> void:
 func _on_peer_connected(id: int) -> void:
 	if id not in connected_peers:
 		connected_peers.append(id)
-	print("peer connected: %d" % id)
+	_debug_log("peer connected: %d" % id)
 	player_connected.emit(id)
 
 
 func _on_peer_disconnected(id: int) -> void:
 	connected_peers.erase(id)
-	print("peer disconnected: %d" % id)
+	_debug_log("peer disconnected: %d" % id)
 	player_disconnected.emit(id)
 
 

@@ -23,6 +23,8 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not OS.is_debug_build():
+		return
 	if event is InputEventKey and event.pressed and event.keycode == KEY_F3:
 		_debug_visible = not _debug_visible
 		visible = _debug_visible

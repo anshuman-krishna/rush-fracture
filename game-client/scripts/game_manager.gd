@@ -48,7 +48,6 @@ var _onboarding: OnboardingOverlay
 
 
 func _ready() -> void:
-	print("game manager ready")
 	_profile = PlayerProfile.load_profile()
 	_detect_network()
 	_detect_game_mode()
@@ -336,7 +335,7 @@ func _rpc_fail_run() -> void:
 
 # --- combat ---
 
-func _on_weapon_kill() -> void:
+func _on_weapon_kill(kill_position: Vector3) -> void:
 	run_manager.register_kill()
 	upgrade_manager.on_enemy_killed()
 	mutation_manager.on_enemy_killed()
@@ -363,7 +362,7 @@ func _on_weapon_kill() -> void:
 	crosshair.show_kill()
 
 	if upgrade_manager.has_chain_reaction:
-		_spawn_kill_explosion()
+		_spawn_kill_explosion(kill_position)
 
 
 func _on_weapon_hit(hit_position: Vector3) -> void:
@@ -1012,19 +1011,10 @@ func _connect_enemy_hit(enemy: Node) -> void:
 		)
 
 
-func _spawn_kill_explosion() -> void:
+func _spawn_kill_explosion(origin: Vector3) -> void:
 	var explosion_radius: float = 4.0
 	var explosion_damage: int = int(weapon_manager.damage * 0.6)
 	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
-	var aim_camera: Camera3D = get_viewport().get_camera_3d()
-	if not aim_camera:
-		return
-
-# project ray origin should return to player's current position and not to the center of the screen 
-	var screen_center: Vector2 = get_viewport().get_visible_rect().size / 2
-	var from: Vector3 = aim_camera.project_ray_origin(screen_center) 
-	var forward: Vector3 = aim_camera.project_ray_normal(screen_center)
-	var aim_point: Vector3 = from + forward * 20.0
 
 	for enemy in enemies:
 		if not enemy is Node3D or not is_instance_valid(enemy):
@@ -1032,5 +1022,5 @@ func _spawn_kill_explosion() -> void:
 		var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
 		if not health or not health.is_alive():
 			continue
-		if enemy.global_position.distance_to(aim_point) < explosion_radius:
+		if enemy.global_position.distance_to(origin) < explosion_radius:
 			health.take_damage(explosion_damage)

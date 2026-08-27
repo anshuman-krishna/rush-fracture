@@ -15,6 +15,7 @@ var _original_dash_force: float
 var _original_jump_force: float
 var _explosion_timer: float = 0.0
 var _camera: Camera3D
+var _speed_buffed_enemies: Array[Node] = []
 
 
 func bind(player: CharacterBody3D) -> void:
@@ -131,7 +132,7 @@ func _revert_effect(type: FractureDefinitions.FractureType) -> void:
 			_player.gravity = _original_gravity
 			_player.jump_force = _original_jump_force
 		FractureDefinitions.FractureType.DOUBLE_SPEED_ENEMIES:
-			_buff_all_enemy_speeds(0.5)
+			_revert_enemy_speeds()
 		FractureDefinitions.FractureType.RANDOM_EXPLOSIONS:
 			_explosion_timer = 0.0
 		FractureDefinitions.FractureType.VISION_DISTORTION:
@@ -139,10 +140,22 @@ func _revert_effect(type: FractureDefinitions.FractureType) -> void:
 
 
 func _buff_all_enemy_speeds(multiplier: float) -> void:
+	# only enemies alive right now get buffed and tracked for revert — anything
+	# spawned mid-fracture (gauntlet waves, duplication procs) is left alone,
+	# so it never gets wrongly halved when the fracture ends.
+	_speed_buffed_enemies.clear()
 	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
 	for enemy in enemies:
 		if "move_speed" in enemy:
 			enemy.move_speed *= multiplier
+			_speed_buffed_enemies.append(enemy)
+
+
+func _revert_enemy_speeds() -> void:
+	for enemy in _speed_buffed_enemies:
+		if is_instance_valid(enemy) and "move_speed" in enemy:
+			enemy.move_speed *= 0.5
+	_speed_buffed_enemies.clear()
 
 
 func _spawn_random_explosion() -> void:

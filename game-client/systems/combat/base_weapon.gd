@@ -4,7 +4,7 @@ extends Node3D
 # base class for all weapons. defines the shared interface
 # that weapon_manager relies on for type-safe access.
 
-signal enemy_killed
+signal enemy_killed(position: Vector3)
 signal enemy_hit(position: Vector3)
 signal player_hit(target: CharacterBody3D, damage: int)
 
@@ -95,7 +95,7 @@ func _handle_hit(collider: Object, hit_pos: Vector3, damage: int) -> void:
 		health.take_damage(damage)
 		enemy_hit.emit(hit_pos)
 		if was_alive and not health.is_alive():
-			enemy_killed.emit()
+			enemy_killed.emit(body.global_position)
 
 
 func _get_owner_player() -> CharacterBody3D:

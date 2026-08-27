@@ -64,9 +64,29 @@ func try_pvp_damage(attacker: CharacterBody3D, target: CharacterBody3D, base_dam
 		return false
 
 	var scaled_damage: int = _game_mode.get_pvp_damage(base_damage)
+
+	if _is_networked() and not _is_host():
+		# non-host: request the host apply this authoritatively rather than
+		# mutating shared pvp state locally — closes both the "damage never
+		# leaves this machine" bug and the "any peer can forge damage" hole.
+		_rpc_request_pvp_damage.rpc_id(1, target_peer, scaled_damage, attacker_peer)
+		return true
+
 	_apply_pvp_damage(target_peer, scaled_damage, attacker_peer)
+	if _is_networked():
+		_rpc_pvp_damage.rpc(target_peer, scaled_damage, attacker_peer)
 
 	return true
+
+
+func _is_networked() -> bool:
+	return multiplayer and multiplayer.has_multiplayer_peer()
+
+
+func _is_host() -> bool:
+	if not _is_networked():
+		return true
+	return multiplayer.is_server()
 
 
 func _apply_pvp_damage(target_peer: int, damage: int, attacker_peer: int) -> void:
@@ -121,19 +141,27 @@ func _get_peer_id(player: CharacterBody3D) -> int:
 	return player.get_multiplayer_authority()
 
 
+## sent by any peer to the host, requesting damage be applied authoritatively.
+## the host validates and applies, then rebroadcasts via _rpc_pvp_damage below
+## so every peer's local pvp state converges on the host's decision.
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_pvp_damage(target_peer: int, damage: int, attacker_peer: int) -> void:
+	if not _is_host():
+		return
+	if not _active or target_peer in _eliminated:
+		return
+	_apply_pvp_damage(target_peer, damage, attacker_peer)
+	_rpc_pvp_damage.rpc(target_peer, damage, attacker_peer)
+
+
+## authoritative result broadcast from the host to every peer. only the host
+## may originate this meaningfully (non-host callers are ignored) — clients
+## request damage via _rpc_request_pvp_damage instead of calling this directly.
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_pvp_damage(target_peer: int, damage: int, attacker_peer: int) -> void:
 	if not _active:
 		return
+	var sender: int = multiplayer.get_remote_sender_id() if _is_networked() else 1
+	if sender != 1:
+		return
 	_apply_pvp_damage(target_peer, damage, attacker_peer)
-
-
-@rpc("authority", "call_remote", "reliable")
-func _rpc_pvp_elimination(eliminated_peer: int, killer_peer: int) -> void:
-	_eliminated[eliminated_peer] = true
-	player_eliminated.emit(eliminated_peer)
-
-
-@rpc("authority", "call_remote", "reliable")
-func _rpc_match_over(winner_peer: int) -> void:
-	match_over.emit(winner_peer)
