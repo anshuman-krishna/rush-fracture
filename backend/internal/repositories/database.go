@@ -48,16 +48,6 @@ func Migrate(db *sql.DB) error {
 			FOREIGN KEY (user_id) REFERENCES users(id)
 		);
 
-		CREATE TABLE IF NOT EXISTS stats (
-			user_id TEXT PRIMARY KEY,
-			total_runs INTEGER NOT NULL DEFAULT 0,
-			best_score INTEGER NOT NULL DEFAULT 0,
-			best_level INTEGER NOT NULL DEFAULT 0,
-			total_time INTEGER NOT NULL DEFAULT 0,
-			total_kills INTEGER NOT NULL DEFAULT 0,
-			FOREIGN KEY (user_id) REFERENCES users(id)
-		);
-
 		CREATE TABLE IF NOT EXISTS room_events (
 			id TEXT PRIMARY KEY,
 			run_id TEXT NOT NULL,

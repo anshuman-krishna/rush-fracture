@@ -14,12 +14,16 @@ func NewStatRepository(db *sql.DB) *StatRepository {
 	return &StatRepository{db: db}
 }
 
+// computed live from runs — no separate stats table to keep in sync.
+// always returns a row (zeroed if the user has no runs yet).
 func (r *StatRepository) GetByUserID(userID string) (*models.Stat, error) {
-	stat := &models.Stat{}
+	stat := &models.Stat{UserID: userID}
 	err := r.db.QueryRow(
-		"SELECT user_id, total_runs, best_score, best_level, total_time, total_kills FROM stats WHERE user_id = ?",
+		`SELECT COUNT(*), COALESCE(MAX(score), 0), COALESCE(MAX(level), 0),
+			COALESCE(SUM(duration), 0), COALESCE(SUM(enemies_killed), 0)
+		FROM runs WHERE user_id = ?`,
 		userID,
-	).Scan(&stat.UserID, &stat.TotalRuns, &stat.BestScore, &stat.BestLevel, &stat.TotalTime, &stat.TotalKills)
+	).Scan(&stat.TotalRuns, &stat.BestScore, &stat.BestLevel, &stat.TotalTime, &stat.TotalKills)
 	if err != nil {
 		return nil, err
 	}
