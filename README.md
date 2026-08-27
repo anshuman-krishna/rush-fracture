@@ -57,7 +57,7 @@ each run is short but plays differently depending on build choices.
 
 ### mutations
 - powerful run modifiers with downsides
-- examples: glass cannon, momentum shield, fracture echo, neural overload
+- examples: glass cannon, momentum shield, fracture echo, overclock
 
 ---
 
