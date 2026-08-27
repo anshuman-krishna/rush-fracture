@@ -140,6 +140,14 @@ layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/separation = 6
 
+[node name="ResetKeysButton" type="Button" parent="Panel"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.6, 0.6, 0.6, 1)
+theme_override_colors/font_hover_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 13
+text = "reset controls to default"
+
 [node name="Spacer2" type="Control" parent="Panel"]
 custom_minimum_size = Vector2(0, 10)
 layout_mode = 2
