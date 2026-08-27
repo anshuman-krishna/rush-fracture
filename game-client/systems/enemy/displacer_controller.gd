@@ -117,8 +117,8 @@ func _attack() -> void:
 
 
 func _chase(delta: float) -> void:
-	var direction: Vector3 = (target.global_position - global_position).normalized()
-	direction.y = 0
+	var desired: Vector3 = (target.global_position - global_position).normalized()
+	var direction: Vector3 = _steer_around_obstacles(desired)
 	velocity.x = move_toward(velocity.x, direction.x * move_speed, 20.0 * delta)
 	velocity.z = move_toward(velocity.z, direction.z * move_speed, 20.0 * delta)
 
