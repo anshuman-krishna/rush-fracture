@@ -4,6 +4,7 @@ extends Control
 
 var run_manager: RunManager
 var pvp_manager: PvPManager
+var network_manager: NetworkManager
 
 var _player_manager: PlayerManager
 var _primary_player: CharacterBody3D
@@ -18,6 +19,7 @@ var _styled: bool = false
 @onready var weapon_label: Label = $WeaponLabel
 @onready var combo_label: Label = $ComboLabel
 @onready var mode_label: Label = $ModeLabel
+@onready var ping_label: Label = $PingLabel
 @onready var prompt_label: Label = $PromptLabel
 
 
@@ -69,6 +71,10 @@ func bind_run_manager(manager: RunManager) -> void:
 
 func bind_pvp(manager: PvPManager) -> void:
 	pvp_manager = manager
+
+
+func bind_network(manager: NetworkManager) -> void:
+	network_manager = manager
 
 
 func bind_player(player: CharacterBody3D, wm: WeaponManager) -> void:
@@ -127,6 +133,7 @@ func _process(delta: float) -> void:
 		if enemy_label:
 			enemy_label.text = "x%d" % get_tree().get_nodes_in_group("enemies").size()
 		_update_mode_display()
+		_update_ping_display()
 
 	# resolve player refs if missing
 	if not _primary_player or not is_instance_valid(_primary_player):
@@ -174,6 +181,24 @@ func _update_mode_display() -> void:
 	else:
 		mode_label.text = gm.get_mode_name()
 		mode_label.add_theme_color_override("font_color", Color(0.9, 0.6, 0.2))
+
+
+func _update_ping_display() -> void:
+	if not ping_label:
+		return
+	if not network_manager or not network_manager.is_online():
+		ping_label.visible = false
+		return
+
+	ping_label.visible = true
+	var ms: int = int(network_manager.estimated_ping_ms)
+	ping_label.text = "ping: %dms" % ms
+	if ms < 80:
+		ping_label.add_theme_color_override("font_color", Color(0.6, 0.9, 0.6))
+	elif ms < 180:
+		ping_label.add_theme_color_override("font_color", Color(0.9, 0.8, 0.3))
+	else:
+		ping_label.add_theme_color_override("font_color", Color(1.0, 0.4, 0.3))
 
 
 static func _format_time(seconds: float) -> String:

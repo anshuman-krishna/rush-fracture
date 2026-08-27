@@ -94,6 +94,8 @@ func _ready() -> void:
 	run_hud.bind_run_manager(run_manager)
 	run_hud.bind_pvp(pvp_manager)
 	run_hud.bind_player(player, weapon_manager)
+	if network_manager:
+		run_hud.bind_network(network_manager)
 
 	# defer run start to next frame so all sibling nodes have _ready() resolved
 	call_deferred("_deferred_start")
