@@ -62,7 +62,7 @@ The Go backend is well-structured (clean layering, parameterized SQL, no injecti
 
 ## 5. Platform, build, and storefront readiness
 
-- **No LICENSE file** anywhere in the repo — legal terms for the code are currently undefined.
+- ~~**No LICENSE file.**~~ **Fixed.** Added a default all-rights-reserved `LICENSE` — swap it if a different license is ever decided on.
 - **No CREDITS/attribution file** — moot today since there are no third-party assets, but required the moment any art/audio/font asset is added under a license that requires attribution.
 - **Export presets cover Windows and macOS only** — no Linux, despite Godot supporting it natively at no extra engine cost.
 - **Windows build**: no icon set, no code signing. Unsigned Windows executables trigger SmartScreen warnings that meaningfully hurt install conversion for a public release.
@@ -118,7 +118,7 @@ The Go backend is well-structured (clean layering, parameterized SQL, no injecti
 
 ## 10. Legal & compliance
 
-- **No LICENSE** — open-source terms (or explicit "all rights reserved") for the code are undefined.
+- ~~**No LICENSE.**~~ **Fixed** — see §5.
 - **No privacy policy or EULA** — required the moment the backend collects any real user data (even anonymous stats/telemetry), and required by most storefronts regardless of whether you use the backend.
 - **No age/content rating prep** (ESRB/PEGI/IARC as applicable) — required by essentially every distribution channel.
 - **No third-party licensing/attribution tracking** — not urgent today (zero third-party assets exist), but must be set up the moment any asset, font, sound library, or asset-store purchase is integrated.
