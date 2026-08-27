@@ -14,6 +14,7 @@ signal player_dashed
 @export var dash_cooldown: float = 0.6
 @export var mouse_sensitivity: float = 0.002
 @export var max_health: int = 100
+@export var gamepad_look_sensitivity: float = 3.0  # radians/sec at full stick deflection
 
 const INTERP_SPEED: float = 18.0
 
@@ -92,6 +93,7 @@ func _physics_process(delta: float) -> void:
 		else:
 			_fall_timer = 0.0
 
+		_handle_gamepad_look(delta)
 		_handle_dash(delta)
 		_apply_gravity(delta)
 		_handle_jump()
@@ -123,6 +125,21 @@ func take_damage(amount: int) -> void:
 	var actual: int = max(1, int(amount * damage_resist))
 	health = max(0, health - actual)
 	player_damaged.emit(actual)
+
+
+func _handle_gamepad_look(delta: float) -> void:
+	var look: Vector2 = input.get_look_vector()
+	if look == Vector2.ZERO:
+		return
+
+	rotate_y(-look.x * gamepad_look_sensitivity * delta)
+
+	var y_input: float = -look.y * gamepad_look_sensitivity * delta
+	if invert_mouse_y:
+		y_input = -y_input
+
+	head.rotate_x(y_input)
+	head.rotation.x = clamp(head.rotation.x, -PI / 2, PI / 2)
 
 
 func _handle_movement(delta: float) -> void:
