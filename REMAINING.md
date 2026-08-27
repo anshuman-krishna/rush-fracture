@@ -80,7 +80,7 @@ The Go backend is well-structured (clean layering, parameterized SQL, no injecti
 - **No host migration.** If the host disconnects or crashes, the run ends for every connected client (`game_manager.gd`, host-leave handling) — no fallback host election, no pause-and-wait state.
 - **No reconnection support.** A client that drops mid-run cannot rejoin their in-progress player state; rejoining spawns a fresh player.
 - **No dedicated-server option** — only listen-server (host is a player). This is a legitimate design choice for a small co-op game, but it means host advantage/host-quit-kills-the-game are permanent characteristics, not bugs to eventually fix — worth stating explicitly in the game's own multiplayer UX/copy so players aren't surprised.
-- **Ping/RTT is measured but never shown to players** — no latency indicator anywhere in the HUD.
+- ~~**Ping/RTT is measured but never shown to players.**~~ **Fixed.** `run_hud.gd` now has a `PingLabel` (top-right, only visible when `NetworkManager.is_online()`) showing `NetworkManager.estimated_ping_ms`, color-coded green/yellow/red at 80ms/180ms thresholds. Wired via a new `bind_network()` call from `game_manager.gd`. Note the underlying measurement itself is unchanged and was already slightly ambiguous for a host with multiple clients (the host's `estimated_ping_ms` gets overwritten by whichever peer's pong arrives last, not per-peer) — this pass only surfaces the existing number, doesn't fix that.
 
 ---
 
