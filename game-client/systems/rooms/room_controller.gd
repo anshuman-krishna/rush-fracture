@@ -101,7 +101,10 @@ func _preload_warden_scene() -> void:
 
 func _spawn_enemies(room: RunData.RoomData) -> void:
 	var count: int = room.enemy_budget
-	var is_elite: bool = room.type == RoomDefinitions.RoomType.ELITE
+	# ELITE rooms get one elite unit; ELITE_CHAMBER is a room fully dedicated
+	# to elites, so every spawned enemy there is elite.
+	var is_elite_room: bool = room.type == RoomDefinitions.RoomType.ELITE
+	var is_full_elite_room: bool = room.type == RoomDefinitions.RoomType.ELITE_CHAMBER
 	var composition: Array[EnemyTypes.Type] = EnemyComposition.get_composition(room.type, room.difficulty, count)
 	enemies_alive = 0
 
@@ -115,7 +118,8 @@ func _spawn_enemies(room: RunData.RoomData) -> void:
 		instance.name = "Enemy_%d" % i
 		instance.global_position = _get_spawn_position()
 
-		_scale_enemy(instance, room.difficulty, is_elite and i == 0)
+		var elite_unit: bool = is_full_elite_room or (is_elite_room and i == 0)
+		_scale_enemy(instance, room.difficulty, elite_unit)
 
 		# apply cursed enemy speed bonus
 		var speed_bonus: float = room.metadata.get("enemy_speed_bonus", 0.0)

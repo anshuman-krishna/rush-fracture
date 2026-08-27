@@ -117,6 +117,14 @@ placeholder_text = "enter room code"
 alignment = 1
 max_length = 6
 
+[node name="IpInput" type="LineEdit" parent="Panel/ContentMargin/Content" unique_id=1529564294]
+custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
+theme_override_font_sizes/font_size = 15
+placeholder_text = "host ip (blank = this device)"
+alignment = 1
+max_length = 45
+
 [node name="JoinButton" type="Button" parent="Panel/ContentMargin/Content" unique_id=1570586175]
 custom_minimum_size = Vector2(0, 48)
 layout_mode = 2

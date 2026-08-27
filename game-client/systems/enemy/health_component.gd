@@ -6,8 +6,16 @@ signal died
 
 @export var max_health: int = 50
 
+# first line of defense against a modified client sending a forged damage rpc
+# (this can't validate against actual weapon state — that would need the host
+# to know the attacker's live loadout — but it kills the trivial one-shot-any-
+# enemy and unlimited-damage-spam versions of the exploit).
+const MAX_DAMAGE_PER_HIT: int = 250
+const MIN_DAMAGE_RPC_INTERVAL_MS: int = 40
+
 var current_health: int
 var _died_triggered: bool = false
+var _last_rpc_damage_ms: int = -MIN_DAMAGE_RPC_INTERVAL_MS
 
 
 func _ready() -> void:
@@ -50,8 +58,13 @@ func _apply_damage(amount: int) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_take_damage(amount: int) -> void:
-	if _is_authority():
-		_apply_damage(amount)
+	if not _is_authority():
+		return
+	var now: int = Time.get_ticks_msec()
+	if now - _last_rpc_damage_ms < MIN_DAMAGE_RPC_INTERVAL_MS:
+		return
+	_last_rpc_damage_ms = now
+	_apply_damage(clampi(amount, 0, MAX_DAMAGE_PER_HIT))
 
 
 func is_alive() -> bool:
