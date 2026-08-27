@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"time"
 
 	"rush-fracture/backend/internal/config"
 	"rush-fracture/backend/internal/controllers"
@@ -35,7 +36,7 @@ func main() {
 	statService := services.NewStatService(statRepo)
 	roomEventService := services.NewRoomEventService(roomEventRepo, runRepo)
 
-	healthController := controllers.NewHealthController()
+	healthController := controllers.NewHealthController(db)
 	userController := controllers.NewUserController(userService)
 	runController := controllers.NewRunController(runService)
 	statController := controllers.NewStatController(statService)
@@ -59,10 +60,21 @@ func main() {
 	mux.HandleFunc("GET /api/stats/{userId}", statController.GetByUser)
 	mux.HandleFunc("GET /ws", wsHub.HandleConnection)
 
+	rateLimiter := middleware.NewRateLimiter(cfg.RateLimitPerMin, time.Minute)
+
+	if cfg.APIKey == "" {
+		log.Printf("warning: API_KEY not set, api is open with no auth")
+	}
+	if len(cfg.AllowedOrigins) == 0 {
+		log.Printf("warning: ALLOWED_ORIGINS not set, no browser origin can call this api")
+	}
+
 	handler := middleware.Chain(mux,
 		middleware.Logger,
 		middleware.Recovery,
-		middleware.CORS,
+		middleware.CORS(cfg.AllowedOrigins),
+		middleware.APIKeyAuth(cfg.APIKey),
+		rateLimiter.Middleware,
 	)
 
 	log.Printf("server starting on %s", cfg.Address)
