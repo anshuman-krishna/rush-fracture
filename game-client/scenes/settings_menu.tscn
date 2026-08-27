@@ -28,9 +28,9 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -220.0
-offset_top = -200.0
+offset_top = -280.0
 offset_right = 220.0
-offset_bottom = 200.0
+offset_bottom = 280.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/separation = 14
@@ -123,6 +123,22 @@ text = "fullscreen"
 
 [node name="FullscreenCheck" type="CheckButton" parent="Panel/FullscreenRow"]
 layout_mode = 2
+
+[node name="KeybindLabel" type="Label" parent="Panel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_font_sizes/font_size = 15
+text = "controls"
+
+[node name="KeybindScroll" type="ScrollContainer" parent="Panel"]
+custom_minimum_size = Vector2(0, 160)
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="KeybindList" type="VBoxContainer" parent="Panel/KeybindScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
 
 [node name="Spacer2" type="Control" parent="Panel"]
 custom_minimum_size = Vector2(0, 10)

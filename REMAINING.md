@@ -99,7 +99,7 @@ The Go backend is well-structured (clean layering, parameterized SQL, no injecti
 
 ## 8. UX, accessibility, and localization
 
-- **No key rebinding UI at all** — controls are hardcoded in `project.godot`'s input map with no in-game remapping, despite `game_settings.gd`'s own comment claiming to cover "accessibility."
+- ~~**No key rebinding UI at all.**~~ **Fixed** for keyboard actions. Settings now has a scrollable "controls" section — click a binding, press a new key (Escape cancels), it's applied to `InputMap` immediately and persisted (`GameSettings.key_bindings`, re-applied on every launch via `apply()`). Covers the 9 keyboard actions (movement, jump, dash, weapon 1-3). **`shoot` (bound to a mouse button) is intentionally not remappable here** — capturing mouse-button rebinds is a different UI flow than key-capture and was out of scope for this pass. No "reset to default" button yet either.
 - **No colorblind modes, no UI text scaling** — zero accessibility features are actually implemented despite being referenced in a comment.
 - **No gamepad/controller support** — the input map defines only keyboard/mouse actions.
 - **Zero localization readiness** — `tr()` is never called anywhere in the codebase; every UI string is a hardcoded English literal with no translation keys or `.pot`/CSV source. Shipping to any non-English market requires a full string-externalization pass first, not just adding translated text.
