@@ -114,6 +114,39 @@ func set_key_for_action(action: String, physical_keycode: int) -> void:
 	save()
 
 
+## project.godot's original binding for this action — reading it live rather
+## than hardcoding a duplicate table means it can never drift from the real
+## default if the input map is ever changed there.
+func _project_default_keycode(action: String) -> int:
+	var setting: Variant = ProjectSettings.get_setting("input/%s" % action, {})
+	if setting is Dictionary and setting.has("events"):
+		for ev: InputEvent in setting["events"]:
+			if ev is InputEventKey:
+				return ev.physical_keycode
+	return KEY_NONE
+
+
+func _reset_key_no_save(action: String) -> void:
+	key_bindings.erase(action)
+	var default_code: int = _project_default_keycode(action)
+	InputMap.action_erase_events(action)
+	if default_code != KEY_NONE:
+		var ev: InputEventKey = InputEventKey.new()
+		ev.physical_keycode = default_code
+		InputMap.action_add_event(action, ev)
+
+
+func reset_key_for_action(action: String) -> void:
+	_reset_key_no_save(action)
+	save()
+
+
+func reset_all_key_bindings() -> void:
+	for action: String in REBINDABLE_ACTIONS:
+		_reset_key_no_save(action)
+	save()
+
+
 func _apply_volume() -> void:
 	var bus_idx: int = AudioServer.get_bus_index("Master")
 	if bus_idx < 0:

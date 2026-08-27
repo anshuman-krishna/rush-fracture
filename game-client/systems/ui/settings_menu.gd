@@ -14,6 +14,7 @@ var _settings: GameSettings
 @onready var invert_check: CheckButton = $Panel/InvertRow/InvertCheck
 @onready var fullscreen_check: CheckButton = $Panel/FullscreenRow/FullscreenCheck
 @onready var keybind_list: VBoxContainer = $Panel/KeybindScroll/KeybindList
+@onready var reset_keys_button: Button = $Panel/ResetKeysButton
 @onready var close_button: Button = $Panel/CloseButton
 
 var _listening_action: String = ""
@@ -39,6 +40,7 @@ func _ready() -> void:
 	sens_slider.value_changed.connect(_on_sens_changed)
 	invert_check.toggled.connect(_on_invert_toggled)
 	fullscreen_check.toggled.connect(_on_fullscreen_toggled)
+	reset_keys_button.pressed.connect(_on_reset_keys_pressed)
 	_apply_style()
 
 
@@ -156,6 +158,13 @@ func _on_fullscreen_toggled(pressed: bool) -> void:
 	_settings.fullscreen = pressed
 	_settings.apply()
 	_settings.save()
+
+
+func _on_reset_keys_pressed() -> void:
+	if _listening_action != "":
+		_cancel_listening()
+	_settings.reset_all_key_bindings()
+	_build_keybind_rows()
 
 
 func _update_labels() -> void:
