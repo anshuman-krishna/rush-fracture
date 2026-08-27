@@ -135,35 +135,7 @@ func _fire() -> void:
 
 
 func _spawn_tracer(from_pos: Vector3, to_pos: Vector3) -> void:
-	var tracer: MeshInstance3D = MeshInstance3D.new()
-	var cyl: CylinderMesh = CylinderMesh.new()
-	var dist: float = from_pos.distance_to(to_pos)
-	cyl.top_radius = 0.025
-	cyl.bottom_radius = 0.015
-	cyl.height = dist
-	cyl.radial_segments = 4
-	tracer.mesh = cyl
-
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.2, 0.0)
-	mat.emission_energy_multiplier = 4.0
-	mat.albedo_color = Color(1.0, 0.3, 0.1, 0.9)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	tracer.material_override = mat
-
-	var midpoint: Vector3 = (from_pos + to_pos) / 2.0
-	tracer.global_position = midpoint
-	var dir: Vector3 = (to_pos - from_pos).normalized()
-	if dir.length() > 0.001:
-		tracer.look_at(tracer.global_position + dir)
-		tracer.rotate_object_local(Vector3.RIGHT, PI / 2.0)
-
-	get_tree().root.add_child(tracer)
-	var tween: Tween = tracer.create_tween()
-	tween.tween_property(mat, "albedo_color:a", 0.0, 0.2)
-	tween.parallel().tween_property(mat, "emission_energy_multiplier", 0.0, 0.2)
-	tween.chain().tween_callback(tracer.queue_free)
+	TracerPool.spawn(self, from_pos, to_pos, Color(1.0, 0.2, 0.0), 0.2, 0.025, 0.015)
 
 
 func _show_laser() -> void:
