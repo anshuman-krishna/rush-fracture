@@ -48,7 +48,7 @@ Verified against the code, not the README (the README has drifted — correction
 
 ## Fracture events
 
-- 7 timed chaos modifiers, rolled per room entry (10% base chance + 8% per difficulty point, skipped during boss fights): velocity surge, unstable gravity (weakened), enemy duplication on kill, void drift (near-zero gravity), adrenaline leak (2x enemy speed — has a known revert bug, see REMAINING.md), random explosions, and vision distortion (`fracture_definitions.gd`).
+- 7 timed chaos modifiers, rolled per room entry (10% base chance + 8% per difficulty point, skipped during boss fights): velocity surge, unstable gravity (weakened), enemy duplication on kill, void drift (near-zero gravity), adrenaline leak (2x enemy speed — the revert bug noted in an earlier pass of this doc was fixed 2026-08-27, see REMAINING.md §1), random explosions, and vision distortion (`fracture_definitions.gd`).
 - Correction to an earlier pass of this doc: "enemy duplication" is *not* dead. `fracture_manager.gd`'s `_apply_effect`/`_revert_effect` have empty case blocks for `ENEMY_DUPLICATION` (it needs no per-frame state), but the actual effect lives in `game_manager.gd:384-387` (`_on_room_enemy_killed`) — while the fracture is active, each kill has a 30% chance to call `room_controller.spawn_duplicate_enemy()`. Confirmed working as designed.
 
 ## Multiplayer
