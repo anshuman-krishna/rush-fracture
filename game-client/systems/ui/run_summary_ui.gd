@@ -122,7 +122,7 @@ func _build_layout() -> void:
 	btn_row.add_child(menu_button)
 
 
-func show_summary(data: RunData) -> void:
+func show_summary(data: RunData, prev_best_kills: int, prev_best_combo: int) -> void:
 	if not status_label or not stats_label or not tags_label:
 		push_error("run summary ui labels missing")
 		return
@@ -159,10 +159,9 @@ func show_summary(data: RunData) -> void:
 	if best_combo > 0:
 		lines.append("best combo: %d" % best_combo)
 
-	var saved: BestStats = BestStats.load_stats()
-	if saved and data.total_enemies_killed >= saved.best_kills and saved.best_kills > 0:
+	if data.total_enemies_killed >= prev_best_kills and prev_best_kills > 0:
 		lines.append(">> new best kills!")
-	if saved and best_combo >= saved.best_combo and saved.best_combo > 0:
+	if best_combo >= prev_best_combo and prev_best_combo > 0:
 		lines.append(">> new best combo!")
 
 	var shards_earned: int = data.metadata.get("shards_earned", 0) if data.metadata else 0
