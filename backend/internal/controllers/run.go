@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"rush-fracture/backend/internal/services"
+	"rush-fracture/backend/internal/validate"
 )
 
 type RunController struct {
@@ -24,8 +25,8 @@ func (c *RunController) Start(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if req.UserID == "" {
-		http.Error(w, "user_id is required", http.StatusBadRequest)
+	if err := validate.NonEmpty("user_id", req.UserID, validate.MaxIDLen); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -60,6 +61,11 @@ func (c *RunController) End(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := validateRunEnd(req.Score, req.Level, req.EnemiesKilled, req.Duration, req.BestCombo, req.WeaponUsed, req.Mutations, req.RunTags); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	run, err := c.service.End(id, req.Score, req.Level, req.EnemiesKilled, req.Duration, req.BestCombo, req.WeaponUsed, req.Mutations, req.RunTags, req.BossEncountered, req.BossDefeated)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -68,6 +74,34 @@ func (c *RunController) End(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(run)
+}
+
+func validateRunEnd(score, level, enemiesKilled, duration, bestCombo int, weaponUsed, mutations, runTags string) error {
+	if err := validate.Range("score", score, 0, validate.MaxScore); err != nil {
+		return err
+	}
+	if err := validate.Range("level", level, 0, validate.MaxLevel); err != nil {
+		return err
+	}
+	if err := validate.Range("enemies_killed", enemiesKilled, 0, validate.MaxKills); err != nil {
+		return err
+	}
+	if err := validate.Range("duration", duration, 0, validate.MaxDuration); err != nil {
+		return err
+	}
+	if err := validate.Range("best_combo", bestCombo, 0, validate.MaxCombo); err != nil {
+		return err
+	}
+	if err := validate.MaxLen("weapon_used", weaponUsed, validate.MaxShortStrLen); err != nil {
+		return err
+	}
+	if err := validate.MaxLen("mutations", mutations, validate.MaxTagsLen); err != nil {
+		return err
+	}
+	if err := validate.MaxLen("run_tags", runTags, validate.MaxTagsLen); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (c *RunController) Get(w http.ResponseWriter, r *http.Request) {

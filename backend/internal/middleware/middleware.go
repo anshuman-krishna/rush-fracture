@@ -87,6 +87,18 @@ func APIKeyAuth(apiKey string) Middleware {
 	}
 }
 
+// caps request body size so one client can't send a multi-gb body and
+// exhaust memory/disk. gameplay json payloads are all small (a few
+// hundred bytes at most) so the default is generous, not tight.
+func MaxBody(maxBytes int64) Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // simple per-ip fixed-window rate limiter. stdlib-only (no external
 // dependency) so it builds without network access to fetch a module.
 type RateLimiter struct {
