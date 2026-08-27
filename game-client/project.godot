@@ -82,3 +82,7 @@ weapon_3={
 [physics]
 
 3d/default_gravity=24.0
+
+[rendering]
+
+renderer/rendering_method="forward_plus"
