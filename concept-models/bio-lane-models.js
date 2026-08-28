@@ -6,7 +6,7 @@
 
 export const ENTITIES = [
   'pulse_rifle', 'scatter_cannon', 'beam_emitter',
-  'chaser', 'tank', 'sniper',
+  'chaser', 'tank', 'sniper', 'shooter', 'dasher', 'exploder', 'support', 'displacer',
   'titan', 'warden', 'obstacles',
 ];
 
@@ -282,6 +282,126 @@ function sniper(THREE, c, root) {
   limb(root, 'stilt_rear', M.chitin, { at: [0, 1.52, 0.3], upper: 0.66, lower: 0.7, r: 0.05, a1: 0.5, a2: -0.8, claw: 0.12 });
 }
 
+function shooter(THREE, c, root) {
+  const { M, add, grp, ribStack, limb } = c;
+  // "Spore Marksman" — grafted host, one arm fused into a bio-rifle. 1.8 m.
+  const torso = grp(root, 'torso', [0, 1.05, 0]);
+  add(torso, new THREE.CapsuleGeometry(0.19, 0.5, 5, 18), M.chitin, 'torso_shell', [0, 0, 0]);
+  add(torso, new THREE.SphereGeometry(0.15, 20, 16), M.membrane, 'chest_sac', [0, 0.1, 0.13], [0, 0, 0], [1, 0.9, 0.7]);
+  add(torso, new THREE.SphereGeometry(0.07, 16, 12), M.glow, 'chest_core', [0, 0.1, 0.16]);
+  ribStack(torso, 'torso_band', M.bone, { count: 3, from: -0.22, to: 0.22, r0: 0.2, r1: 0.18, tube: 0.02, axis: 'y' });
+
+  const head = grp(root, 'head', [0, 1.68, 0.02]);
+  add(head, new THREE.SphereGeometry(0.13, 20, 16), M.chitin, 'skull_plate', [0, 0, 0], [0, 0, 0], [0.95, 1, 1]);
+  add(head, new THREE.BoxGeometry(0.2, 0.045, 0.05), M.glow, 'visor_band', [0, 0, -0.12]);
+  const antenna = grp(head, 'antenna', [0.05, 0.13, 0], [0.15, 0, 0]);
+  add(antenna, new THREE.CylinderGeometry(0.012, 0.018, 0.24, 8), M.bone, 'antenna_stalk', [0, 0.12, 0]);
+  add(antenna, new THREE.SphereGeometry(0.026, 14, 10), M.glow, 'antenna_gland', [0, 0.25, 0]);
+
+  const gunArm = grp(root, 'gun_arm', [0.24, 1.2, -0.05], [0.25, 0, -0.1]);
+  add(gunArm, new THREE.CapsuleGeometry(0.075, 0.32, 4, 14), M.chitin, 'gun_upper', [0, -0.16, 0]);
+  add(gunArm, new THREE.CylinderGeometry(0.045, 0.06, 0.4, 16), M.chitin, 'gun_barrel', [0, -0.36, -0.18], [Math.PI / 2 - 0.2, 0, 0]);
+  ribStack(gunArm, 'gun_rib', M.bone, { count: 4, from: -0.28, to: -0.44, r0: 0.05, r1: 0.062, tube: 0.009 });
+  add(gunArm, new THREE.SphereGeometry(0.032, 16, 12), M.glow, 'muzzle_gland', [0, -0.4, -0.4]);
+
+  limb(root, 'off_arm', M.chitin, { at: [-0.24, 1.2, 0], upper: 0.3, lower: 0.28, r: 0.06, a1: 0.15, a2: -0.3, claw: 0.08 });
+  limb(root, 'leg_l', M.chitin, { at: [-0.12, 0.68, 0], upper: 0.34, lower: 0.34, r: 0.075, a1: 0.05, a2: -0.1, claw: 0.1 });
+  limb(root, 'leg_r', M.chitin, { at: [0.12, 0.68, 0], upper: 0.34, lower: 0.34, r: 0.075, a1: 0.05, a2: -0.1, claw: 0.1 });
+}
+
+function dasher(THREE, c, root) {
+  const { M, add, grp, ribStack, limb } = c;
+  // "Blink Fang" — low, finned quadruped built for one burst-speed lunge. 1.5 m.
+  const torso = grp(root, 'torso', [0, 0.5, 0]);
+  add(torso, new THREE.CapsuleGeometry(0.16, 0.55, 5, 18), M.chitin, 'torso_shell', [0, 0, 0], [Math.PI / 2, 0, 0], [1, 1, 0.85]);
+  add(torso, new THREE.SphereGeometry(0.1, 18, 14), M.membrane, 'flank_sac', [0, -0.02, 0.12], [0, 0, 0], [1, 0.7, 1.2]);
+  ribStack(torso, 'dorsal_rib', M.bone, { count: 4, from: -0.24, to: 0.22, r0: 0.17, r1: 0.15, tube: 0.018 });
+  [-1, 1].forEach((s) => {
+    add(torso, new THREE.BoxGeometry(0.02, 0.3, 0.32), M.bone, `fin_${s > 0 ? 'r' : 'l'}`, [s * 0.14, 0.16, 0.05], [0, 0, s * 0.35]);
+    add(torso, new THREE.BoxGeometry(0.008, 0.2, 0.24), M.glow, `fin_vein_${s > 0 ? 'r' : 'l'}`, [s * 0.15, 0.16, 0.05], [0, 0, s * 0.35]);
+  });
+
+  const head = grp(root, 'head', [0, 0.52, -0.42], [0.1, 0, 0]);
+  add(head, new THREE.SphereGeometry(0.1, 18, 14), M.chitin, 'skull_plate', [0, 0, 0], [0, 0, 0], [1, 0.85, 1.3]);
+  add(head, new THREE.SphereGeometry(0.032, 14, 10), M.glow, 'eye_l', [-0.05, 0.02, -0.08]);
+  add(head, new THREE.SphereGeometry(0.032, 14, 10), M.glow, 'eye_r', [0.05, 0.02, -0.08]);
+
+  [-1, 1].forEach((s) => {
+    const arm = grp(root, `blade_limb_${s > 0 ? 'r' : 'l'}`, [s * 0.16, 0.62, -0.28], [0.2, 0, s * 0.15]);
+    add(arm, new THREE.CapsuleGeometry(0.045, 0.26, 4, 12), M.chitin, `blade_upper_${s > 0 ? 'r' : 'l'}`, [0, -0.14, 0]);
+    add(arm, new THREE.ConeGeometry(0.038, 0.4, 6), M.bone, `blade_edge_${s > 0 ? 'r' : 'l'}`, [0, -0.34, -0.06], [Math.PI, 0, 0]);
+    add(arm, new THREE.BoxGeometry(0.01, 0.02, 0.3), M.glow, `blade_vein_${s > 0 ? 'r' : 'l'}`, [0, -0.3, -0.02]);
+  });
+
+  limb(root, 'hindleg_l', M.chitin, { at: [-0.13, 0.44, 0.24], upper: 0.28, lower: 0.26, r: 0.06, a1: -0.4, a2: 0.85, spread: 0.1 });
+  limb(root, 'hindleg_r', M.chitin, { at: [0.13, 0.44, 0.24], upper: 0.28, lower: 0.26, r: 0.06, a1: -0.25, a2: 0.65, spread: -0.1 });
+}
+
+function exploder(THREE, c, root) {
+  const { M, add, grp, spur } = c;
+  // "Swelling Spore" — visibly inflates as its fuse core brightens toward detonation. 1.1 m.
+  const body = grp(root, 'spore_body', [0, 0.5, 0]);
+  add(body, new THREE.SphereGeometry(0.42, 26, 20), M.membrane, 'spore_membrane', [0, 0, 0], [0, 0, 0], [1, 1.05, 1]);
+  add(body, new THREE.SphereGeometry(0.22, 22, 16), M.glow, 'fuse_core', [0, 0.02, 0]);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const y = (i % 2 === 0) ? 0.14 : -0.1;
+    spur(body, `spike_${i + 1}`, M.bone, [Math.cos(a) * 0.4, y, Math.sin(a) * 0.4], [0.5 * Math.sin(a), 0, -0.5 * Math.cos(a)], 0.045, 0.28);
+  }
+  add(body, new THREE.SphereGeometry(0.06, 16, 12), M.glow, 'fuse_gland', [0, 0.44, 0]);
+
+  const ring = grp(root, 'blast_ring', [0, 0.03, 0]);
+  add(ring, new THREE.TorusGeometry(0.46, 0.03, 10, 28), M.glow, 'ring_band', [0, 0, 0], [Math.PI / 2, 0, 0]);
+}
+
+function support(THREE, c, root) {
+  const { M, add, grp, ribStack, spur } = c;
+  // "Choir Spore" — small hovering colony; three motes pulse in sync when it buffs broodkin. 1.5 m.
+  const core = grp(root, 'core_body', [0, 1.0, 0]);
+  add(core, new THREE.SphereGeometry(0.22, 24, 18), M.chitin, 'core_shell', [0, 0, 0], [0, 0, 0], [1, 0.9, 1]);
+  add(core, new THREE.SphereGeometry(0.13, 20, 16), M.glow, 'core_gland', [0, 0, 0.05]);
+  ribStack(core, 'core_band', M.bone, { count: 3, from: -0.16, to: 0.14, r0: 0.23, r1: 0.2, tube: 0.02, axis: 'y' });
+
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2;
+    const mote = grp(root, `choir_mote_${i + 1}`, [Math.cos(a) * 0.34, 1.15 + Math.sin(a * 2) * 0.08, Math.sin(a) * 0.34]);
+    add(mote, new THREE.SphereGeometry(0.09, 18, 14), M.membrane, `mote_sac_${i + 1}`, [0, 0, 0]);
+    add(mote, new THREE.SphereGeometry(0.045, 14, 10), M.glow, `mote_core_${i + 1}`, [0, 0, 0]);
+  }
+
+  for (let i = 0; i < 4; i++) spur(core, `crest_spur_${i + 1}`, M.bone, [(i - 1.5) * 0.09, 0.24, -0.02], [-0.4, 0, (i - 1.5) * 0.25], 0.03, 0.22);
+
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const t = grp(root, `tendril_${i + 1}`, [Math.cos(a) * 0.18, 0.82, Math.sin(a) * 0.16]);
+    add(t, new THREE.CapsuleGeometry(0.035, 0.3, 4, 10), M.chitin, `tendril_shaft_${i + 1}`, [0, -0.15, 0]);
+    add(t, new THREE.SphereGeometry(0.025, 12, 10), M.glow, `tendril_tip_${i + 1}`, [0, -0.32, 0]);
+  }
+}
+
+function displacer(THREE, c, root) {
+  const { M, add, grp, spur } = c;
+  // "Phase Wraith" — a hovering cloak that flickers and re-anchors at both ends of its blink. 1.3 m.
+  const torso = grp(root, 'torso', [0, 0.75, 0]);
+  add(torso, new THREE.CapsuleGeometry(0.14, 0.4, 5, 16), M.chitin, 'torso_shell', [0, 0, 0]);
+  add(torso, new THREE.SphereGeometry(0.19, 22, 16), M.membrane, 'phase_cloak', [0, 0.05, 0], [0, 0, 0], [1.3, 1.4, 1]);
+  add(torso, new THREE.SphereGeometry(0.08, 18, 14), M.glow, 'phase_core', [0, 0.08, 0.05]);
+
+  const head = grp(root, 'head', [0, 1.15, 0]);
+  add(head, new THREE.SphereGeometry(0.1, 18, 14), M.chitin, 'skull_plate', [0, 0, 0]);
+  add(head, new THREE.SphereGeometry(0.035, 14, 10), M.glow, 'command_eye', [0, 0, -0.09]);
+  for (let i = 0; i < 5; i++) spur(head, `crown_spur_${i + 1}`, M.bone, [(i - 2) * 0.05, 0.1, 0.01], [-0.4, 0, (i - 2) * 0.3], 0.02, 0.16);
+
+  [-1, 1].forEach((s) => {
+    const arm = grp(root, `blade_arm_${s > 0 ? 'r' : 'l'}`, [s * 0.17, 0.85, -0.05], [0.25, 0, s * 0.2]);
+    add(arm, new THREE.CapsuleGeometry(0.04, 0.26, 4, 12), M.chitin, `blade_arm_upper_${s > 0 ? 'r' : 'l'}`, [0, -0.14, 0]);
+    add(arm, new THREE.ConeGeometry(0.032, 0.36, 6), M.bone, `blade_edge_${s > 0 ? 'r' : 'l'}`, [0, -0.32, -0.05], [Math.PI, 0, 0]);
+    add(arm, new THREE.BoxGeometry(0.008, 0.018, 0.26), M.glow, `blade_vein_${s > 0 ? 'r' : 'l'}`, [0, -0.28, -0.02]);
+  });
+
+  add(root, new THREE.ConeGeometry(0.16, 0.6, 12, 1, true), M.membrane, 'cloak_hem', [0, 0.3, 0], [Math.PI, 0, 0]);
+}
+
 /* ============================ bosses ============================ */
 
 function titan(THREE, c, root) {
@@ -429,7 +549,7 @@ function obstacles(THREE, c, root) {
   [-1, 1].forEach((s) => add(ramp, new THREE.CylinderGeometry(0.13, 0.2, 1.1, 14), M.chitin, `ramp_root_${s > 0 ? 'r' : 'l'}`, [s * 0.6, 0.5, 0.95], [0.2, 0, 0]));
 }
 
-const BUILDERS = { pulse_rifle: pulseRifle, scatter_cannon: scatterCannon, beam_emitter: beamEmitter, chaser, tank, sniper, titan, warden, obstacles };
+const BUILDERS = { pulse_rifle: pulseRifle, scatter_cannon: scatterCannon, beam_emitter: beamEmitter, chaser, tank, sniper, shooter, dasher, exploder, support, displacer, titan, warden, obstacles };
 
 export function buildEntity(THREE, key = 'pulse_rifle') {
   const c = ctx(THREE);

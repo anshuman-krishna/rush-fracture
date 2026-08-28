@@ -17,14 +17,17 @@ const ARENA_WALL_SEGMENTS: int = 24
 const FALL_KILL_Y: float = -20.0
 
 # "Hive Growth" obstacle set — grafted brood art lane, see testing/design-ideas.md.
-# wired into pillar / crate cluster / breakable wall below. the carapace ramp
-# is modelled too but not wired in: its slope is a fixed baked rotation,
-# while _spawn_ramp rolls a random height/length and derives the slope angle
-# from them every time — reconciling the two needs either a fixed ramp size
-# or a per-instance re-angled model, left for a follow-up pass. low_wall,
+# wired into pillar / crate cluster / breakable wall / ramp below. low_wall,
 # tall_pillar, cylinder_pillar, and half_cover/barrier_arc aren't modelled at
 # all yet — see designs-usage.md's "Extending the lane".
 const OBSTACLE_MODEL_PATH: String = "res://assets/models/grafted-brood-obstacles.glb"
+# the carapace ramp's deck bakes a fixed slope (rotation.x = -0.42 rad on a
+# 1.5 × 2.6m box — see ramp_deck in bio-lane-models.js). _spawn_ramp derives
+# height from length using that same angle instead of rolling it separately,
+# so the visual tilt always matches the collision tilt.
+const RAMP_DECK_TILT: float = 0.42
+const RAMP_NATURAL_WIDTH: float = 1.5
+const RAMP_NATURAL_LENGTH: float = 2.6
 
 var active_room: RunData.RoomData
 var enemies_alive: int = 0
@@ -754,7 +757,8 @@ func _spawn_crate_cluster(pos: Vector3, room: RunData.RoomData) -> void:
 func _spawn_ramp(pos: Vector3, angle: float, room: RunData.RoomData) -> void:
 	var length: float = 3.0 + randf() * 2.0
 	var width: float = 1.5 + randf() * 1.0
-	var height: float = 0.8 + randf() * 0.6
+	# height is derived, not rolled — see RAMP_DECK_TILT above.
+	var height: float = length * tan(RAMP_DECK_TILT)
 
 	if not _try_register_obstacle(pos, Vector3(width, height, length)):
 		return
@@ -763,60 +767,25 @@ func _spawn_ramp(pos: Vector3, angle: float, room: RunData.RoomData) -> void:
 	ramp.position = pos
 	ramp.rotation.y = angle
 
-	# ramp body
-	var mesh: MeshInstance3D = MeshInstance3D.new()
-	var box: BoxMesh = BoxMesh.new()
-	box.size = Vector3(width, 0.15, length)
-	mesh.mesh = box
-	mesh.position = Vector3(0, height / 2.0, 0)
-	mesh.rotation.x = -atan2(height, length)
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = _get_obstacle_color(0.04)
-	mat.roughness = 0.75
-	mesh.material_override = mat
-
-	# collision
 	var col: CollisionShape3D = CollisionShape3D.new()
 	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = Vector3(width, 0.15, length)
 	col.shape = shape
 	col.position = Vector3(0, height / 2.0, 0)
 	col.rotation.x = -atan2(height, length)
-
-	ramp.add_child(mesh)
 	ramp.add_child(col)
+
 	ramp.collision_layer = 1
 	arena_root.add_child(ramp)
 
-	# edge trims on both sides
-	for side in [-1.0, 1.0]:
-		var trim: MeshInstance3D = MeshInstance3D.new()
-		var trim_box: BoxMesh = BoxMesh.new()
-		trim_box.size = Vector3(0.08, 0.2, length)
-		trim.mesh = trim_box
-		trim.position = Vector3(side * width * 0.5, height / 2.0, 0)
-		trim.rotation.x = -atan2(height, length)
-		var trim_mat: StandardMaterial3D = StandardMaterial3D.new()
-		trim_mat.albedo_color = _get_obstacle_color(0.06)
-		trim_mat.emission_enabled = true
-		trim_mat.emission = _get_emission_color()
-		trim_mat.emission_energy_multiplier = 0.5
-		trim.material_override = trim_mat
-		ramp.add_child(trim)
-
-	# top edge
-	var top_trim: MeshInstance3D = MeshInstance3D.new()
-	var top_box: BoxMesh = BoxMesh.new()
-	top_box.size = Vector3(width + 0.1, 0.06, 0.15)
-	top_trim.mesh = top_box
-	top_trim.position = Vector3(0, height, -length * 0.4)
-	var top_mat: StandardMaterial3D = StandardMaterial3D.new()
-	top_mat.albedo_color = _get_emission_color()
-	top_mat.emission_enabled = true
-	top_mat.emission = _get_emission_color()
-	top_mat.emission_energy_multiplier = 0.6
-	top_trim.material_override = top_mat
-	ramp.add_child(top_trim)
+	# "carapace ramp" — natural deck is 1.5 wide × 2.6 long (pre-tilt); a
+	# uniform y/z scale preserves the baked tilt exactly (non-uniform would
+	# shear it), while x (width) sits outside the tilt axis and scales freely.
+	var model: Node3D = _load_obstacle_parts(["carapace_ramp"])
+	if model:
+		var slope_scale: float = length / RAMP_NATURAL_LENGTH
+		model.scale = Vector3(width / RAMP_NATURAL_WIDTH, slope_scale, slope_scale)
+		ramp.add_child(model)
 
 
 func _spawn_tall_pillar(pos: Vector3, room: RunData.RoomData) -> void:
