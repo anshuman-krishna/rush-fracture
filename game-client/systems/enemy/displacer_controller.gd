@@ -194,20 +194,9 @@ func _face_target() -> void:
 
 
 func _build_visual() -> void:
-	# warp blades — melee daggers on both sides
-	var blade_l: MeshInstance3D = _make_box(Vector3(0.04, 0.06, 0.35), Vector3(-0.4, 0.7, -0.2), Color(0.7, 0.2, 1.0), Color(0.6, 0.0, 0.9))
-	var blade_r: MeshInstance3D = _make_box(Vector3(0.04, 0.06, 0.35), Vector3(0.4, 0.7, -0.2), Color(0.7, 0.2, 1.0), Color(0.6, 0.0, 0.9))
-	add_child(blade_l)
-	add_child(blade_r)
-	# floating orbs around body — warp energy
-	for i in 3:
-		var angle: float = (float(i) / 3.0) * TAU
-		var orb: MeshInstance3D = _make_box(
-			Vector3(0.1, 0.1, 0.1),
-			Vector3(cos(angle) * 0.55, 0.9, sin(angle) * 0.55),
-			Color(0.5, 0.1, 0.8), Color(0.6, 0.0, 1.0)
-		)
-		add_child(orb)
-	# crown spikes
-	var crown: MeshInstance3D = _make_box(Vector3(0.3, 0.15, 0.3), Vector3(0, 1.15, 0), Color(0.4, 0.08, 0.6), Color(0.5, 0.0, 0.8))
-	add_child(crown)
+	# "Phase Wraith" — grafted brood art lane, see testing/design-ideas.md.
+	# phase_core is what _show_warp_out()/_show_warp_in() flash-brighten.
+	var model: Node3D = _load_visual_model("res://assets/models/grafted-brood-displacer.glb")
+	if model:
+		mesh = _find_mesh(model, "phase_core")
+		_make_material_unique(mesh)

@@ -39,10 +39,10 @@ func _ready() -> void:
 	health.damaged.connect(_on_damaged)
 	add_to_group("enemies")
 	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
-	# enemies not yet swapped to an imported model (shooter, dasher, exploder,
-	# support, displacer) still carry this placeholder in their .tscn and
-	# reference `mesh` directly for their own emission-color effects; a
-	# subclass's _build_visual() below can still override this (see sniper).
+	# every standard enemy now loads an imported model in _build_visual(); this
+	# is a fallback for the (currently none) that don't, and stays harmless
+	# when null. a subclass's _build_visual() can still override `mesh` with a
+	# specific found part (see sniper, exploder, displacer).
 	mesh = get_node_or_null("MeshInstance3D") as MeshInstance3D
 	_build_visual()
 

@@ -92,30 +92,18 @@ func _on_died() -> void:
 
 
 func _build_visual() -> void:
-	# danger spikes radiating outward — warning indicator
-	var spike_color: Color = Color(1.0, 0.5, 0.0)
-	var spike_emit: Color = Color(1.0, 0.3, 0.0)
-	for i in 6:
-		var angle: float = (float(i) / 6.0) * TAU
-		var dir: Vector3 = Vector3(cos(angle), 0, sin(angle))
-		var spike: MeshInstance3D = _make_box(
-			Vector3(0.06, 0.06, 0.25),
-			Vector3(dir.x * 0.5, 0.5, dir.z * 0.5),
-			spike_color, spike_emit
-		)
-		spike.rotation.y = -angle
-		add_child(spike)
-	# fuse on top — glowing
-	var fuse: MeshInstance3D = _make_box(Vector3(0.06, 0.2, 0.06), Vector3(0, 1.1, 0), Color(1.0, 0.8, 0.2), Color(1.0, 0.6, 0.0))
-	add_child(fuse)
-	# warning ring at base
-	var ring: MeshInstance3D = _make_box(Vector3(0.8, 0.04, 0.8), Vector3(0, 0.05, 0), Color(1.0, 0.2, 0.0), Color(1.0, 0.15, 0.0))
-	add_child(ring)
+	# "Swelling Spore" — grafted brood art lane, see testing/design-ideas.md.
+	# fuse_core is the urgency readout _update_urgency() brightens as it closes in.
+	var model: Node3D = _load_visual_model("res://assets/models/grafted-brood-exploder.glb")
+	if model:
+		mesh = _find_mesh(model, "fuse_core")
+		_make_material_unique(mesh)
 
 
 func _play_explosion() -> void:
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(self, "scale", Vector3(2.5, 2.5, 2.5), 0.12)
-	tween.tween_property(mesh, "transparency", 1.0, 0.15)
+	for mi: MeshInstance3D in _all_meshes():
+		tween.tween_property(mi, "transparency", 1.0, 0.15)
 	tween.chain().tween_callback(queue_free)

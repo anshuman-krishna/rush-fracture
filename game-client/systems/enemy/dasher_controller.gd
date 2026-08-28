@@ -108,17 +108,5 @@ func _face_target() -> void:
 
 
 func _build_visual() -> void:
-	# speed fins on back
-	var fin_l: MeshInstance3D = _make_box(Vector3(0.04, 0.4, 0.25), Vector3(-0.3, 0.9, 0.15), Color(1.0, 0.7, 0.05), Color(0.9, 0.5, 0.0))
-	var fin_r: MeshInstance3D = _make_box(Vector3(0.04, 0.4, 0.25), Vector3(0.3, 0.9, 0.15), Color(1.0, 0.7, 0.05), Color(0.9, 0.5, 0.0))
-	add_child(fin_l)
-	add_child(fin_r)
-	# blade weapon — large forward blade
-	var blade: MeshInstance3D = _make_box(Vector3(0.06, 0.08, 0.6), Vector3(0.3, 0.5, -0.45), Color(0.9, 0.9, 0.95), Color(1.0, 0.6, 0.0))
-	add_child(blade)
-	# blade handle
-	var handle: MeshInstance3D = _make_box(Vector3(0.08, 0.15, 0.08), Vector3(0.3, 0.5, -0.1), Color(0.4, 0.3, 0.1))
-	add_child(handle)
-	# eye slit
-	var eye: MeshInstance3D = _make_box(Vector3(0.25, 0.04, 0.06), Vector3(0, 1.1, -0.3), Color(1.0, 0.5, 0.0), Color(1.0, 0.4, 0.0))
-	add_child(eye)
+	# "Blink Fang" — grafted brood art lane, see testing/design-ideas.md.
+	_load_visual_model("res://assets/models/grafted-brood-dasher.glb")

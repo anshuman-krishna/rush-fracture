@@ -11,7 +11,10 @@ const TRACER_DURATION: float = 0.15
 
 var attack_timer: float = 0.0
 var is_elite: bool = false
-var _muzzle_offset: Vector3 = Vector3(0.35, 0.8, -0.74)
+# world-space offset of the model's muzzle_gland node, computed once from the
+# source geometry (gun_arm position/rotation applied to the gland's local
+# position) rather than measured in-editor — see grafted-brood-shooter.glb.
+var _muzzle_offset: Vector3 = Vector3(0.2, 1.0, -0.366)
 
 
 func _physics_process(delta: float) -> void:
@@ -164,20 +167,5 @@ func _face_target() -> void:
 
 
 func _build_visual() -> void:
-	# gun arm — barrel extends forward from right side
-	var gun_body: MeshInstance3D = _make_box(Vector3(0.12, 0.12, 0.4), Vector3(0.35, 0.8, -0.3), Color(0.15, 0.1, 0.5))
-	add_child(gun_body)
-	var gun_barrel: MeshInstance3D = _make_box(Vector3(0.06, 0.06, 0.25), Vector3(0.35, 0.8, -0.6), Color(0.1, 0.08, 0.4), Color(0.2, 0.1, 0.8))
-	add_child(gun_barrel)
-	# muzzle tip glow
-	var muzzle: MeshInstance3D = _make_box(Vector3(0.08, 0.08, 0.04), Vector3(0.35, 0.8, -0.74), Color(0.3, 0.2, 1.0), Color(0.4, 0.2, 1.0))
-	add_child(muzzle)
-	# left arm stub
-	var arm_l: MeshInstance3D = _make_box(Vector3(0.1, 0.35, 0.1), Vector3(-0.35, 0.7, 0), Color(0.18, 0.12, 0.55))
-	add_child(arm_l)
-	# antenna/sensor on head
-	var antenna: MeshInstance3D = _make_box(Vector3(0.04, 0.2, 0.04), Vector3(0.15, 1.6, 0), Color(0.3, 0.2, 0.9), Color(0.2, 0.1, 0.7))
-	add_child(antenna)
-	# visor
-	var visor: MeshInstance3D = _make_box(Vector3(0.35, 0.06, 0.08), Vector3(0, 1.2, -0.25), Color(0.4, 0.3, 1.0), Color(0.3, 0.15, 0.8))
-	add_child(visor)
+	# "Spore Marksman" — grafted brood art lane, see testing/design-ideas.md.
+	_load_visual_model("res://assets/models/grafted-brood-shooter.glb")

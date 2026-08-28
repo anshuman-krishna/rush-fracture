@@ -155,17 +155,5 @@ func _face_target() -> void:
 
 
 func _build_visual() -> void:
-	# healing staff — tall green rod with orb on top
-	var staff: MeshInstance3D = _make_box(Vector3(0.05, 0.9, 0.05), Vector3(0.3, 0.9, 0), Color(0.1, 0.45, 0.15))
-	add_child(staff)
-	var staff_orb: MeshInstance3D = _make_box(Vector3(0.12, 0.12, 0.12), Vector3(0.3, 1.45, 0), Color(0.2, 1.0, 0.3), Color(0.15, 0.9, 0.25))
-	add_child(staff_orb)
-	# staff cross piece
-	var cross: MeshInstance3D = _make_box(Vector3(0.2, 0.04, 0.04), Vector3(0.3, 1.3, 0), Color(0.12, 0.5, 0.18), Color(0.1, 0.7, 0.15))
-	add_child(cross)
-	# robes/skirt at bottom
-	var robe: MeshInstance3D = _make_box(Vector3(0.45, 0.35, 0.45), Vector3(0, 0.2, 0), Color(0.1, 0.4, 0.15))
-	add_child(robe)
-	# green visor
-	var visor: MeshInstance3D = _make_box(Vector3(0.22, 0.04, 0.06), Vector3(0, 1.1, -0.22), Color(0.2, 0.9, 0.3), Color(0.15, 0.8, 0.2))
-	add_child(visor)
+	# "Choir Spore" — grafted brood art lane, see testing/design-ideas.md.
+	_load_visual_model("res://assets/models/grafted-brood-support.glb")
