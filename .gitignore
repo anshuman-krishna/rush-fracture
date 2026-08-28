@@ -43,7 +43,6 @@ Thumbs.db
 .idea/
 *.iml
 
-# for-testing
-CLAUDE.md
-.claude/
+# testing and validation
 /testing/
+testing/
