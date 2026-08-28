@@ -39,19 +39,14 @@ func _ready() -> void:
 
 
 func _create_viewmodel() -> void:
-	var body_color := Color(0.13, 0.13, 0.16)
-	var accent_color := Color(0.2, 0.8, 1.0)
-	var parts: Array[Dictionary] = [
-		{ "size": Vector3(0.055, 0.06, 0.36), "offset": Vector3.ZERO, "color": body_color },
-		{ "size": Vector3(0.035, 0.035, 0.18), "offset": Vector3(0, 0, -0.25), "color": Color(0.08, 0.08, 0.1) },
-		{ "size": Vector3(0.045, 0.045, 0.02), "offset": Vector3(0, 0, -0.35), "color": accent_color, "emission": accent_color },
-		{ "size": Vector3(0.04, 0.1, 0.04), "offset": Vector3(0, -0.07, 0.08), "color": body_color },
-		{ "size": Vector3(0.07, 0.015, 0.08), "offset": Vector3(0, 0.035, -0.08), "color": Color(0.18, 0.18, 0.2) },
-		{ "size": Vector3(0.07, 0.015, 0.08), "offset": Vector3(0, 0.035, -0.16), "color": Color(0.18, 0.18, 0.2) },
-		{ "size": Vector3(0.02, 0.02, 0.12), "offset": Vector3(0, 0.04, 0.02), "color": accent_color, "emission": accent_color },
-	]
-
-	viewmodel = _build_viewmodel_mesh(parts)
+	# "Stinger" — grafted brood art lane, see testing/design-ideas.md. the
+	# three heat sacs on the model are the heat meter; offsets below are
+	# measured against the model's own emission_tip/grip_shaft nodes.
+	viewmodel = _build_viewmodel_model(
+		"res://assets/models/grafted-brood-beam_emitter.glb",
+		Vector3(0, 0.12, -0.419),
+		0.09
+	)
 	add_child(viewmodel)
 
 

@@ -26,21 +26,13 @@ func _ready() -> void:
 
 
 func _create_viewmodel() -> void:
-	var body_color := Color(0.15, 0.15, 0.18)
-	var accent_color := Color(0.6, 0.12, 0.08)
-	var parts: Array[Dictionary] = [
-		# main body
-		{ "size": Vector3(0.06, 0.06, 0.4), "offset": Vector3.ZERO, "color": body_color },
-		# barrel
-		{ "size": Vector3(0.03, 0.03, 0.2), "offset": Vector3(0, 0.01, -0.28), "color": Color(0.1, 0.1, 0.12) },
-		# top rail
-		{ "size": Vector3(0.04, 0.015, 0.2), "offset": Vector3(0, 0.038, -0.05), "color": Color(0.12, 0.12, 0.14) },
-		# grip
-		{ "size": Vector3(0.04, 0.1, 0.04), "offset": Vector3(0, -0.07, 0.1), "color": body_color },
-		# accent stripe
-		{ "size": Vector3(0.065, 0.01, 0.08), "offset": Vector3(0, 0.035, -0.12), "color": accent_color, "emission": accent_color },
-	]
-	viewmodel = _build_viewmodel_mesh(parts)
+	# "Grafted Carbine" — grafted brood art lane, see testing/design-ideas.md.
+	# offsets measured against the model's own muzzle_gland/grip_shaft nodes.
+	viewmodel = _build_viewmodel_model(
+		"res://assets/models/grafted-brood-pulse_rifle.glb",
+		Vector3(0, 0.115, -0.389),
+		0.087
+	)
 	add_child(viewmodel)
 
 

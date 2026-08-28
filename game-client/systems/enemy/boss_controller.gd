@@ -171,6 +171,15 @@ func _spawn_add() -> void:
 
 # --- visuals ---
 
+func _build_visual() -> void:
+	# "Hive-Colossus" — grafted brood art lane, see testing/design-ideas.md.
+	# phase 2 is modelled in: the rib plates and add pods are already visible
+	# on the model, this just needs a core mesh for telegraph-color signaling.
+	var model: Node3D = _load_visual_model("res://assets/models/grafted-brood-titan.glb")
+	mesh = _find_mesh(model, "phase_core")
+	_make_material_unique(mesh)
+
+
 func _show_telegraph(attack_name: String) -> void:
 	if not mesh:
 		return

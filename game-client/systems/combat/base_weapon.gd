@@ -26,33 +26,27 @@ func _create_viewmodel() -> void:
 	pass
 
 
-func _build_viewmodel_mesh(parts: Array[Dictionary]) -> Node3D:
+## loads an imported weapon model (e.g. a .glb) as the viewmodel and places a
+## Muzzle marker at the given local offset (measured against the model's own
+## grip, per grip_lift below — see testing/design-ideas.md for the art lane).
+func _build_viewmodel_model(path: String, muzzle_offset: Vector3, grip_lift: float) -> Node3D:
 	var root: Node3D = Node3D.new()
 	root.name = "Viewmodel"
 	root.position = Vector3(0.35, -0.25, -0.5)
 	root.rotation_degrees = Vector3(0, -5, -3)
 
-	for part in parts:
-		var mesh_inst: MeshInstance3D = MeshInstance3D.new()
-		var box: BoxMesh = BoxMesh.new()
-		box.size = part.size
-		mesh_inst.mesh = box
-		mesh_inst.position = part.offset
+	var scene: PackedScene = load(path) as PackedScene
+	if scene:
+		var model: Node3D = scene.instantiate() as Node3D
+		# the model's own origin sits at its lowest point (grounded like a
+		# standing character); shift it down so its grip sits near root instead.
+		model.position.y = -grip_lift
+		root.add_child(model)
 
-		var mat: StandardMaterial3D = StandardMaterial3D.new()
-		mat.albedo_color = part.color
-		if part.has("emission"):
-			mat.emission_enabled = true
-			mat.emission = part.emission
-			mat.emission_energy_multiplier = 1.5
-		mesh_inst.material_override = mat
-
-		root.add_child(mesh_inst)
-
-	# Point de sortie du laser / balle
+	# muzzle: where the tracer/laser originates
 	muzzle = Marker3D.new()
 	muzzle.name = "Muzzle"
-	muzzle.position = Vector3(0.0, 0.02, -0.35)
+	muzzle.position = muzzle_offset
 	root.add_child(muzzle)
 
 	return root

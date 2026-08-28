@@ -190,11 +190,18 @@ func _flash_muzzle() -> void:
 	if not mesh:
 		return
 	var mat: Material = mesh.get_surface_override_material(0)
-	if mat is StandardMaterial3D:
-		var prev: float = mat.emission_energy_multiplier
-		mat.emission_energy_multiplier = 4.0
-		var tween: Tween = create_tween()
-		tween.tween_property(mat, "emission_energy_multiplier", prev, 0.15)
+	if not mat:
+		mat = mesh.get_active_material(0)
+	if not mat is StandardMaterial3D:
+		return
+	# duplicate before mutating — this mesh's material comes from an imported
+	# model and is shared by every sniper instance until made unique here.
+	var unique_mat: StandardMaterial3D = mat.duplicate() as StandardMaterial3D
+	mesh.set_surface_override_material(0, unique_mat)
+	var prev: float = unique_mat.emission_energy_multiplier
+	unique_mat.emission_energy_multiplier = 4.0
+	var tween: Tween = create_tween()
+	tween.tween_property(unique_mat, "emission_energy_multiplier", prev, 0.15)
 
 
 func _face_target() -> void:
@@ -222,19 +229,8 @@ func _on_died() -> void:
 
 
 func _build_visual() -> void:
-	# long sniper rifle — extends far forward
-	var rifle_body: MeshInstance3D = _make_box(Vector3(0.08, 0.08, 0.7), Vector3(0.25, 0.9, -0.5), Color(0.08, 0.3, 0.45))
-	add_child(rifle_body)
-	var barrel: MeshInstance3D = _make_box(Vector3(0.04, 0.04, 0.35), Vector3(0.25, 0.9, -0.95), Color(0.06, 0.25, 0.4), Color(0.1, 0.4, 0.7))
-	add_child(barrel)
-	# scope on top
-	var scope: MeshInstance3D = _make_box(Vector3(0.05, 0.05, 0.15), Vector3(0.25, 0.98, -0.55), Color(0.15, 0.5, 0.7), Color(0.1, 0.4, 0.6))
-	add_child(scope)
-	# stock
-	var stock: MeshInstance3D = _make_box(Vector3(0.07, 0.1, 0.15), Vector3(0.25, 0.85, -0.05), Color(0.08, 0.3, 0.45))
-	add_child(stock)
-	# hood/visor — narrow targeting slit
-	var hood: MeshInstance3D = _make_box(Vector3(0.35, 0.15, 0.2), Vector3(0, 1.6, -0.15), Color(0.08, 0.3, 0.5))
-	add_child(hood)
-	var visor: MeshInstance3D = _make_box(Vector3(0.25, 0.03, 0.06), Vector3(0, 1.5, -0.28), Color(0.2, 0.7, 1.0), Color(0.1, 0.5, 0.9))
-	add_child(visor)
+	# "Ovipositor Stalk" — grafted brood art lane, see testing/design-ideas.md.
+	# the aperture gland is the beam-origin point on the barrel-limb; used as
+	# the muzzle-flash target below.
+	var model: Node3D = _load_visual_model("res://assets/models/grafted-brood-sniper.glb")
+	mesh = _find_mesh(model, "aperture_gland")
