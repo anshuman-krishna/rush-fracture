@@ -16,6 +16,16 @@ const ARENA_WALL_HEIGHT: float = 6.0
 const ARENA_WALL_SEGMENTS: int = 24
 const FALL_KILL_Y: float = -20.0
 
+# "Hive Growth" obstacle set — grafted brood art lane, see testing/design-ideas.md.
+# wired into pillar / crate cluster / breakable wall below. the carapace ramp
+# is modelled too but not wired in: its slope is a fixed baked rotation,
+# while _spawn_ramp rolls a random height/length and derives the slope angle
+# from them every time — reconciling the two needs either a fixed ramp size
+# or a per-instance re-angled model, left for a follow-up pass. low_wall,
+# tall_pillar, cylinder_pillar, and half_cover/barrier_arc aren't modelled at
+# all yet — see designs-usage.md's "Extending the lane".
+const OBSTACLE_MODEL_PATH: String = "res://assets/models/grafted-brood-obstacles.glb"
+
 var active_room: RunData.RoomData
 var enemies_alive: int = 0
 var room_active: bool = false
@@ -604,6 +614,29 @@ func _layout_elite_chamber(room: RunData.RoomData) -> void:
 
 # --- obstacle types ---
 
+## extracts one or more named top-level parts from the "Hive Growth" obstacle
+## model into a single wrapper Node3D, positioned/rotated back to zero so a
+## caller can freely position/scale the wrapper. parts that shared a local
+## offset in the source model (e.g. an eggsac body + its glow core) keep
+## that relative alignment once both are zeroed onto the same wrapper.
+func _load_obstacle_parts(names: Array) -> Node3D:
+	var scene: PackedScene = load(OBSTACLE_MODEL_PATH) as PackedScene
+	if not scene:
+		return null
+	var diorama: Node3D = scene.instantiate() as Node3D
+	var wrapper: Node3D = Node3D.new()
+	for n in names:
+		var part: Node3D = diorama.find_child(n, true, false) as Node3D
+		if not part:
+			continue
+		diorama.remove_child(part)
+		part.position = Vector3.ZERO
+		part.rotation = Vector3.ZERO
+		wrapper.add_child(part)
+	diorama.queue_free()
+	return wrapper
+
+
 func _spawn_pillar(pos: Vector3, room: RunData.RoomData) -> void:
 	var height: float = 1.5 + randf() * 2.0
 	var width: float = 0.8 + randf() * 0.6
@@ -614,51 +647,23 @@ func _spawn_pillar(pos: Vector3, room: RunData.RoomData) -> void:
 	var pillar: StaticBody3D = StaticBody3D.new()
 	pillar.position = pos
 
-	var mesh: MeshInstance3D = MeshInstance3D.new()
-	var box: BoxMesh = BoxMesh.new()
-	box.size = Vector3(width, height, width)
-	mesh.mesh = box
-	mesh.position.y = height / 2.0
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = _get_obstacle_color()
-	mat.roughness = 0.85
-	mesh.material_override = mat
-
 	var col: CollisionShape3D = CollisionShape3D.new()
 	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = Vector3(width, height, width)
 	col.shape = shape
 	col.position.y = height / 2.0
-
-	pillar.add_child(mesh)
 	pillar.add_child(col)
+
+	# "rib-arch pillar" — natural size ~1.1 wide, ~3.44 tall (see bounds in
+	# designs-usage.md); scaled non-uniformly to fit this instance's rolled
+	# footprint, same way the old procedural box was stretched to size.
+	var model: Node3D = _load_obstacle_parts(["pillar_rib_arch"])
+	if model:
+		model.scale = Vector3(width / 1.1, height / 3.44, width / 1.1)
+		pillar.add_child(model)
+
 	pillar.collision_layer = 1
 	arena_root.add_child(pillar)
-
-	# accent stripe
-	var stripe: MeshInstance3D = MeshInstance3D.new()
-	var stripe_box: BoxMesh = BoxMesh.new()
-	stripe_box.size = Vector3(width + 0.02, 0.08, width + 0.02)
-	stripe.mesh = stripe_box
-	stripe.position.y = height * 0.7
-	var stripe_mat: StandardMaterial3D = StandardMaterial3D.new()
-	stripe_mat.albedo_color = _get_obstacle_color(0.06)
-	stripe_mat.emission_enabled = true
-	stripe_mat.emission = _get_emission_color()
-	stripe_mat.emission_energy_multiplier = 0.4
-	stripe.material_override = stripe_mat
-	pillar.add_child(stripe)
-
-	# base trim
-	var base: MeshInstance3D = MeshInstance3D.new()
-	var base_box: BoxMesh = BoxMesh.new()
-	base_box.size = Vector3(width + 0.15, 0.12, width + 0.15)
-	base.mesh = base_box
-	base.position.y = 0.06
-	var base_mat: StandardMaterial3D = StandardMaterial3D.new()
-	base_mat.albedo_color = _get_obstacle_color(0.03)
-	base.material_override = base_mat
-	pillar.add_child(base)
 
 
 func _spawn_low_wall(pos: Vector3, angle: float, room: RunData.RoomData) -> void:
@@ -713,6 +718,11 @@ func _spawn_crate_cluster(pos: Vector3, room: RunData.RoomData) -> void:
 	if not _try_register_obstacle(pos, Vector3(3, 1.5, 3)):
 		return
 
+	# "egg-sac cluster" — 4 sac variants in the model, natural sizes below
+	# (see designs-usage.md); cycled across crates and scaled to each rolled
+	# footprint, same non-uniform-stretch approach as the pillar.
+	var egg_sizes: Array[float] = [0.84, 0.68, 0.6, 0.6]
+
 	var count: int = 2 + randi() % 3
 	for i in count:
 		var crate: StaticBody3D = StaticBody3D.new()
@@ -721,37 +731,24 @@ func _spawn_crate_cluster(pos: Vector3, room: RunData.RoomData) -> void:
 		var s: float = 0.5 + randf() * 0.5
 		var h: float = 0.4 + randf() * 0.8
 
-		var mesh: MeshInstance3D = MeshInstance3D.new()
-		var box: BoxMesh = BoxMesh.new()
-		box.size = Vector3(s, h, s)
-		mesh.mesh = box
-		mesh.position.y = h / 2.0
-		var mat: StandardMaterial3D = StandardMaterial3D.new()
-		mat.albedo_color = _get_obstacle_color(0.03 * i)
-		mat.roughness = 0.8
-		mesh.material_override = mat
-
 		var col: CollisionShape3D = CollisionShape3D.new()
 		var shape: BoxShape3D = BoxShape3D.new()
 		shape.size = Vector3(s, h, s)
 		col.shape = shape
 		col.position.y = h / 2.0
-
-		crate.add_child(mesh)
 		crate.add_child(col)
+
+		var variant: int = i % 4
+		var model: Node3D = _load_obstacle_parts(["eggsac_%d" % (variant + 1), "eggsac_core_%d" % (variant + 1)])
+		if model:
+			var natural_xz: float = egg_sizes[variant]
+			var natural_y: float = natural_xz * 1.25  # sac geometry is scaled [1, 1.25, 1] in the source
+			model.scale = Vector3(s / natural_xz, h / natural_y, s / natural_xz)
+			model.position.y = h / 2.0
+			crate.add_child(model)
+
 		crate.collision_layer = 1
 		arena_root.add_child(crate)
-
-		# crate edge detail
-		var edge: MeshInstance3D = MeshInstance3D.new()
-		var edge_box: BoxMesh = BoxMesh.new()
-		edge_box.size = Vector3(s + 0.04, 0.04, s + 0.04)
-		edge.mesh = edge_box
-		edge.position.y = h
-		var edge_mat: StandardMaterial3D = StandardMaterial3D.new()
-		edge_mat.albedo_color = _get_obstacle_color(0.05)
-		edge.material_override = edge_mat
-		crate.add_child(edge)
 
 
 func _spawn_ramp(pos: Vector3, angle: float, room: RunData.RoomData) -> void:
@@ -1162,58 +1159,22 @@ func _spawn_breakable_wall(pos: Vector3, angle: float, room: RunData.RoomData) -
 	wall.set_meta("hit_points", hit_points)
 	wall.set_meta("max_hit_points", hit_points)
 
-	var emit: Color = _get_emission_color()
-
-	var mesh: MeshInstance3D = MeshInstance3D.new()
-	mesh.name = "WallMesh"
-	var box: BoxMesh = BoxMesh.new()
-	box.size = Vector3(length, height, 0.35)
-	mesh.mesh = box
-	mesh.position.y = height / 2.0
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = _get_obstacle_color(0.05)
-	mat.roughness = 0.7
-	mesh.material_override = mat
-
 	var col: CollisionShape3D = CollisionShape3D.new()
 	col.name = "WallCollision"
 	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = Vector3(length, height, 0.35)
 	col.shape = shape
 	col.position.y = height / 2.0
-
-	wall.add_child(mesh)
 	wall.add_child(col)
 
-	# crack overlay — starts invisible, fades in as wall takes damage
-	var crack: MeshInstance3D = MeshInstance3D.new()
-	crack.name = "CrackOverlay"
-	var crack_box: BoxMesh = BoxMesh.new()
-	crack_box.size = Vector3(length + 0.02, height + 0.02, 0.37)
-	crack.mesh = crack_box
-	crack.position.y = height / 2.0
-	var crack_mat: StandardMaterial3D = StandardMaterial3D.new()
-	crack_mat.albedo_color = Color(emit.r, emit.g, emit.b, 0.0)
-	crack_mat.emission_enabled = true
-	crack_mat.emission = emit
-	crack_mat.emission_energy_multiplier = 0.0
-	crack_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	crack.material_override = crack_mat
-	wall.add_child(crack)
-
-	# glow trim at top
-	var trim: MeshInstance3D = MeshInstance3D.new()
-	var trim_box: BoxMesh = BoxMesh.new()
-	trim_box.size = Vector3(length + 0.04, 0.06, 0.4)
-	trim.mesh = trim_box
-	trim.position.y = height
-	var trim_mat: StandardMaterial3D = StandardMaterial3D.new()
-	trim_mat.emission_enabled = true
-	trim_mat.albedo_color = emit * 0.8
-	trim_mat.emission = emit * 0.8
-	trim_mat.emission_energy_multiplier = 0.6
-	trim.material_override = trim_mat
-	wall.add_child(trim)
+	# "breakable membrane wall" — already visibly cracked (wall_fissure_1..5).
+	# natural size ~2.23 wide, ~2.02 tall (see bounds in designs-usage.md);
+	# scaled non-uniformly to fit this instance's rolled footprint.
+	var model: Node3D = _load_obstacle_parts(["breakable_membrane_wall"])
+	if model:
+		model.name = "WallModel"
+		model.scale = Vector3(length / 2.23, height / 2.02, 1.0)
+		wall.add_child(model)
 
 	arena_root.add_child(wall)
 
@@ -1224,22 +1185,28 @@ func damage_breakable_wall(wall: StaticBody3D) -> void:
 	var hp: int = wall.get_meta("hit_points") - 1
 	wall.set_meta("hit_points", hp)
 	var max_hp: int = wall.get_meta("max_hit_points")
+	var damage_ratio: float = 1.0 - float(hp) / float(max_hp)
 
-	# update crack visual
-	var crack: MeshInstance3D = wall.get_node_or_null("CrackOverlay") as MeshInstance3D
-	if crack and crack.material_override is StandardMaterial3D:
-		var damage_ratio: float = 1.0 - float(hp) / float(max_hp)
-		var crack_mat: StandardMaterial3D = crack.material_override
-		crack_mat.albedo_color.a = damage_ratio * 0.6
-		crack_mat.emission_energy_multiplier = damage_ratio * 2.0
+	var model: Node3D = wall.get_node_or_null("WallModel") as Node3D
+	if model:
+		# brighten the model's own pre-cracked fissures as damage accrues
+		for i in range(1, 6):
+			var fissure: MeshInstance3D = model.find_child("wall_fissure_%d" % i, true, false) as MeshInstance3D
+			if not fissure:
+				continue
+			var mat: Material = fissure.get_surface_override_material(0)
+			if not mat:
+				mat = fissure.get_active_material(0)
+			if mat is StandardMaterial3D:
+				var unique_mat: StandardMaterial3D = mat.duplicate() as StandardMaterial3D
+				fissure.set_surface_override_material(0, unique_mat)
+				unique_mat.emission_energy_multiplier = 1.7 + damage_ratio * 3.0
 
-	# shake the wall
-	var mesh: MeshInstance3D = wall.get_node_or_null("WallMesh") as MeshInstance3D
-	if mesh:
-		var tween: Tween = mesh.create_tween()
-		tween.tween_property(mesh, "position:x", mesh.position.x + 0.05, 0.03)
-		tween.tween_property(mesh, "position:x", mesh.position.x - 0.05, 0.03)
-		tween.tween_property(mesh, "position:x", mesh.position.x, 0.03)
+		# shake the wall
+		var tween: Tween = model.create_tween()
+		tween.tween_property(model, "position:x", model.position.x + 0.05, 0.03)
+		tween.tween_property(model, "position:x", model.position.x - 0.05, 0.03)
+		tween.tween_property(model, "position:x", model.position.x, 0.03)
 
 	if hp <= 0:
 		_destroy_breakable_wall(wall)

@@ -117,22 +117,10 @@ func _face_target() -> void:
 
 
 func _build_visual() -> void:
-	# heavy shoulder armor
-	var shoulder_l: MeshInstance3D = _make_box(Vector3(0.4, 0.25, 0.35), Vector3(-0.6, 1.4, 0), Color(0.35, 0.32, 0.38))
-	var shoulder_r: MeshInstance3D = _make_box(Vector3(0.4, 0.25, 0.35), Vector3(0.6, 1.4, 0), Color(0.35, 0.32, 0.38))
-	add_child(shoulder_l)
-	add_child(shoulder_r)
-	# massive fists — melee indicator
-	var fist_l: MeshInstance3D = _make_box(Vector3(0.25, 0.25, 0.25), Vector3(-0.6, 0.6, -0.15), Color(0.4, 0.15, 0.1), Color(0.5, 0.1, 0.0))
-	var fist_r: MeshInstance3D = _make_box(Vector3(0.25, 0.25, 0.25), Vector3(0.6, 0.6, -0.15), Color(0.4, 0.15, 0.1), Color(0.5, 0.1, 0.0))
-	add_child(fist_l)
-	add_child(fist_r)
-	# chest plate
-	var chest: MeshInstance3D = _make_box(Vector3(0.7, 0.4, 0.15), Vector3(0, 1.1, -0.45), Color(0.25, 0.25, 0.3))
-	add_child(chest)
-	# visor — narrow angry slit
-	var visor: MeshInstance3D = _make_box(Vector3(0.5, 0.06, 0.1), Vector3(0, 1.5, -0.45), Color(0.8, 0.15, 0.1), Color(0.7, 0.1, 0.0))
-	add_child(visor)
+	# "Brood Hulk" — grafted brood art lane, see testing/design-ideas.md.
+	# the abdomen (brood_core / abdomen_seam_N) is the model's own HP readout;
+	# nothing here needs to drive it manually.
+	_load_visual_model("res://assets/models/grafted-brood-tank.glb")
 
 
 func _play_death() -> void:
@@ -140,5 +128,6 @@ func _play_death() -> void:
 	var tween: Tween = create_tween()
 	tween.set_parallel(true)
 	tween.tween_property(self, "scale", Vector3(1.5, 0.1, 1.5), 0.2)
-	tween.tween_property(mesh, "transparency", 1.0, 0.25)
+	for mi: MeshInstance3D in _all_meshes():
+		tween.tween_property(mi, "transparency", 1.0, 0.25)
 	tween.chain().tween_callback(queue_free)

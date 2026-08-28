@@ -46,3 +46,8 @@ Thumbs.db
 # testing and validation
 /testing/
 testing/
+
+# concept-models — design/story text stays local, model code can be tracked
+concept-models/*.md
+concept-models/*.html
+concept-models/.thumbnail

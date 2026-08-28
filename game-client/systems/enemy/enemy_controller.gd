@@ -73,16 +73,5 @@ func _update_attack_timer(delta: float) -> void:
 
 
 func _build_visual() -> void:
-	# chaser: lean body with clawed arms — melee indicator
-	var arm_l: MeshInstance3D = _make_box(Vector3(0.12, 0.5, 0.12), Vector3(-0.35, 0.6, 0), Color(0.7, 0.1, 0.05))
-	var arm_r: MeshInstance3D = _make_box(Vector3(0.12, 0.5, 0.12), Vector3(0.35, 0.6, 0), Color(0.7, 0.1, 0.05))
-	add_child(arm_l)
-	add_child(arm_r)
-	# claws
-	var claw_l: MeshInstance3D = _make_box(Vector3(0.08, 0.2, 0.06), Vector3(-0.35, 0.3, -0.08), Color(1.0, 0.3, 0.1), Color(1.0, 0.2, 0.0))
-	var claw_r: MeshInstance3D = _make_box(Vector3(0.08, 0.2, 0.06), Vector3(0.35, 0.3, -0.08), Color(1.0, 0.3, 0.1), Color(1.0, 0.2, 0.0))
-	add_child(claw_l)
-	add_child(claw_r)
-	# eye visor
-	var visor: MeshInstance3D = _make_box(Vector3(0.3, 0.06, 0.08), Vector3(0, 1.2, -0.25), Color(1.0, 0.15, 0.0), Color(1.0, 0.1, 0.0))
-	add_child(visor)
+	# "Ripper Hound" — grafted brood art lane, see testing/design-ideas.md
+	_load_visual_model("res://assets/models/grafted-brood-chaser.glb")

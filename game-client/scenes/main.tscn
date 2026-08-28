@@ -38,6 +38,14 @@ albedo_color = Color(0.12, 0.12, 0.14, 1)
 [sub_resource type="BoxShape3D" id="BoxShape3D_floor"]
 size = Vector3(100, 0.2, 100)
 
+[sub_resource type="Environment" id="Environment_main"]
+background_mode = 1
+background_color = Color(0.05, 0.04, 0.05, 1)
+glow_enabled = true
+glow_intensity = 0.8
+glow_bloom = 0.1
+glow_hdr_threshold = 1.0
+
 [node name="Main" type="Node3D" unique_id=1220090109]
 
 [node name="PlayerManager" type="Node" parent="." unique_id=1003249830]
@@ -102,6 +110,7 @@ script = ExtResource("21")
 script = ExtResource("22")
 
 [node name="WorldEnvironment" type="WorldEnvironment" parent="." unique_id=1239405815]
+environment = SubResource("Environment_main")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=995021618]
 transform = Transform3D(1, 0, 0, 0, 0.707, 0.707, 0, -0.707, 0.707, 0, 10, 0)

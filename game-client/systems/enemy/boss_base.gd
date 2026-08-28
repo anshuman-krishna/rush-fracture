@@ -33,7 +33,12 @@ var _pending_attack: String = ""
 var _adds_spawned: int = 0
 
 @onready var health: HealthComponent = $HealthComponent
-@onready var mesh: MeshInstance3D = $MeshInstance3D
+
+# the single mesh part used for telegraph-color signaling (_show_telegraph /
+# _clear_telegraph / _flash_phase_transition) — set by a subclass's
+# _build_visual(), normally to a model's biolum "core" glow mesh. hit-flash
+# and death-fade below don't depend on it, they act on every mesh part found.
+var mesh: MeshInstance3D
 
 
 func _ready() -> void:
@@ -42,6 +47,55 @@ func _ready() -> void:
 	add_to_group("enemies")
 	add_to_group("boss")
 	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
+	_build_visual()
+
+
+## override in a subclass to build its unique procedural mesh or load a model.
+func _build_visual() -> void:
+	pass
+
+
+## loads an imported model (e.g. a .glb) and adds it as a child. returns the
+## instantiated root so a subclass can pull named parts out of it via
+## _find_mesh() — glTF import preserves each part's original mesh name as its
+## Godot node name.
+func _load_visual_model(path: String) -> Node3D:
+	var scene: PackedScene = load(path) as PackedScene
+	if not scene:
+		return null
+	var instance: Node3D = scene.instantiate() as Node3D
+	add_child(instance)
+	return instance
+
+
+func _find_mesh(root: Node, mesh_name: String) -> MeshInstance3D:
+	if not root:
+		return null
+	return root.find_child(mesh_name, true, false) as MeshInstance3D
+
+
+## makes a mesh's material a per-instance override so the telegraph-color
+## mutations below never bleed into the shared imported resource every other
+## boss instance (or the next run's boss) would otherwise reuse.
+func _make_material_unique(mi: MeshInstance3D) -> void:
+	if not mi:
+		return
+	var mat: Material = mi.get_active_material(0)
+	if mat:
+		mi.set_surface_override_material(0, mat.duplicate())
+
+
+func _all_meshes() -> Array[MeshInstance3D]:
+	var found: Array[MeshInstance3D] = []
+	_collect_meshes(self, found)
+	return found
+
+
+func _collect_meshes(node: Node, found: Array[MeshInstance3D]) -> void:
+	for child in node.get_children():
+		if child is MeshInstance3D:
+			found.append(child)
+		_collect_meshes(child, found)
 
 
 func _physics_process(delta: float) -> void:
@@ -207,20 +261,27 @@ func _on_died() -> void:
 
 
 func _flash_hit() -> void:
-	if not mesh:
-		return
-	var mat: Material = mesh.get_surface_override_material(0)
-	if mat is StandardMaterial3D:
-		var prev_emission: Color = mat.emission
-		mat.emission = Color.WHITE
+	# flashes every mesh part, not just the telegraph-color core — a
+	# multi-part model needs the whole body to read as "hit."
+	for mi: MeshInstance3D in _all_meshes():
+		var mat: Material = mi.get_surface_override_material(0)
+		if not mat:
+			mat = mi.get_active_material(0)
+		if not mat is StandardMaterial3D:
+			continue
+		var unique_mat: StandardMaterial3D = mat.duplicate() as StandardMaterial3D
+		mi.set_surface_override_material(0, unique_mat)
+		var original_color: Color = unique_mat.albedo_color
+		unique_mat.albedo_color = Color.WHITE
 		var tween: Tween = create_tween()
-		tween.tween_property(mat, "emission", prev_emission, 0.12)
+		tween.tween_property(unique_mat, "albedo_color", original_color, 0.1)
 
 
 func _play_death() -> void:
 	var tween: Tween = create_tween()
 	tween.tween_property(self, "scale:y", 0.1, 0.8).set_ease(Tween.EASE_IN)
-	tween.parallel().tween_property(mesh, "transparency", 1.0, 1.0)
+	for mi: MeshInstance3D in _all_meshes():
+		tween.parallel().tween_property(mi, "transparency", 1.0, 1.0)
 	tween.tween_callback(queue_free)
 
 
