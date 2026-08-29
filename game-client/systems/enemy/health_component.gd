@@ -15,7 +15,9 @@ const MIN_DAMAGE_RPC_INTERVAL_MS: int = 40
 
 var current_health: int
 var _died_triggered: bool = false
-var _last_rpc_damage_ms: int = -MIN_DAMAGE_RPC_INTERVAL_MS
+# keyed by sending peer id — a single shared timestamp would let one
+# attacker's rate limit silently eat a second attacker's simultaneous hit.
+var _last_rpc_damage_ms: Dictionary = {}
 
 
 func _ready() -> void:
@@ -60,10 +62,12 @@ func _apply_damage(amount: int) -> void:
 func _rpc_take_damage(amount: int) -> void:
 	if not _is_authority():
 		return
+	var sender: int = multiplayer.get_remote_sender_id()
 	var now: int = Time.get_ticks_msec()
-	if now - _last_rpc_damage_ms < MIN_DAMAGE_RPC_INTERVAL_MS:
+	var last: int = _last_rpc_damage_ms.get(sender, -MIN_DAMAGE_RPC_INTERVAL_MS)
+	if now - last < MIN_DAMAGE_RPC_INTERVAL_MS:
 		return
-	_last_rpc_damage_ms = now
+	_last_rpc_damage_ms[sender] = now
 	_apply_damage(clampi(amount, 0, MAX_DAMAGE_PER_HIT))
 
 

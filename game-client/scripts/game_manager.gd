@@ -299,9 +299,13 @@ func _on_player_damaged(amount: int) -> void:
 	# apply cursed damage multiplier and mutation modifiers
 	var mutation_mult: float = mutation_manager.get_damage_multiplier()
 	var effective: int = int(amount * upgrade_manager.damage_taken_multiplier * mutation_mult)
-	if effective > amount:
-		var extra: int = effective - amount
-		player.health = maxi(player.health - extra, 0)
+	if effective != amount:
+		# player_controller already subtracted `amount` (post damage_resist)
+		# before this fires — correct it up or down to the true value so a
+		# reduction (e.g. momentum shield at speed) actually refunds health,
+		# not just an increase (e.g. glass cannon, momentum shield when slow).
+		var delta: int = effective - amount
+		player.health = clampi(player.health - delta, 0, player.max_health)
 
 	difficulty_tracker.on_player_damaged(effective)
 	audio.play("player_damage", -2.0, 0.1)
@@ -455,8 +459,27 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 
 	# no fracture events during boss fights
 	if not is_boss_room:
-		fracture_manager.try_trigger(room.difficulty)
+		_try_start_fracture(room.difficulty)
 	difficulty_tracker.on_room_entered()
+
+
+func _try_start_fracture(room_difficulty: float) -> void:
+	# each peer used to roll (and pick a type) independently, so co-op players
+	# could end up with different fractures active — or one active and one
+	# not — in the same room. only the host rolls now; the result is
+	# broadcast so everyone's FractureManager agrees on type and timing.
+	if not is_host_or_solo():
+		return
+	var type: int = fracture_manager.try_trigger(room_difficulty)
+	if type < 0:
+		return
+	if _is_online():
+		_rpc_start_fracture.rpc(type)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_start_fracture(type: int) -> void:
+	fracture_manager.start_fracture(type)
 
 
 func _on_room_cleared(room: RunData.RoomData) -> void:

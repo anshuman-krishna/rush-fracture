@@ -41,19 +41,25 @@ func _process(delta: float) -> void:
 			_spawn_random_explosion()
 
 
-func try_trigger(room_difficulty: float) -> bool:
+## rolls for a fracture and starts it locally if the roll succeeds. returns
+## the chosen type, or -1 if none was triggered. in multiplayer, only the
+## host should call this — see game_manager.gd's _try_start_fracture, which
+## broadcasts the winning type to every other peer's FractureManager instead
+## of letting each peer roll independently (they'd disagree on whether a
+## fracture starts at all, let alone which one).
+func try_trigger(room_difficulty: float) -> int:
 	if is_active:
-		return false
+		return -1
 
 	# base 10% chance, scales with difficulty
 	var chance: float = 0.10 + (room_difficulty - 1.0) * 0.08
 	if randf() > chance:
-		return false
+		return -1
 
 	var types: Array = FractureDefinitions.FractureType.values()
 	var type: FractureDefinitions.FractureType = types[randi() % types.size()]
 	start_fracture(type)
-	return true
+	return type
 
 
 func start_fracture(type: FractureDefinitions.FractureType) -> void:
@@ -140,6 +146,11 @@ func _revert_effect(type: FractureDefinitions.FractureType) -> void:
 
 
 func _buff_all_enemy_speeds(multiplier: float) -> void:
+	# enemies only ever simulate movement where they hold multiplayer
+	# authority (the host) — a non-host peer mutating move_speed here would be
+	# touching an inert local copy, so only the host should bother.
+	if not _is_host():
+		return
 	# only enemies alive right now get buffed and tracked for revert — anything
 	# spawned mid-fracture (gauntlet waves, duplication procs) is left alone,
 	# so it never gets wrongly halved when the fracture ends.
@@ -152,10 +163,18 @@ func _buff_all_enemy_speeds(multiplier: float) -> void:
 
 
 func _revert_enemy_speeds() -> void:
+	if not _is_host():
+		return
 	for enemy in _speed_buffed_enemies:
 		if is_instance_valid(enemy) and "move_speed" in enemy:
 			enemy.move_speed *= 0.5
 	_speed_buffed_enemies.clear()
+
+
+func _is_host() -> bool:
+	if not multiplayer or not multiplayer.has_multiplayer_peer():
+		return true
+	return multiplayer.is_server()
 
 
 func _spawn_random_explosion() -> void:

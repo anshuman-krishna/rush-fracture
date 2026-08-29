@@ -122,6 +122,24 @@ func _is_local_authority() -> bool:
 
 
 func take_damage(amount: int) -> void:
+	if not _is_local_authority():
+		# caller (boss/hazard/pvp damage running on the host, or any other
+		# non-owning peer) doesn't have authority over this player node — a
+		# direct mutation here would just be silently overwritten by the next
+		# sync tick from the real value on the owning client. route it there.
+		_rpc_request_damage.rpc_id(get_multiplayer_authority(), amount)
+		return
+	_apply_damage_local(amount)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_damage(amount: int) -> void:
+	if not _is_local_authority():
+		return
+	_apply_damage_local(amount)
+
+
+func _apply_damage_local(amount: int) -> void:
 	var actual: int = max(1, int(amount * damage_resist))
 	health = max(0, health - actual)
 	player_damaged.emit(actual)
