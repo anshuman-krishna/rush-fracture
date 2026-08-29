@@ -46,6 +46,16 @@ var _gauntlet_waves_remaining: int = 0
 var _gauntlet_timer: float = 0.0
 var _placed_obstacles: Array[AABB] = []
 
+# picked once per room in _configure_arena — varies obstacle *arrangement*
+# (not count, not the arena's own boundary/radius) so combat/swarm/elite/
+# hazard rooms don't all read as the same uniform ring of cover. RING keeps
+# the original behavior. Every pattern below draws exactly the same number
+# of random values per obstacle as RING did, so it doesn't change how many
+# randf()/randi() calls a room consumes overall — see room_controller's
+# "both peers get identical layout" invariant in testing/CLAUDE.md.
+enum ObstacleLayoutPattern { RING, CLUSTERS, CORRIDOR }
+var _obstacle_layout_pattern: int = ObstacleLayoutPattern.RING
+
 @onready var arena_root: Node3D = $ArenaRoot
 @onready var enemy_root: Node3D = $EnemyRoot
 @onready var hazard_root: Node3D = $HazardRoot
@@ -343,6 +353,7 @@ func _configure_arena(room: RunData.RoomData) -> void:
 		RoomDefinitions.RoomType.HAZARD:
 			obstacle_count = clampi(int(room.difficulty * 2.5), 4, 10)
 
+	_obstacle_layout_pattern = randi() % 3
 	for i in obstacle_count:
 		_place_obstacle(i, obstacle_count, room)
 
@@ -380,16 +391,11 @@ func _apply_palette() -> void:
 
 func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
 	var obstacle_type: int = randi() % 10
-	var angle: float = (float(index) / float(total)) * TAU + randf() * 0.5
-	var dist: float = 6.0 + randf() * 14.0
-	var pos: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
-
-	# clamp inside arena bounds
-	var flat_dist: float = Vector2(pos.x, pos.z).length()
-	if flat_dist > ARENA_RADIUS - 4.0:
-		var scale_f: float = (ARENA_RADIUS - 4.0) / flat_dist
-		pos.x *= scale_f
-		pos.z *= scale_f
+	var pos: Vector3 = _obstacle_position(index, total)
+	# scaling pos to clamp it inside the arena preserves its angle from
+	# center exactly, so this is safe to derive after the fact rather than
+	# threading a second return value out of _obstacle_position.
+	var angle: float = atan2(pos.z, pos.x)
 
 	match obstacle_type:
 		0:
@@ -410,6 +416,42 @@ func _place_obstacle(index: int, total: int, room: RunData.RoomData) -> void:
 			_spawn_barrier_arc(pos, angle, room)
 		8, 9:
 			_spawn_breakable_wall(pos, angle, room)
+
+
+## position for obstacle `index` of `total` this room, shaped by
+## _obstacle_layout_pattern. every branch draws exactly two random values
+## (an angle jitter, then a distance) so switching patterns never changes
+## how much of the shared seeded RNG stream a room consumes.
+func _obstacle_position(index: int, total: int) -> Vector3:
+	var angle: float
+	var dist: float
+	match _obstacle_layout_pattern:
+		ObstacleLayoutPattern.CLUSTERS:
+			# a few loose clusters instead of an even ring — same overall
+			# spread, but grouped into contested pockets of cover.
+			var cluster_count: int = 3
+			var cluster_angle: float = (float(index % cluster_count) / float(cluster_count)) * TAU
+			angle = cluster_angle + randf_range(-0.35, 0.35)
+			dist = 8.0 + randf() * 10.0
+		ObstacleLayoutPattern.CORRIDOR:
+			# push obstacles toward two opposing bands, leaving a clear lane
+			# through the middle of the arena along one axis.
+			var side: int = 1 if index % 2 == 0 else -1
+			angle = (PI / 2.0) * side + randf_range(-0.5, 0.5)
+			dist = 6.0 + randf() * 14.0
+		_:
+			angle = (float(index) / float(total)) * TAU + randf() * 0.5
+			dist = 6.0 + randf() * 14.0
+
+	var pos: Vector3 = Vector3(cos(angle) * dist, 0, sin(angle) * dist)
+
+	# clamp inside arena bounds
+	var flat_dist: float = Vector2(pos.x, pos.z).length()
+	if flat_dist > ARENA_RADIUS - 4.0:
+		var scale_f: float = (ARENA_RADIUS - 4.0) / flat_dist
+		pos.x *= scale_f
+		pos.z *= scale_f
+	return pos
 
 
 func _try_register_obstacle(pos: Vector3, size: Vector3) -> bool:
