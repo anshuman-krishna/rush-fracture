@@ -236,18 +236,30 @@ func _apply_berserker_pact() -> void:
 
 
 func _apply_slow_aura() -> void:
+	# keyed by this UpgradeManager's own instance id, not a plain bool, so two
+	# co-op players who both picked this upgrade don't stomp each other's
+	# in-range state (one player's aura ending would otherwise flip the
+	# shared flag and incorrectly un-slow an enemy the other player is still
+	# standing next to). the multiplier is only applied/reverted on the
+	# 0-sources<->1-source transition so overlapping auras don't stack.
+	var source: int = get_instance_id()
 	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
 	for enemy in enemies:
 		if not enemy is Node3D or not "move_speed" in enemy:
 			continue
 		var dist: float = enemy.global_position.distance_to(_player.global_position)
-		var is_slowed: bool = enemy.get_meta("slow_aura_active", false)
-		if dist < _slow_aura_radius and not is_slowed:
-			enemy.move_speed *= 0.8
-			enemy.set_meta("slow_aura_active", true)
-		elif dist >= _slow_aura_radius and is_slowed:
-			enemy.move_speed /= 0.8
-			enemy.set_meta("slow_aura_active", false)
+		var sources: Dictionary = enemy.get_meta("slow_aura_sources", {})
+		var was_covered: bool = sources.has(source)
+		if dist < _slow_aura_radius and not was_covered:
+			sources[source] = true
+			if sources.size() == 1:
+				enemy.move_speed *= 0.8
+			enemy.set_meta("slow_aura_sources", sources)
+		elif dist >= _slow_aura_radius and was_covered:
+			sources.erase(source)
+			if sources.is_empty():
+				enemy.move_speed /= 0.8
+			enemy.set_meta("slow_aura_sources", sources)
 
 
 func _trigger_explosive_dash() -> void:
