@@ -40,6 +40,10 @@ var _pending_mutation_after_upgrade: bool = false
 var _boss_active: bool = false
 var _boss_defeated: bool = false
 var _run_seed: int = 0
+# "power surge" (a cursed upgrade trading more weapon damage for faster
+# enemies) is per-player-local, but only the host's own enemy simulation
+# actually moves anyone — see _contribute_enemy_speed_bonus.
+var _shared_enemy_speed_bonus: float = 0.0
 var _pvp_active: bool = false
 var _match_ended: bool = false
 var _profile: PlayerProfile
@@ -230,6 +234,7 @@ func _do_start_run(seed_value: int) -> void:
 	_boss_active = false
 	_boss_defeated = false
 	_pending_mutation_after_upgrade = false
+	_shared_enemy_speed_bonus = 0.0
 	_pvp_active = false
 	_match_ended = false
 	game_feel.reset()
@@ -437,9 +442,13 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 		var diff_mod: float = difficulty_tracker.get_difficulty_modifier()
 		room.difficulty *= diff_mod
 
-	# apply enemy speed bonus from cursed upgrades
-	if upgrade_manager.enemy_speed_bonus > 0:
-		room.metadata["enemy_speed_bonus"] = upgrade_manager.enemy_speed_bonus
+	# apply enemy speed bonus from cursed upgrades — the shared, host-
+	# aggregated value (see _contribute_enemy_speed_bonus), not this peer's
+	# own local upgrade_manager.enemy_speed_bonus: only the host's own
+	# enemy simulation actually moves anyone, so a client's pick would
+	# otherwise silently do nothing while still paying the upgrade's cost.
+	if _shared_enemy_speed_bonus > 0:
+		room.metadata["enemy_speed_bonus"] = _shared_enemy_speed_bonus
 
 	if room.type == RoomDefinitions.RoomType.BOSS or room.type == RoomDefinitions.RoomType.ELITE_CHAMBER:
 		_boss_active = true
@@ -578,7 +587,24 @@ func _rpc_complete_run() -> void:
 	run_manager.complete_run()
 
 
-# --- upgrades and mutations (host-driven) ---
+# --- upgrades and mutations (per-player) ---
+
+# must match upgrade_manager.gd's _apply_power_surge()
+const POWER_SURGE_ENEMY_SPEED_BONUS: float = 0.2
+
+
+func _contribute_enemy_speed_bonus(amount: float) -> void:
+	if is_host_or_solo():
+		_shared_enemy_speed_bonus += amount
+	elif _is_online():
+		_rpc_contribute_enemy_speed_bonus.rpc_id(1, amount)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_contribute_enemy_speed_bonus(amount: float) -> void:
+	if is_host_or_solo():
+		_shared_enemy_speed_bonus += amount
+
 
 func _show_upgrade_selection() -> void:
 	awaiting_upgrade = true
@@ -591,6 +617,9 @@ func _on_upgrade_selected(upgrade: Dictionary) -> void:
 	upgrade_manager.apply(upgrade)
 	run_manager.apply_upgrade(upgrade)
 	audio.play("upgrade_pick", -3.0)
+
+	if upgrade.get("stat", "") == "power_surge":
+		_contribute_enemy_speed_bonus(POWER_SURGE_ENEMY_SPEED_BONUS)
 
 	# boss reward guarantees a mutation choice
 	if _pending_mutation_after_upgrade:
