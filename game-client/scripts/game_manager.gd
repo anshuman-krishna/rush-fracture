@@ -426,9 +426,16 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 	_reset_player_position()
 	_scavenger_healed_this_room = false
 
-	# apply dynamic difficulty subtly
-	var diff_mod: float = difficulty_tracker.get_difficulty_modifier()
-	room.difficulty *= diff_mod
+	# apply dynamic difficulty subtly — solo only. difficulty_tracker
+	# accumulates from *this peer's own* local player's damage/kill history,
+	# so in co-op it would give each peer a different room.difficulty; since
+	# that value drives how many obstacles/hazards get placed (each a random
+	# draw against the shared room-seeded RNG stream, see room_controller.gd's
+	# "both peers get identical layout" comment), letting it diverge per-peer
+	# would desync the room layout itself, not just difficulty feel.
+	if not _is_online():
+		var diff_mod: float = difficulty_tracker.get_difficulty_modifier()
+		room.difficulty *= diff_mod
 
 	# apply enemy speed bonus from cursed upgrades
 	if upgrade_manager.enemy_speed_bonus > 0:
