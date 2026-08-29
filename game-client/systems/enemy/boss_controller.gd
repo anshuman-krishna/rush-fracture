@@ -14,6 +14,10 @@ extends BossBase
 @export var shockwave_radius: float = 10.0
 
 var _add_timer: float = 0.0
+# how long the player has been kept beyond shockwave_radius, where none of
+# this boss's attacks can land at all — see _choose_attack's far branch.
+var _time_at_range: float = 0.0
+const KITE_CHARGE_THRESHOLD: float = 3.0
 
 
 func _get_detection_range() -> float:
@@ -26,6 +30,11 @@ func _handle_idle(delta: float, distance: float) -> void:
 	else:
 		velocity.x = move_toward(velocity.x, 0, 10.0 * delta)
 		velocity.z = move_toward(velocity.z, 0, 10.0 * delta)
+
+	if distance > shockwave_radius:
+		_time_at_range += delta
+	else:
+		_time_at_range = 0.0
 
 	attack_timer -= delta
 	if attack_timer <= 0:
@@ -40,8 +49,20 @@ func _choose_attack(distance: float) -> void:
 			_begin_telegraph("charge", 0.6)
 		else:
 			_begin_telegraph("shockwave", 0.8)
+	elif _time_at_range >= KITE_CHARGE_THRESHOLD:
+		# out of every attack's range and has stayed there — telegraphing
+		# "shockwave" here would just whiff (it only damages within
+		# shockwave_radius), letting a player who keeps their distance stall
+		# forever. close the gap with a charge instead; nothing about
+		# _do_charge is actually phase-2-specific, that was only ever true
+		# of how it used to get picked.
+		_time_at_range = 0.0
+		_begin_telegraph("charge", 0.6)
 	else:
-		_begin_telegraph("shockwave", 0.8)
+		# still out of range but hasn't camped there long enough to force a
+		# charge — skip this attack cycle and keep chasing rather than
+		# freezing in place to telegraph an attack that can't reach.
+		attack_timer = 0.5
 
 
 func _execute_attack() -> void:
