@@ -81,8 +81,33 @@ func _maintain_distance(delta: float, distance: float) -> void:
 
 func _fire_at_target() -> void:
 	attack_timer = attack_cooldown
-	if target and target.has_method("take_damage"):
-		target.take_damage(attack_damage)
+	if not target or not is_instance_valid(target):
+		return
+
+	# every other ranged enemy (shooter, sniper) raycasts for line of sight
+	# before landing a hit — this one didn't, so a support enemy could chip
+	# a player through walls/obstacles from anywhere inside its generous
+	# 60-unit detection_range, bypassing the cover the game's obstacles
+	# exist for. mirrors shooter_controller.gd's check.
+	var muzzle_pos: Vector3 = global_position + Vector3(0, 0.7, 0)
+	var target_pos: Vector3 = target.global_position + Vector3(0, 0.8, 0)
+	var space_state: PhysicsDirectSpaceState3D = get_world_3d().direct_space_state
+	var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(muzzle_pos, target_pos)
+	query.collision_mask = 3  # layers 1 (terrain) + 2 (entities)
+	query.exclude = [get_rid()]
+	var result: Dictionary = space_state.intersect_ray(query)
+
+	if result.is_empty() or result.collider == target:
+		if target.has_method("take_damage"):
+			target.take_damage(attack_damage)
+	elif result.collider is StaticBody3D:
+		var wall: StaticBody3D = result.collider as StaticBody3D
+		if wall.has_meta("breakable"):
+			var rc: Node = get_node_or_null("/root/Main/RoomController")
+			if rc and rc.has_method("damage_breakable_wall"):
+				rc.damage_breakable_wall(wall)
+		if target.has_method("take_damage"):
+			target.take_damage(maxi(int(attack_damage * 0.2), 1))
 
 
 func _buff_allies() -> void:
