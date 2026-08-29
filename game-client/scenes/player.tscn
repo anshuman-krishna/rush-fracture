@@ -23,5 +23,5 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.7, 0)
 fov = 90.0
 script = ExtResource("2")
 
-[node name="WeaponManager" type="Node3D" parent="Head/Camera3D" unique_id=1462427089]
+[node name="WeaponManager" type="Node3D" parent="Head" unique_id=1462427089]
 script = ExtResource("3")
