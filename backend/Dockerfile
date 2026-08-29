@@ -13,7 +13,7 @@ ENV CGO_ENABLED=1
 RUN go build -o /out/rush-fracture-backend ./cmd
 
 FROM debian:bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates wget \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
