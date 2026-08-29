@@ -19,6 +19,7 @@ config/description="break speed. survive chaos."
 config/version="1.0.0"
 run/main_scene="res://scenes/main_menu.tscn"
 config/features=PackedStringArray("4.6")
+config/icon="res://icon.png"
 
 [display]
 
