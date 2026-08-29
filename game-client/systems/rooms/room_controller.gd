@@ -17,9 +17,9 @@ const ARENA_WALL_SEGMENTS: int = 24
 const FALL_KILL_Y: float = -20.0
 
 # "Hive Growth" obstacle set — grafted brood art lane, see testing/design-ideas.md.
-# wired into pillar / crate cluster / breakable wall / ramp below. low_wall,
-# tall_pillar, cylinder_pillar, and half_cover/barrier_arc aren't modelled at
-# all yet — see designs-usage.md's "Extending the lane".
+# all nine archetypes are modelled and wired: pillar / crate cluster /
+# breakable wall / ramp / low_wall / tall_pillar / cylinder_pillar /
+# half_cover / barrier_arc. see designs-usage.md's "Extending the lane".
 const OBSTACLE_MODEL_PATH: String = "res://assets/models/grafted-brood-obstacles.glb"
 # the carapace ramp's deck bakes a fixed slope (rotation.x = -0.42 rad on a
 # 1.5 × 2.6m box — see ramp_deck in bio-lane-models.js). _spawn_ramp derives
@@ -28,6 +28,10 @@ const OBSTACLE_MODEL_PATH: String = "res://assets/models/grafted-brood-obstacles
 const RAMP_DECK_TILT: float = 0.42
 const RAMP_NATURAL_WIDTH: float = 1.5
 const RAMP_NATURAL_LENGTH: float = 2.6
+# "split_carapace_screen"'s gap is baked at this fraction of its natural
+# length (see bio-lane-models.js); _spawn_half_cover derives gap from length
+# using the same ratio so a uniform x-scale keeps the model's gap accurate.
+const HALF_COVER_GAP_RATIO: float = 0.24
 
 var active_room: RunData.RoomData
 var enemies_alive: int = 0
@@ -680,41 +684,22 @@ func _spawn_low_wall(pos: Vector3, angle: float, room: RunData.RoomData) -> void
 	wall.position = pos
 	wall.rotation.y = angle + randf() * 0.3
 
-	var mesh: MeshInstance3D = MeshInstance3D.new()
-	var box: BoxMesh = BoxMesh.new()
-	box.size = Vector3(length, height, 0.4)
-	mesh.mesh = box
-	mesh.position.y = height / 2.0
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = _get_obstacle_color(-0.02)
-	mat.roughness = 0.9
-	mesh.material_override = mat
-
 	var col: CollisionShape3D = CollisionShape3D.new()
 	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = Vector3(length, height, 0.4)
 	col.shape = shape
 	col.position.y = height / 2.0
-
-	wall.add_child(mesh)
 	wall.add_child(col)
+
 	wall.collision_layer = 1
 	arena_root.add_child(wall)
 
-	# edge caps on the wall ends
-	for side in [-1.0, 1.0]:
-		var cap: MeshInstance3D = MeshInstance3D.new()
-		var cap_box: BoxMesh = BoxMesh.new()
-		cap_box.size = Vector3(0.12, height + 0.15, 0.5)
-		cap.mesh = cap_box
-		cap.position = Vector3(side * length * 0.5, height / 2.0, 0)
-		var cap_mat: StandardMaterial3D = StandardMaterial3D.new()
-		cap_mat.albedo_color = _get_obstacle_color(0.04)
-		cap_mat.emission_enabled = true
-		cap_mat.emission = _get_emission_color() * 0.5
-		cap_mat.emission_energy_multiplier = 0.3
-		cap.material_override = cap_mat
-		wall.add_child(cap)
+	# "rib fence" — natural size 3.46 long x 1.15 tall (measured bbox, see
+	# designs-usage.md); depth is fixed in the model so only length/height scale.
+	var model: Node3D = _load_obstacle_parts(["rib_fence"])
+	if model:
+		model.scale = Vector3(length / 3.46, height / 1.15, 1.0)
+		wall.add_child(model)
 
 
 func _spawn_crate_cluster(pos: Vector3, room: RunData.RoomData) -> void:
@@ -798,65 +783,22 @@ func _spawn_tall_pillar(pos: Vector3, room: RunData.RoomData) -> void:
 	var pillar: StaticBody3D = StaticBody3D.new()
 	pillar.position = pos
 
-	var mesh: MeshInstance3D = MeshInstance3D.new()
-	var box: BoxMesh = BoxMesh.new()
-	box.size = Vector3(width, height, width)
-	mesh.mesh = box
-	mesh.position.y = height / 2.0
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = _get_obstacle_color(-0.03)
-	mat.roughness = 0.9
-	mesh.material_override = mat
-
 	var col: CollisionShape3D = CollisionShape3D.new()
 	var shape: BoxShape3D = BoxShape3D.new()
 	shape.size = Vector3(width, height, width)
 	col.shape = shape
 	col.position.y = height / 2.0
-
-	pillar.add_child(mesh)
 	pillar.add_child(col)
+
 	pillar.collision_layer = 1
 	arena_root.add_child(pillar)
 
-	# glow cap
-	var cap: MeshInstance3D = MeshInstance3D.new()
-	var cap_box: BoxMesh = BoxMesh.new()
-	cap_box.size = Vector3(width + 0.1, 0.1, width + 0.1)
-	cap.mesh = cap_box
-	cap.position.y = height
-	var cap_mat: StandardMaterial3D = StandardMaterial3D.new()
-	cap_mat.emission_enabled = true
-	cap_mat.albedo_color = _get_emission_color()
-	cap_mat.emission = _get_emission_color()
-	cap_mat.emission_energy_multiplier = 1.2
-	cap.material_override = cap_mat
-	pillar.add_child(cap)
-
-	# base plinth
-	var base: MeshInstance3D = MeshInstance3D.new()
-	var base_box: BoxMesh = BoxMesh.new()
-	base_box.size = Vector3(width + 0.2, 0.15, width + 0.2)
-	base.mesh = base_box
-	base.position.y = 0.075
-	var base_mat: StandardMaterial3D = StandardMaterial3D.new()
-	base_mat.albedo_color = _get_obstacle_color(0.02)
-	base.material_override = base_mat
-	pillar.add_child(base)
-
-	# mid-height accent ring
-	var ring: MeshInstance3D = MeshInstance3D.new()
-	var ring_box: BoxMesh = BoxMesh.new()
-	ring_box.size = Vector3(width + 0.06, 0.05, width + 0.06)
-	ring.mesh = ring_box
-	ring.position.y = height * 0.5
-	var ring_mat: StandardMaterial3D = StandardMaterial3D.new()
-	ring_mat.emission_enabled = true
-	ring_mat.albedo_color = _get_emission_color() * 0.5
-	ring_mat.emission = _get_emission_color() * 0.5
-	ring_mat.emission_energy_multiplier = 0.4
-	ring.material_override = ring_mat
-	pillar.add_child(ring)
+	# "bone spire" — natural size 0.78 wide x 4.57 tall (measured bbox, see
+	# designs-usage.md).
+	var model: Node3D = _load_obstacle_parts(["bone_spire"])
+	if model:
+		model.scale = Vector3(width / 0.78, height / 4.57, width / 0.78)
+		pillar.add_child(model)
 
 
 func _spawn_cylinder_pillar(pos: Vector3, room: RunData.RoomData) -> void:
@@ -869,19 +811,6 @@ func _spawn_cylinder_pillar(pos: Vector3, room: RunData.RoomData) -> void:
 	var pillar: StaticBody3D = StaticBody3D.new()
 	pillar.position = pos
 
-	var mesh: MeshInstance3D = MeshInstance3D.new()
-	var cyl: CylinderMesh = CylinderMesh.new()
-	cyl.top_radius = radius
-	cyl.bottom_radius = radius
-	cyl.height = height
-	cyl.radial_segments = 12
-	mesh.mesh = cyl
-	mesh.position.y = height / 2.0
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = _get_obstacle_color(0.02)
-	mat.roughness = 0.8
-	mesh.material_override = mat
-
 	# use cylinder collision
 	var col: CollisionShape3D = CollisionShape3D.new()
 	var shape: CylinderShape3D = CylinderShape3D.new()
@@ -889,35 +818,26 @@ func _spawn_cylinder_pillar(pos: Vector3, room: RunData.RoomData) -> void:
 	shape.height = height
 	col.shape = shape
 	col.position.y = height / 2.0
-
-	pillar.add_child(mesh)
 	pillar.add_child(col)
+
 	pillar.collision_layer = 1
 	arena_root.add_child(pillar)
 
-	# glow band near top
-	var band: MeshInstance3D = MeshInstance3D.new()
-	var band_cyl: CylinderMesh = CylinderMesh.new()
-	band_cyl.top_radius = radius + 0.04
-	band_cyl.bottom_radius = radius + 0.04
-	band_cyl.height = 0.08
-	band_cyl.radial_segments = 12
-	band.mesh = band_cyl
-	band.position.y = height * 0.85
-	var band_mat: StandardMaterial3D = StandardMaterial3D.new()
-	band_mat.emission_enabled = true
-	band_mat.albedo_color = _get_emission_color()
-	band_mat.emission = _get_emission_color()
-	band_mat.emission_energy_multiplier = 0.7
-	band.material_override = band_mat
-	pillar.add_child(band)
+	# "swollen trunk" — natural radius 0.95, height 3.25 (measured bbox, see
+	# designs-usage.md).
+	var model: Node3D = _load_obstacle_parts(["swollen_trunk"])
+	if model:
+		model.scale = Vector3(radius / 0.95, height / 3.25, radius / 0.95)
+		pillar.add_child(model)
 
 
 func _spawn_half_cover(pos: Vector3, angle: float, room: RunData.RoomData) -> void:
-	# wall with a gap in the middle for shooting through
+	# wall with a gap in the middle for shooting through. the gap is derived
+	# from length rather than rolled independently, matching the fixed ratio
+	# baked into "split_carapace_screen" (see HALF_COVER_GAP_RATIO).
 	var length: float = 4.0 + randf() * 2.0
 	var height: float = 1.4 + randf() * 0.4
-	var gap: float = 1.0 + randf() * 0.5
+	var gap: float = length * HALF_COVER_GAP_RATIO
 
 	if not _try_register_obstacle(pos, Vector3(length, height, 0.4)):
 		return
@@ -926,40 +846,15 @@ func _spawn_half_cover(pos: Vector3, angle: float, room: RunData.RoomData) -> vo
 	cover.position = pos
 	cover.rotation.y = angle + randf() * 0.4
 
-	# left section
+	# left/right collision sections
 	var half_len: float = (length - gap) * 0.5
 	for side in [-1.0, 1.0]:
-		var section: MeshInstance3D = MeshInstance3D.new()
-		var box: BoxMesh = BoxMesh.new()
-		box.size = Vector3(half_len, height, 0.35)
-		section.mesh = box
-		section.position = Vector3(side * (half_len + gap) * 0.5, height / 2.0, 0)
-		var mat: StandardMaterial3D = StandardMaterial3D.new()
-		mat.albedo_color = _get_obstacle_color(-0.01)
-		mat.roughness = 0.85
-		section.material_override = mat
-		cover.add_child(section)
-
 		var col: CollisionShape3D = CollisionShape3D.new()
 		var shape: BoxShape3D = BoxShape3D.new()
 		shape.size = Vector3(half_len, height, 0.35)
 		col.shape = shape
 		col.position = Vector3(side * (half_len + gap) * 0.5, height / 2.0, 0)
 		cover.add_child(col)
-
-	# top bar connecting both halves
-	var top_bar: MeshInstance3D = MeshInstance3D.new()
-	var bar_box: BoxMesh = BoxMesh.new()
-	bar_box.size = Vector3(length, 0.15, 0.35)
-	top_bar.mesh = bar_box
-	top_bar.position.y = height
-	var bar_mat: StandardMaterial3D = StandardMaterial3D.new()
-	bar_mat.albedo_color = _get_obstacle_color(0.04)
-	bar_mat.emission_enabled = true
-	bar_mat.emission = _get_emission_color() * 0.4
-	bar_mat.emission_energy_multiplier = 0.3
-	top_bar.material_override = bar_mat
-	cover.add_child(top_bar)
 
 	var top_col: CollisionShape3D = CollisionShape3D.new()
 	var top_shape: BoxShape3D = BoxShape3D.new()
@@ -970,6 +865,15 @@ func _spawn_half_cover(pos: Vector3, angle: float, room: RunData.RoomData) -> vo
 
 	cover.collision_layer = 1
 	arena_root.add_child(cover)
+
+	# uniform x/y scale of the whole group preserves the baked gap ratio
+	# exactly (an independent gap scale would require splitting the panels
+	# into two extracted parts, which the model doesn't need). natural size
+	# 5.06 long x 1.713 tall, measured bbox — see designs-usage.md.
+	var model: Node3D = _load_obstacle_parts(["split_carapace_screen"])
+	if model:
+		model.scale = Vector3(length / 5.06, height / 1.713, 1.0)
+		cover.add_child(model)
 
 
 func _spawn_barrier_arc(pos: Vector3, angle: float, room: RunData.RoomData) -> void:
@@ -986,22 +890,13 @@ func _spawn_barrier_arc(pos: Vector3, angle: float, room: RunData.RoomData) -> v
 	arc_root.rotation.y = angle
 	arc_root.collision_layer = 1
 
+	# "rib corral" — one reusable curved-fence segment (natural 1.76 long x
+	# 1.1 tall, measured bbox) instanced per arc segment, plus a shared trim
+	# bar (natural 4.5 long); see designs-usage.md.
 	for i in segments:
 		var seg_angle: float = (float(i) / float(segments) - 0.5) * PI * 0.6
 		var seg_pos: Vector3 = Vector3(sin(seg_angle) * arc_radius, 0, cos(seg_angle) * arc_radius)
 		var seg_length: float = 2.0 * arc_radius * sin(PI * 0.6 / (2 * segments))
-
-		var mesh: MeshInstance3D = MeshInstance3D.new()
-		var box: BoxMesh = BoxMesh.new()
-		box.size = Vector3(seg_length, height, 0.3)
-		mesh.mesh = box
-		mesh.position = seg_pos + Vector3(0, height / 2.0, 0)
-		mesh.rotation.y = -seg_angle
-		var mat: StandardMaterial3D = StandardMaterial3D.new()
-		mat.albedo_color = _get_obstacle_color(0.01 * i)
-		mat.roughness = 0.85
-		mesh.material_override = mat
-		arc_root.add_child(mesh)
 
 		var col: CollisionShape3D = CollisionShape3D.new()
 		var shape: BoxShape3D = BoxShape3D.new()
@@ -1011,19 +906,18 @@ func _spawn_barrier_arc(pos: Vector3, angle: float, room: RunData.RoomData) -> v
 		col.rotation.y = -seg_angle
 		arc_root.add_child(col)
 
-	# glow trim at top
-	var trim: MeshInstance3D = MeshInstance3D.new()
-	var trim_box: BoxMesh = BoxMesh.new()
-	trim_box.size = Vector3(arc_radius * 1.5, 0.06, 0.35)
-	trim.mesh = trim_box
-	trim.position.y = height
-	var trim_mat: StandardMaterial3D = StandardMaterial3D.new()
-	trim_mat.emission_enabled = true
-	trim_mat.albedo_color = _get_emission_color()
-	trim_mat.emission = _get_emission_color()
-	trim_mat.emission_energy_multiplier = 0.5
-	trim.material_override = trim_mat
-	arc_root.add_child(trim)
+		var model: Node3D = _load_obstacle_parts(["corral_segment"])
+		if model:
+			model.scale = Vector3(seg_length / 1.76, height / 1.1, 1.0)
+			model.position = seg_pos
+			model.rotation.y = -seg_angle
+			arc_root.add_child(model)
+
+	var trim: Node3D = _load_obstacle_parts(["corral_trim"])
+	if trim:
+		trim.scale = Vector3(arc_radius * 1.5 / 4.5, 1.0, 1.0)
+		trim.position.y = height
+		arc_root.add_child(trim)
 
 	arena_root.add_child(arc_root)
 
