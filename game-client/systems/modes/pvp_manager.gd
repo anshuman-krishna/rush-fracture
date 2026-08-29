@@ -93,9 +93,15 @@ func _apply_pvp_damage(target_peer: int, damage: int, attacker_peer: int) -> voi
 	_pvp_health[target_peer] = maxi(_pvp_health.get(target_peer, 0) - damage, 0)
 	_game_mode.register_damage_dealt(attacker_peer, damage)
 
-	# apply visual damage to the actual player (fraction of pvp damage)
+	# apply visual damage to the actual player (fraction of pvp damage).
+	# _apply_pvp_damage runs on every peer (host directly, everyone else via
+	# the _rpc_pvp_damage broadcast below) — take_damage() now forwards to
+	# the target's owning peer when called by a non-owner, so without this
+	# authority check every other peer's redundant forwarded RPC would land
+	# on top of the target's own direct application, multiplying the hit
+	# once per connected peer.
 	var target_player: CharacterBody3D = _find_player_by_peer(target_peer)
-	if target_player and target_player.has_method("take_damage"):
+	if target_player and target_player.has_method("take_damage") and target_player.is_multiplayer_authority():
 		target_player.take_damage(ceili(damage / 3))
 
 	if _pvp_health[target_peer] <= 0:

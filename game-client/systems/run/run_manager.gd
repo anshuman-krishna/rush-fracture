@@ -84,7 +84,7 @@ func apply_upgrade(upgrade: Dictionary) -> void:
 
 
 func fail_run() -> void:
-	if not data:
+	if not data or data.status != RunData.RunStatus.ACTIVE:
 		return
 	data.status = RunData.RunStatus.FAILED
 	is_active = false
@@ -92,7 +92,13 @@ func fail_run() -> void:
 
 
 func complete_run() -> void:
-	if not data:
+	# guards against double-completion — in co-op, both host and a client can
+	# now independently reach "final room, nothing left to offer" and each
+	# call this (game_manager._complete_run() routes a client's call through
+	# the host, but two near-simultaneous calls on the host itself, one
+	# direct and one via a client's request, would otherwise both go
+	# through and double-fire run_completed, double-saving run rewards).
+	if not data or data.status != RunData.RunStatus.ACTIVE:
 		return
 	data.status = RunData.RunStatus.COMPLETED
 	is_active = false
