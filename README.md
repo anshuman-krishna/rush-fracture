@@ -63,7 +63,7 @@ each run is short but plays differently depending on build choices.
 
 ## enemies
 
-seven enemy types with distinct behaviors:
+eight enemy types with distinct behaviors:
 
 | type | role |
 |------|------|

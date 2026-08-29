@@ -1,7 +1,7 @@
 class_name OnboardingOverlay
 extends Control
 
-# shows controls once on first run. dismissed with any key or click.
+# shows controls once on first run. dismissed with any key, click, or gamepad button.
 
 signal dismissed
 
@@ -28,6 +28,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
 		should_dismiss = true
 	elif event is InputEventMouseButton and event.pressed:
+		should_dismiss = true
+	elif event is InputEventJoypadButton and event.pressed:
 		should_dismiss = true
 	if should_dismiss:
 		_dismiss()
