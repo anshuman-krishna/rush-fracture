@@ -1,6 +1,6 @@
 // Rush Fracture — "Grafted Brood" bio-mechanical art lane.
 // One shared material set + one shared vocabulary of parts across every entity,
-// so nine unrelated silhouettes still read as the same world.
+// so fourteen unrelated silhouettes still read as the same world.
 // Units: meters, y-up, each object recentered with its lowest point at y=0.
 // Every mesh + material is named: OBJ o/usemtl entries and GLB node names.
 
@@ -547,6 +547,68 @@ function obstacles(THREE, c, root) {
   ribStack(grp(ramp, 'ramp_rib_grp', [0, 0.62, 0], [-0.42, 0, 0]), 'ramp_rib', M.bone, { count: 6, from: -1.1, to: 1.1, r0: 0.76, r1: 0.76, tube: 0.05 });
   add(ramp, new THREE.BoxGeometry(1.5, 0.06, 2.6), M.glow, 'ramp_seam', [0, 0.57, 0], [-0.42, 0, 0]);
   [-1, 1].forEach((s) => add(ramp, new THREE.CylinderGeometry(0.13, 0.2, 1.1, 14), M.chitin, `ramp_root_${s > 0 ? 'r' : 'l'}`, [s * 0.6, 0.5, 0.95], [0.2, 0, 0]));
+
+  // Rib fence (low wall) — a run of bone hoops stitched with a chitin pane,
+  // rooted at both ends. Natural bbox 3.46 long x 1.15 tall (end posts stand
+  // taller than the pane itself, same overshoot idea as the old glow caps).
+  const fence = grp(root, 'rib_fence', [-3.6, 0, -1.1]);
+  add(fence, new THREE.BoxGeometry(3.2, 0.8, 0.3), M.chitin, 'fence_pane', [0, 0.4, 0]);
+  for (let i = 0; i < 5; i++) {
+    const x = -1.6 + (i / 4) * 3.2;
+    add(fence, new THREE.TorusGeometry(0.42, 0.035, 10, 20), M.bone, `fence_rib_${i + 1}`, [x, 0.42, 0], [0, Math.PI / 2, 0]);
+  }
+  add(fence, new THREE.BoxGeometry(3.0, 0.05, 0.34), M.glow, 'fence_seam', [0, 0.82, 0]);
+  [-1, 1].forEach((s) => add(fence, new THREE.CylinderGeometry(0.09, 0.13, 1.15, 12), M.bone, `fence_root_${s > 0 ? 'r' : 'l'}`, [s * 1.6, 0.575, 0]));
+
+  // Bone spire (tall pillar) — a thin tapering spike; a pulse ring at its
+  // waist and a beacon gland at its crown. Natural bbox 0.78 wide x 4.57 tall.
+  const spire = grp(root, 'bone_spire', [-4.5, 0, 1.4]);
+  add(spire, new THREE.CylinderGeometry(0.18, 0.33, 4.05, 16), M.chitin, 'spire_trunk', [0, 2.03, 0]);
+  ribStack(spire, 'spire_rib', M.bone, { count: 8, from: 0.3, to: 3.8, r0: 0.34, r1: 0.14, tube: 0.04, axis: 'y' });
+  add(spire, new THREE.SphereGeometry(0.39, 22, 16), M.chitin, 'spire_root_mass', [0, 0.13, 0], [0, 0, 0], [1, 0.4, 1]);
+  add(spire, new THREE.ConeGeometry(0.14, 0.4, 10), M.bone, 'spire_crown', [0, 4.14, 0]);
+  add(spire, new THREE.SphereGeometry(0.16, 18, 14), M.glow, 'beacon_gland', [0, 4.41, 0]);
+  add(spire, new THREE.TorusGeometry(0.22, 0.03, 10, 20), M.glow, 'spire_pulse_ring', [0, 2.25, 0], [Math.PI / 2, 0, 0]);
+
+  // Swollen trunk (cylinder pillar) — a barrel-shaped growth still visibly
+  // budding; membrane blisters on the girth. Natural bbox radius 0.95 (the
+  // blisters bulge past the shell's own 0.72), height 3.25.
+  const trunk = grp(root, 'swollen_trunk', [-2.0, 0, 2.2]);
+  add(trunk, new THREE.CylinderGeometry(0.6, 0.72, 3.25, 18), M.chitin, 'trunk_shell', [0, 1.625, 0]);
+  ribStack(trunk, 'trunk_band', M.bone, { count: 5, from: 0.3, to: 2.95, r0: 0.76, r1: 0.75, tube: 0.05, axis: 'y' });
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    add(trunk, new THREE.SphereGeometry(0.19, 16, 12), M.membrane, `trunk_blister_${i + 1}`, [Math.cos(a) * 0.68, 1.8, Math.sin(a) * 0.68]);
+  }
+  add(trunk, new THREE.TorusGeometry(0.9, 0.05, 12, 24), M.glow, 'trunk_crown_band', [0, 2.86, 0], [Math.PI / 2, 0, 0]);
+
+  // Split carapace screen (half cover) — two panels fused to one rib bridge
+  // with the gap left open on purpose, not blown out. Designed against a
+  // 5.0 long baseline with the gap baked at 0.24 of that (see
+  // HALF_COVER_GAP_RATIO); natural bbox comes out to 5.06 long x 1.713 tall
+  // once the gap posts' bulge is counted.
+  const screen = grp(root, 'split_carapace_screen', [0.5, 0, 2.6]);
+  const hcGap = 5.0 * 0.24;
+  const hcHalf = (5.0 - hcGap) / 2;
+  [-1, 1].forEach((s) => {
+    const panel = grp(screen, `screen_panel_${s > 0 ? 'r' : 'l'}`, [s * (hcHalf / 2 + hcGap / 2), 0, 0]);
+    add(panel, new THREE.BoxGeometry(hcHalf, 1.4, 0.32), M.chitin, `panel_shell_${s > 0 ? 'r' : 'l'}`, [0, 0.7, 0]);
+    ribStack(panel, `panel_band_${s > 0 ? 'r' : 'l'}`, M.bone, { count: 3, from: 0.25, to: 1.28, r0: hcHalf * 0.5, r1: hcHalf * 0.46, tube: 0.03, axis: 'y' });
+    add(panel, new THREE.CylinderGeometry(0.06, 0.08, 1.52, 10), M.bone, `gap_post_${s > 0 ? 'r' : 'l'}`, [-s * hcHalf / 2, 0.76, 0]);
+  });
+  add(screen, new THREE.BoxGeometry(5.0, 0.14, 0.34), M.bone, 'bridge_bar', [0, 1.6, 0]);
+  add(screen, new THREE.BoxGeometry(4.6, 0.045, 0.36), M.glow, 'bridge_seam', [0, 1.69, 0]);
+
+  // Rib corral (barrier arc) — one reusable curved-fence segment plus a trim
+  // bar; the game instances this segment three times per arc. Natural bbox:
+  // segment 1.76 long x 1.1 tall; trim bar 4.5 long.
+  const seg = grp(root, 'corral_segment', [-5.6, 0, -2.3]);
+  add(seg, new THREE.BoxGeometry(1.7, 1.1, 0.3), M.chitin, 'segment_shell', [0, 0.55, 0]);
+  ribStack(seg, 'segment_rib', M.bone, { count: 3, from: 0.25, to: 1.02, r0: 0.85, r1: 0.78, tube: 0.03, axis: 'y' });
+  add(seg, new THREE.BoxGeometry(1.53, 0.05, 0.33), M.glow, 'segment_seam', [0, 1.07, 0]);
+
+  const trimBar = grp(root, 'corral_trim', [-5.6, 0, -3.1]);
+  add(trimBar, new THREE.BoxGeometry(4.5, 0.06, 0.35), M.glow, 'trim_band', [0, 0, 0]);
 }
 
 const BUILDERS = { pulse_rifle: pulseRifle, scatter_cannon: scatterCannon, beam_emitter: beamEmitter, chaser, tank, sniper, shooter, dasher, exploder, support, displacer, titan, warden, obstacles };
