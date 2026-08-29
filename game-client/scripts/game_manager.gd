@@ -495,8 +495,9 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 		if is_host_or_solo() and game_mode.should_start_encounter():
 			_transition_to_pvp()
 			return
-		# race rooms still grant upgrades if flagged, then continue
-		if room.reward_flag and is_host_or_solo():
+		# race rooms still grant upgrades if flagged, then continue — every
+		# peer picks their own (see the note below on the main co-op path)
+		if room.reward_flag:
 			_show_upgrade_selection()
 			return
 		if not run_manager.data.is_final_room():
@@ -512,17 +513,18 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 				_transition_to_pvp()
 			return
 		# pvp rooms also allow upgrades
-		if room.reward_flag and is_host_or_solo():
+		if room.reward_flag:
 			_show_upgrade_selection()
 			return
 		_prompt_next_room()
 		return
 
-	# clients wait for host-driven room transitions
-	if not is_host_or_solo():
-		_prompt_next_room()
-		return
-
+	# upgrade/mutation choices are per-player content — each peer (host and
+	# clients alike) independently rolls and applies their own, same as
+	# solo. only genuinely shared state (advancing the room, completing the
+	# run) stays host-authoritative; _complete_run() below routes itself
+	# through the host on a client's behalf, mirroring _advance_room's
+	# request/broadcast RPC pair, so it's safe to call from any peer.
 	if room.type == RoomDefinitions.RoomType.BOSS:
 		_pending_mutation_after_upgrade = true
 		_show_upgrade_selection()
@@ -544,9 +546,24 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 
 
 func _complete_run() -> void:
+	# safe to call from any peer (clients reach this too now that upgrade/
+	# mutation selection runs per-player) — a non-host peer can't legally
+	# invoke _rpc_complete_run itself (it's authority-only), so it asks the
+	# host to complete the run instead, mirroring _advance_room's
+	# request/broadcast pair.
+	if not is_host_or_solo():
+		if _is_online():
+			_rpc_request_complete_run.rpc_id(1)
+		return
 	run_manager.complete_run()
 	if _is_online():
 		_rpc_complete_run.rpc()
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_request_complete_run() -> void:
+	if is_host_or_solo():
+		_complete_run()
 
 
 @rpc("authority", "call_remote", "reliable")

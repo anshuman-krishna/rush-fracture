@@ -1194,7 +1194,11 @@ func _place_spike_zone(index: int, total: int) -> void:
 
 	var can_damage: bool = true
 	zone.body_entered.connect(func(body):
-		if body.is_in_group("player") and body.has_method("take_damage") and can_damage:
+		# every peer builds its own local copy of this hazard (see
+		# _place_hazards) — without the authority check, a remote player's
+		# locally-rendered replica would trip this zone on every peer
+		# watching it, each independently damaging the real, owning client.
+		if body.is_in_group("player") and body.has_method("take_damage") and body.is_multiplayer_authority() and can_damage:
 			body.take_damage(8)
 			can_damage = false
 			get_tree().create_timer(0.5).timeout.connect(func(): can_damage = true)
@@ -1242,7 +1246,9 @@ func _place_damage_tile(index: int, total: int) -> void:
 
 	var can_damage: bool = true
 	tile.body_entered.connect(func(body):
-		if body.is_in_group("player") and body.has_method("take_damage") and can_damage:
+		# see _place_spike_zone's comment — every peer has its own local copy
+		# of this hazard, so this must only fire for this peer's own player.
+		if body.is_in_group("player") and body.has_method("take_damage") and body.is_multiplayer_authority() and can_damage:
 			body.take_damage(5)
 			can_damage = false
 			get_tree().create_timer(0.4).timeout.connect(func(): can_damage = true)
@@ -1298,7 +1304,9 @@ func _place_lava_pit(index: int, total: int) -> void:
 
 	var can_damage: bool = true
 	pit.body_entered.connect(func(body):
-		if body.is_in_group("player") and body.has_method("take_damage") and can_damage:
+		# see _place_spike_zone's comment — every peer has its own local copy
+		# of this hazard, so this must only fire for this peer's own player.
+		if body.is_in_group("player") and body.has_method("take_damage") and body.is_multiplayer_authority() and can_damage:
 			body.take_damage(10)
 			can_damage = false
 			get_tree().create_timer(0.6).timeout.connect(func(): can_damage = true)
