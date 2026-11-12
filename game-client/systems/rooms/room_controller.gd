@@ -16,10 +16,10 @@ const ARENA_WALL_HEIGHT: float = 6.0
 const ARENA_WALL_SEGMENTS: int = 24
 const FALL_KILL_Y: float = -20.0
 
-# "Hive Growth" obstacle set — grafted brood art lane, see testing/design-ideas.md.
+# "Hive Growth" obstacle set — grafted brood art lane.
 # all nine archetypes are modelled and wired: pillar / crate cluster /
 # breakable wall / ramp / low_wall / tall_pillar / cylinder_pillar /
-# half_cover / barrier_arc. see designs-usage.md's "Extending the lane".
+# half_cover / barrier_arc.
 const OBSTACLE_MODEL_PATH: String = "res://assets/models/grafted-brood-obstacles.glb"
 # the carapace ramp's deck bakes a fixed slope (rotation.x = -0.42 rad on a
 # 1.5 × 2.6m box — see ramp_deck in bio-lane-models.js). _spawn_ramp derives
@@ -51,8 +51,8 @@ var _placed_obstacles: Array[AABB] = []
 # hazard rooms don't all read as the same uniform ring of cover. RING keeps
 # the original behavior. Every pattern below draws exactly the same number
 # of random values per obstacle as RING did, so it doesn't change how many
-# randf()/randi() calls a room consumes overall — see room_controller's
-# "both peers get identical layout" invariant in testing/CLAUDE.md.
+# randf()/randi() calls a room consumes overall, which
+# keeps the "both peers get identical layout" invariant intact.
 enum ObstacleLayoutPattern { RING, CLUSTERS, CORRIDOR }
 var _obstacle_layout_pattern: int = ObstacleLayoutPattern.RING
 
@@ -703,8 +703,8 @@ func _spawn_pillar(pos: Vector3, room: RunData.RoomData) -> void:
 	col.position.y = height / 2.0
 	pillar.add_child(col)
 
-	# "rib-arch pillar" — natural size ~1.1 wide, ~3.44 tall (see bounds in
-	# designs-usage.md); scaled non-uniformly to fit this instance's rolled
+	# "rib-arch pillar" — natural size ~1.1 wide, ~3.44 tall;
+	# scaled non-uniformly to fit this instance's rolled
 	# footprint, same way the old procedural box was stretched to size.
 	var model: Node3D = _load_obstacle_parts(["pillar_rib_arch"])
 	if model:
@@ -736,8 +736,8 @@ func _spawn_low_wall(pos: Vector3, angle: float, room: RunData.RoomData) -> void
 	wall.collision_layer = 1
 	arena_root.add_child(wall)
 
-	# "rib fence" — natural size 3.46 long x 1.15 tall (measured bbox, see
-	# designs-usage.md); depth is fixed in the model so only length/height scale.
+	# "rib fence" — natural size 3.46 long x 1.15 tall (measured bbox);
+	# depth is fixed in the model so only length/height scale.
 	var model: Node3D = _load_obstacle_parts(["rib_fence"])
 	if model:
 		model.scale = Vector3(length / 3.46, height / 1.15, 1.0)
@@ -748,8 +748,8 @@ func _spawn_crate_cluster(pos: Vector3, room: RunData.RoomData) -> void:
 	if not _try_register_obstacle(pos, Vector3(3, 1.5, 3)):
 		return
 
-	# "egg-sac cluster" — 4 sac variants in the model, natural sizes below
-	# (see designs-usage.md); cycled across crates and scaled to each rolled
+	# "egg-sac cluster" — 4 sac variants in the model, natural sizes below;
+	# cycled across crates and scaled to each rolled
 	# footprint, same non-uniform-stretch approach as the pillar.
 	var egg_sizes: Array[float] = [0.84, 0.68, 0.6, 0.6]
 
@@ -835,8 +835,7 @@ func _spawn_tall_pillar(pos: Vector3, room: RunData.RoomData) -> void:
 	pillar.collision_layer = 1
 	arena_root.add_child(pillar)
 
-	# "bone spire" — natural size 0.78 wide x 4.57 tall (measured bbox, see
-	# designs-usage.md).
+	# "bone spire" — natural size 0.78 wide x 4.57 tall (measured bbox).
 	var model: Node3D = _load_obstacle_parts(["bone_spire"])
 	if model:
 		model.scale = Vector3(width / 0.78, height / 4.57, width / 0.78)
@@ -865,8 +864,7 @@ func _spawn_cylinder_pillar(pos: Vector3, room: RunData.RoomData) -> void:
 	pillar.collision_layer = 1
 	arena_root.add_child(pillar)
 
-	# "swollen trunk" — natural radius 0.95, height 3.25 (measured bbox, see
-	# designs-usage.md).
+	# "swollen trunk" — natural radius 0.95, height 3.25 (measured bbox).
 	var model: Node3D = _load_obstacle_parts(["swollen_trunk"])
 	if model:
 		model.scale = Vector3(radius / 0.95, height / 3.25, radius / 0.95)
@@ -911,7 +909,7 @@ func _spawn_half_cover(pos: Vector3, angle: float, room: RunData.RoomData) -> vo
 	# uniform x/y scale of the whole group preserves the baked gap ratio
 	# exactly (an independent gap scale would require splitting the panels
 	# into two extracted parts, which the model doesn't need). natural size
-	# 5.06 long x 1.713 tall, measured bbox — see designs-usage.md.
+	# 5.06 long x 1.713 tall, measured bbox.
 	var model: Node3D = _load_obstacle_parts(["split_carapace_screen"])
 	if model:
 		model.scale = Vector3(length / 5.06, height / 1.713, 1.0)
@@ -934,7 +932,7 @@ func _spawn_barrier_arc(pos: Vector3, angle: float, room: RunData.RoomData) -> v
 
 	# "rib corral" — one reusable curved-fence segment (natural 1.76 long x
 	# 1.1 tall, measured bbox) instanced per arc segment, plus a shared trim
-	# bar (natural 4.5 long); see designs-usage.md.
+	# bar (natural 4.5 long).
 	for i in segments:
 		var seg_angle: float = (float(i) / float(segments) - 0.5) * PI * 0.6
 		var seg_pos: Vector3 = Vector3(sin(seg_angle) * arc_radius, 0, cos(seg_angle) * arc_radius)
@@ -1073,7 +1071,7 @@ func _spawn_breakable_wall(pos: Vector3, angle: float, room: RunData.RoomData) -
 	wall.add_child(col)
 
 	# "breakable membrane wall" — already visibly cracked (wall_fissure_1..5).
-	# natural size ~2.23 wide, ~2.02 tall (see bounds in designs-usage.md);
+	# natural size ~2.23 wide, ~2.02 tall;
 	# scaled non-uniformly to fit this instance's rolled footprint.
 	var model: Node3D = _load_obstacle_parts(["breakable_membrane_wall"])
 	if model:

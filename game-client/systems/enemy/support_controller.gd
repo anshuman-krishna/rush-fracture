@@ -180,5 +180,5 @@ func _face_target() -> void:
 
 
 func _build_visual() -> void:
-	# "Choir Spore" — grafted brood art lane, see testing/design-ideas.md.
+	# "Choir Spore" — grafted brood art lane.
 	_load_visual_model("res://assets/models/grafted-brood-support.glb")

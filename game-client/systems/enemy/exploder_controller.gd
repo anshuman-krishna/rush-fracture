@@ -92,7 +92,7 @@ func _on_died() -> void:
 
 
 func _build_visual() -> void:
-	# "Swelling Spore" — grafted brood art lane, see testing/design-ideas.md.
+	# "Swelling Spore" — grafted brood art lane.
 	# fuse_core is the urgency readout _update_urgency() brightens as it closes in.
 	var model: Node3D = _load_visual_model("res://assets/models/grafted-brood-exploder.glb")
 	if model:

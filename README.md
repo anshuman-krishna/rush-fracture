@@ -5,10 +5,6 @@ a fast-paced fps roguelike built in godot 4.6, with procedural runs, build varie
 
 ---
 
-**quick note:** before anything else, i started this project without knowing gdscript. this project is co-developed with claude, which helped me learn godot scripting, structure systems properly, and assist with testing and validation throughout development.
-
----
-
 ## current state
 
 the core loop is complete and playable end to end: procedural rooms, 8 enemy types, 2 bosses, 26 upgrades, 8 mutations, 7 fracture events, persistent meta progression, and co-op/race/pvp multiplayer.

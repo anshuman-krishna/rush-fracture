@@ -28,7 +28,7 @@ func _create_viewmodel() -> void:
 
 ## loads an imported weapon model (e.g. a .glb) as the viewmodel and places a
 ## Muzzle marker at the given local offset (measured against the model's own
-## grip, per grip_lift below — see testing/design-ideas.md for the art lane).
+## grip, per grip_lift below).
 func _build_viewmodel_model(path: String, muzzle_offset: Vector3, grip_lift: float) -> Node3D:
 	var root: Node3D = Node3D.new()
 	root.name = "Viewmodel"

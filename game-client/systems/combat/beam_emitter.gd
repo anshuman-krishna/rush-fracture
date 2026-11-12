@@ -39,7 +39,7 @@ func _ready() -> void:
 
 
 func _create_viewmodel() -> void:
-	# "Stinger" — grafted brood art lane, see testing/design-ideas.md. the
+	# "Stinger" — grafted brood art lane. the
 	# three heat sacs on the model are the heat meter; offsets below are
 	# measured against the model's own emission_tip/grip_shaft nodes.
 	viewmodel = _build_viewmodel_model(

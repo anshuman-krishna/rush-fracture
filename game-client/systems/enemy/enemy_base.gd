@@ -77,8 +77,7 @@ func _find_target() -> void:
 ## melee enemies used to walk straight at the target and permanently get
 ## stuck against room obstacles (a pillar was enough to fully neutralize
 ## them); this is a lightweight steer-around fallback, not real pathfinding
-## (no NavigationAgent3D/navmesh — see REMAINING.md for why that's a bigger,
-## harder-to-verify change).
+## (no NavigationAgent3D/navmesh).
 func _steer_around_obstacles(desired_direction: Vector3) -> Vector3:
 	var flat_dir: Vector3 = desired_direction
 	flat_dir.y = 0

@@ -194,7 +194,7 @@ func _face_target() -> void:
 
 
 func _build_visual() -> void:
-	# "Phase Wraith" — grafted brood art lane, see testing/design-ideas.md.
+	# "Phase Wraith" — grafted brood art lane.
 	# phase_core is what _show_warp_out()/_show_warp_in() flash-brighten.
 	var model: Node3D = _load_visual_model("res://assets/models/grafted-brood-displacer.glb")
 	if model:

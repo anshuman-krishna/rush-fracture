@@ -73,5 +73,5 @@ func _update_attack_timer(delta: float) -> void:
 
 
 func _build_visual() -> void:
-	# "Ripper Hound" — grafted brood art lane, see testing/design-ideas.md
+	# "Ripper Hound" — grafted brood art lane
 	_load_visual_model("res://assets/models/grafted-brood-chaser.glb")

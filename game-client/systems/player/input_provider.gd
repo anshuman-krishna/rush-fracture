@@ -3,8 +3,8 @@ extends RefCounted
 
 # abstraction for player input.
 # default implementation reads from godot Input singleton, blended with
-# direct gamepad polling (added without touching project.godot's input map
-# — see REMAINING.md for why: a malformed hand-edit to that file's
+# direct gamepad polling (added without touching project.godot's input map:
+# a malformed hand-edit to that file's
 # serialized InputEvent resources risks breaking the whole project in a
 # way that isn't verifiable without a godot install).
 # override for AI, network, or replay input sources.

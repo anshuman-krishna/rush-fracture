@@ -117,7 +117,7 @@ func _face_target() -> void:
 
 
 func _build_visual() -> void:
-	# "Brood Hulk" — grafted brood art lane, see testing/design-ideas.md.
+	# "Brood Hulk" — grafted brood art lane.
 	# the abdomen (brood_core / abdomen_seam_N) is the model's own HP readout;
 	# nothing here needs to drive it manually.
 	_load_visual_model("res://assets/models/grafted-brood-tank.glb")

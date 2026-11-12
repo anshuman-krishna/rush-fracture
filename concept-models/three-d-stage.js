@@ -1,5 +1,3 @@
-// @ds-adherence-ignore -- omelette starter scaffold (raw elements/hex/px by design)
-// Copied omelette starter. Re-running copy_starter_component with this kind overwrites this file with the latest version (page content is unaffected).
 /* BEGIN USAGE */
 /**
  * <three-d-stage> — 3D object viewer + exporter shell (three.js).
@@ -13,7 +11,7 @@
  *
  * three.js loads through the page's import map. Include this EXACT pinned
  * map in <head>, before any module runs — versions and integrity hashes
- * stay together (same map the "3D object" skill mandates):
+ * stay together:
  *
  *   <script type="importmap">
  *   {
@@ -131,19 +129,6 @@
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 4000);
-  }
-
-  /** Tell the host an export attempt settled — telemetry only. The host
-   *  (HTMLViewer) verifies the source and re-reads these fields defensively
-   *  before counting; nothing else crosses the frame boundary. Guarded so
-   *  telemetry can never break the download path. */
-  function notifyExport(format, ok) {
-    try {
-      window.parent.postMessage(
-        { type: 'omelette:notify-3d-export', format: format, ok: ok === true },
-        '*'
-      );
-    } catch (e) {}
   }
 
   class ThreeDStage extends HTMLElement {
@@ -378,19 +363,11 @@
       return mats;
     }
 
-    /** One export attempt, reported to the host however it settles.
-     *  Rethrows so a failure stays visible on the guest console exactly as
-     *  before. The no-object early return is not an attempt (the toolbar is
-     *  disabled until the model loads) and reports nothing. */
+    /** One export attempt. The no-object early return is not an attempt
+     *  (the toolbar is disabled until the model loads). */
     async _runExport(format) {
       if (!this._object) return;
-      try {
-        await (format === 'obj' ? this._exportObj() : this._exportGlb());
-        notifyExport(format, true);
-      } catch (err) {
-        notifyExport(format, false);
-        throw err;
-      }
+      await (format === 'obj' ? this._exportObj() : this._exportGlb());
     }
 
     async _exportObj() {

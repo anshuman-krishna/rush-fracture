@@ -27,7 +27,7 @@ func _ready() -> void:
 
 
 func _create_viewmodel() -> void:
-	# "Sporecaster" — grafted brood art lane, see testing/design-ideas.md.
+	# "Sporecaster" — grafted brood art lane.
 	# offsets measured against the model's own nostril_gland_1/grip_shaft nodes.
 	viewmodel = _build_viewmodel_model(
 		"res://assets/models/grafted-brood-scatter_cannon.glb",

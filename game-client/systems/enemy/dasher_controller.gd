@@ -108,5 +108,5 @@ func _face_target() -> void:
 
 
 func _build_visual() -> void:
-	# "Blink Fang" — grafted brood art lane, see testing/design-ideas.md.
+	# "Blink Fang" — grafted brood art lane.
 	_load_visual_model("res://assets/models/grafted-brood-dasher.glb")

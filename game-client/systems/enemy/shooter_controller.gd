@@ -167,5 +167,5 @@ func _face_target() -> void:
 
 
 func _build_visual() -> void:
-	# "Spore Marksman" — grafted brood art lane, see testing/design-ideas.md.
+	# "Spore Marksman" — grafted brood art lane.
 	_load_visual_model("res://assets/models/grafted-brood-shooter.glb")

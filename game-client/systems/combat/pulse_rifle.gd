@@ -26,7 +26,7 @@ func _ready() -> void:
 
 
 func _create_viewmodel() -> void:
-	# "Grafted Carbine" — grafted brood art lane, see testing/design-ideas.md.
+	# "Grafted Carbine" — grafted brood art lane.
 	# offsets measured against the model's own muzzle_gland/grip_shaft nodes.
 	viewmodel = _build_viewmodel_model(
 		"res://assets/models/grafted-brood-pulse_rifle.glb",

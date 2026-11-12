@@ -229,7 +229,7 @@ func _on_died() -> void:
 
 
 func _build_visual() -> void:
-	# "Ovipositor Stalk" — grafted brood art lane, see testing/design-ideas.md.
+	# "Ovipositor Stalk" — grafted brood art lane.
 	# the aperture gland is the beam-origin point on the barrel-limb; used as
 	# the muzzle-flash target below.
 	var model: Node3D = _load_visual_model("res://assets/models/grafted-brood-sniper.glb")

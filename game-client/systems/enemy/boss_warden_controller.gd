@@ -251,7 +251,7 @@ func _spawn_arena_hazard() -> void:
 # --- visuals ---
 
 func _build_visual() -> void:
-	# "Brood Warden" — grafted brood art lane, see testing/design-ideas.md.
+	# "Brood Warden" — grafted brood art lane.
 	# the iris shell opening = shield down is modelled in; this just needs a
 	# core mesh for telegraph-color signaling.
 	var model: Node3D = _load_visual_model("res://assets/models/grafted-brood-warden.glb")
