@@ -62,6 +62,12 @@ func _explode() -> void:
 		if target.has_method("take_damage"):
 			target.take_damage(explosion_damage)
 
+	# a contact detonation has to go through the health component like any
+	# other death, otherwise the room never hears about it and its
+	# enemies-alive count stays stuck above zero forever.
+	if health and health.is_alive():
+		health._apply_damage(health.max_health * 10)
+
 	_play_explosion()
 
 
@@ -84,11 +90,10 @@ func _face_target() -> void:
 
 
 func _on_died() -> void:
+	# shot dead: go off where it stands. if it is already mid-detonation
+	# (this was raised from inside _explode), there is nothing left to do.
 	if not has_exploded:
 		_explode()
-	else:
-		is_dying = true
-		_play_death()
 
 
 func _build_visual() -> void:

@@ -174,7 +174,7 @@ func _spawn_warp_particles(pos: Vector3) -> void:
 	mat.emission_energy_multiplier = 2.5
 	indicator.material_override = mat
 
-	indicator.global_position = Vector3(pos.x, 0.1, pos.z)
+	indicator.position = Vector3(pos.x, 0.1, pos.z)
 	get_tree().root.add_child(indicator)
 
 	var tween: Tween = get_tree().create_tween()

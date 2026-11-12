@@ -56,7 +56,7 @@ func _spawn_player_for_peer(peer_id: int) -> CharacterBody3D:
 
 	# offset spawn position per player
 	var player_index: int = _spawned_players.size()
-	instance.global_position = Vector3(player_index * 3.0, 2, 0)
+	instance.position = Vector3(player_index * 3.0, 2, 0)
 
 	# disable input for remote players
 	var is_local: bool = peer_id == _network_manager.local_peer_id

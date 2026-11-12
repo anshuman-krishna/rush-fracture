@@ -327,7 +327,7 @@ func _spawn_flat_ring_visual(radius: float, albedo: Color, emission: Color, ener
 	mat.emission_energy_multiplier = energy
 	indicator.material_override = mat
 
-	indicator.global_position = Vector3(global_position.x, 0.1, global_position.z)
+	indicator.position = Vector3(global_position.x, 0.1, global_position.z)
 	get_tree().root.add_child(indicator)
 
 	var tween: Tween = get_tree().create_tween()
@@ -356,7 +356,7 @@ func _spawn_expanding_ring_visual(target_radius: float, albedo: Color, emission:
 	mat.emission_energy_multiplier = energy
 	ring.material_override = mat
 
-	ring.global_position = Vector3(global_position.x, 0.1, global_position.z)
+	ring.position = Vector3(global_position.x, 0.1, global_position.z)
 	get_tree().root.add_child(ring)
 
 	var tween: Tween = get_tree().create_tween()

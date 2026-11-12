@@ -143,7 +143,7 @@ func _spawn_enemies(room: RunData.RoomData) -> void:
 
 		var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
 		instance.name = "Enemy_%d" % i
-		instance.global_position = _get_spawn_position()
+		instance.position = _get_spawn_position()
 
 		var elite_unit: bool = is_full_elite_room or (is_elite_room and i == 0)
 		_scale_enemy(instance, room.difficulty, elite_unit)
@@ -168,7 +168,7 @@ func _spawn_boss(room: RunData.RoomData) -> void:
 
 	active_boss = _boss_scene.instantiate() as BossController
 	active_boss.name = "Boss_0"
-	active_boss.global_position = Vector3(0, 1.0, -15.0)
+	active_boss.position = Vector3(0, 1.0, -15.0)
 
 	# scale boss health by difficulty
 	var bh: HealthComponent = active_boss.get_node_or_null("HealthComponent") as HealthComponent
@@ -189,7 +189,7 @@ func _spawn_warden(room: RunData.RoomData) -> void:
 
 	active_boss = _warden_scene.instantiate() as BossWardenController
 	active_boss.name = "BossWarden_0"
-	active_boss.global_position = Vector3(0, 1.0, -12.0)
+	active_boss.position = Vector3(0, 1.0, -12.0)
 
 	var bh: HealthComponent = active_boss.get_node_or_null("HealthComponent") as HealthComponent
 	if bh:
@@ -222,7 +222,7 @@ func _spawn_gauntlet_wave(room: RunData.RoomData) -> void:
 
 		var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
 		instance.name = "GauntletEnemy_%d_%d" % [_gauntlet_waves_remaining, i]
-		instance.global_position = _get_spawn_position()
+		instance.position = _get_spawn_position()
 		_scale_enemy(instance, room.difficulty, false)
 
 		var speed_bonus: float = room.metadata.get("enemy_speed_bonus", 0.0)
@@ -678,7 +678,10 @@ func _load_obstacle_parts(names: Array) -> Node3D:
 		var part: Node3D = diorama.find_child(n, true, false) as Node3D
 		if not part:
 			continue
-		diorama.remove_child(part)
+		# parts sit under an intermediate group node in the imported scene,
+		# not directly under its root, so detach from the real parent.
+		part.get_parent().remove_child(part)
+		part.owner = null
 		part.position = Vector3.ZERO
 		part.rotation = Vector3.ZERO
 		wrapper.add_child(part)
@@ -1124,7 +1127,7 @@ func _destroy_breakable_wall(wall: StaticBody3D) -> void:
 		var box: BoxMesh = BoxMesh.new()
 		box.size = Vector3(0.3 + randf() * 0.3, 0.2 + randf() * 0.3, 0.2 + randf() * 0.2)
 		frag.mesh = box
-		frag.global_position = pos + Vector3(randf_range(-1, 1), randf_range(0.2, 1.5), randf_range(-1, 1))
+		frag.position = pos + Vector3(randf_range(-1, 1), randf_range(0.2, 1.5), randf_range(-1, 1))
 		var mat: StandardMaterial3D = StandardMaterial3D.new()
 		mat.albedo_color = _get_obstacle_color(0.05)
 		mat.emission_enabled = true
@@ -1395,7 +1398,7 @@ func spawn_duplicate_enemy() -> void:
 	_dup_counter += 1
 	var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
 	instance.name = "Dup_%d" % _dup_counter
-	instance.global_position = _get_spawn_position()
+	instance.position = _get_spawn_position()
 	_scale_enemy(instance, active_room.difficulty, false)
 
 	var health: HealthComponent = instance.get_node_or_null("HealthComponent") as HealthComponent

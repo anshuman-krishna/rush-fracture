@@ -664,9 +664,7 @@ func _on_mutation_selected(mutation: Dictionary) -> void:
 	run_manager.data.chosen_mutations.append(mutation)
 	audio.play("upgrade_pick", -3.0)
 
-	if _boss_defeated:
-		_complete_run()
-	elif run_manager.data.is_final_room():
+	if run_manager.data.is_final_room():
 		_complete_run()
 	else:
 		_prompt_next_room()
@@ -674,9 +672,7 @@ func _on_mutation_selected(mutation: Dictionary) -> void:
 
 func _on_mutation_skipped() -> void:
 	awaiting_mutation = false
-	if _boss_defeated:
-		_complete_run()
-	elif run_manager.data.is_final_room():
+	if run_manager.data.is_final_room():
 		_complete_run()
 	else:
 		_prompt_next_room()

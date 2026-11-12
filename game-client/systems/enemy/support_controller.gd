@@ -162,7 +162,7 @@ func _show_buff_visual() -> void:
 	mat.emission_energy_multiplier = 1.5
 	ring.material_override = mat
 
-	ring.global_position = Vector3(global_position.x, 0.1, global_position.z)
+	ring.position = Vector3(global_position.x, 0.1, global_position.z)
 	get_tree().root.add_child(ring)
 
 	var tween: Tween = get_tree().create_tween()

@@ -221,7 +221,7 @@ func _spawn_explosion_visual(pos: Vector3, radius: float) -> void:
 	mat.emission_energy_multiplier = 3.0
 	indicator.material_override = mat
 
-	indicator.global_position = pos
+	indicator.position = pos
 	get_tree().root.add_child(indicator)
 
 	var tween: Tween = get_tree().create_tween()

@@ -182,7 +182,7 @@ func _spawn_add() -> void:
 	var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
 	var angle: float = randf() * TAU
 	var offset: Vector3 = Vector3(cos(angle) * 5.0, 1.0, sin(angle) * 5.0)
-	instance.global_position = global_position + offset
+	instance.position = global_position + offset
 
 	var h: HealthComponent = instance.get_node_or_null("HealthComponent") as HealthComponent
 	if h:
@@ -301,7 +301,7 @@ func _spawn_warp_visual(pos: Vector3) -> void:
 	mat.emission_energy_multiplier = 3.0
 	indicator.material_override = mat
 
-	indicator.global_position = Vector3(pos.x, 0.1, pos.z)
+	indicator.position = Vector3(pos.x, 0.1, pos.z)
 	get_tree().root.add_child(indicator)
 
 	var tween: Tween = get_tree().create_tween()

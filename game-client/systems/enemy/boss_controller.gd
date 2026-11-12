@@ -178,7 +178,7 @@ func _spawn_add() -> void:
 	var instance: CharacterBody3D = scene.instantiate() as CharacterBody3D
 	var angle: float = randf() * TAU
 	var offset: Vector3 = Vector3(cos(angle) * 4.0, 1.0, sin(angle) * 4.0)
-	instance.global_position = global_position + offset
+	instance.position = global_position + offset
 
 	# scale adds to current difficulty
 	var h: HealthComponent = instance.get_node_or_null("HealthComponent") as HealthComponent

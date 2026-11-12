@@ -95,7 +95,7 @@ func _spawn_slam_ring(radius: float) -> void:
 	mat.emission_enabled = true
 	mat.emission = Color(0.6, 0.15, 0.0)
 	ring.material_override = mat
-	ring.global_position = Vector3(global_position.x, 0.1, global_position.z)
+	ring.position = Vector3(global_position.x, 0.1, global_position.z)
 	get_tree().root.add_child(ring)
 	var tween: Tween = get_tree().create_tween()
 	tween.set_parallel(true)
