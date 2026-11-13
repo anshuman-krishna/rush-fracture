@@ -54,6 +54,10 @@ void fragment() {
 var active_room: RunData.RoomData
 var enemies_alive: int = 0
 var room_active: bool = false
+## goes up every time a room is torn down. anything that schedules damage
+## for later remembers the value and does nothing if it has changed, so an
+## explosion set off in one room can never land in the next.
+var room_token: int = 0
 var active_boss: BossBase
 var arena: ArenaShape
 var builder: ArenaBuilder
@@ -705,6 +709,7 @@ func _place_focus_prop(room: RunData.RoomData) -> void:
 # --- cleanup ----------------------------------------------------------------------
 
 func _clear_room() -> void:
+	room_token += 1
 	for root: Node3D in [arena_root, hazard_root, enemy_root, _pickup_root]:
 		if not root:
 			continue

@@ -140,7 +140,10 @@ func _spawn_eruption() -> void:
 	var color: Color = Color(1.0, 0.45, 0.1)
 	Vfx.telegraph_circle(at, radius, 0.9, color)
 	var player: CharacterBody3D = _player
+	var token: int = rooms.room_token if rooms else 0
 	get_tree().create_timer(0.9).timeout.connect(func() -> void:
+		if is_instance_valid(rooms) and rooms.room_token != token:
+			return
 		Vfx.blast(at + Vector3(0, 0.5, 0), radius, color)
 		Game.sfx_at(&"explosion_small", at, -5.0, 0.2)
 		if is_instance_valid(player) and Vector2(player.global_position.x - at.x, player.global_position.z - at.z).length() <= radius:

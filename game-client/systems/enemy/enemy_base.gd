@@ -684,7 +684,11 @@ func _volatile_burst() -> void:
 	# the timer belongs to the tree, not this node, because this node is about
 	# to be freed; it only captures plain values
 	var tree: SceneTree = get_tree()
+	var rooms: RoomController = Game.rooms()
+	var token: int = rooms.room_token if rooms else 0
 	tree.create_timer(0.7).timeout.connect(func() -> void:
+		if is_instance_valid(rooms) and rooms.room_token != token:
+			return
 		Vfx.blast(at + Vector3(0, 0.6, 0), radius, Color(1.0, 0.45, 0.1))
 		Game.sfx_at(&"explosion", at, -3.0, 0.1)
 		var pm: PlayerManager = Game.players()
