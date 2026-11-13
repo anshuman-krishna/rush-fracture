@@ -922,6 +922,12 @@ func _rpc_report_down() -> void:
 ## co-op: the run only ends when everyone is down in the same room.
 func _register_down(peer_id: int) -> void:
 	_down_peers[peer_id] = true
+	_fail_if_everyone_is_down()
+
+
+func _fail_if_everyone_is_down() -> void:
+	if not run_manager.is_active or _down_peers.is_empty():
+		return
 	for id: int in network_manager.connected_peers:
 		if not _down_peers.has(id):
 			return
@@ -1113,6 +1119,17 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	_down_peers.erase(peer_id)
 	_ready_peers.erase(peer_id)
 	_peer_speed_bonus.erase(peer_id)
+	if _pvp_active:
+		pvp_manager.forfeit(peer_id)
+		return
+	if not is_host_or_solo():
+		return
+	if _waiting_for_peers >= 0.0:
+		# they were the one everybody was waiting on
+		_check_all_ready()
+	elif not _pvp_active:
+		# they were the last one standing
+		_fail_if_everyone_is_down()
 
 
 # --- versus ----------------------------------------------------------------------

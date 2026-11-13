@@ -124,6 +124,21 @@ func _on_player_eliminated(eliminated_peer: int, killer_peer: int) -> void:
 		match_over.emit(winner)
 
 
+## a player who leaves in the middle of a duel loses it. every peer hears
+## about the departure, so each one works this out for itself.
+func forfeit(peer_id: int) -> void:
+	if not _active or not _pvp_health.has(peer_id) or peer_id in _eliminated:
+		return
+	_eliminated[peer_id] = true
+	player_eliminated.emit(peer_id)
+	var alive_peers: Array[int] = []
+	for id: int in _pvp_health:
+		if id not in _eliminated:
+			alive_peers.append(id)
+	if alive_peers.size() <= 1:
+		match_over.emit(alive_peers[0] if alive_peers.size() > 0 else -1)
+
+
 func get_pvp_health(peer_id: int) -> int:
 	return _pvp_health.get(peer_id, 0)
 

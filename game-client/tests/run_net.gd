@@ -16,6 +16,9 @@ extends SceneTree
 #   --god=0|1         keep this side's bot at full health (default 1)
 #   --rooms=N         host only: end the run after N cleared rooms
 #   --max-sim=SEC     give up after this long (default 600)
+#   --leave-after=SEC drop out this long after the run starts (join side),
+#                     to test what the others do about it
+#   --leave-in-duel   drop out a moment after the duel begins (join side)
 #   --verbose         log every reward pick
 #
 # do not pass --fixed-fps: both copies have to run in real time or their
@@ -42,6 +45,8 @@ var _quit_in: float = -1.0
 var _exit_code: int = 1
 var _clock_usec: int = 0
 var _connected: bool = false
+var _in_run: float = 0.0
+var _in_duel: float = 0.0
 
 
 func _initialize() -> void:
@@ -105,7 +110,7 @@ func _join() -> void:
 ## a client has nothing left to test once the host is gone.
 func _on_host_gone() -> void:
 	print("[net] %s: the host went away" % _role)
-	if _quit_in < 0.0:
+	if not _driver.get("_done"):
 		print("[net] %s: FAIL (host left before this side finished)" % _role)
 		_quit_in = 0.5
 
@@ -167,6 +172,18 @@ func _process(_delta: float) -> bool:
 		_rejoin_in -= delta
 		if _rejoin_in < 0.0:
 			_join()
+	if _role == "join" and _quit_in < 0.0:
+		var manager: Node = Game.manager()
+		if manager and manager.run_manager.is_active:
+			_in_run += delta
+			if manager.get("_pvp_active") == true:
+				_in_duel += delta
+		var leave_after: float = float(_opts.get("leave-after", 0.0))
+		if (leave_after > 0.0 and _in_run >= leave_after) or (_opts.has("leave-in-duel") and _in_duel >= 1.5):
+			# gone without a word, the way a crash or a pulled cable looks
+			print("[net] join: dropping out on purpose after %.1fs in the run" % _in_run)
+			quit(0)
+			return true
 	if _quit_in >= 0.0:
 		_quit_in -= delta
 		if _quit_in < 0.0:
