@@ -1,369 +1,393 @@
 class_name BossBase
-extends CharacterBody3D
+extends EnemyBase
 
-# shared base for the 2 boss controllers. both used to duplicate the same
-# telegraph/attack state machine, gravity, targeting, damage-flash/death, and
-# even the same shape of ring-VFX helpers independently. combat identity
-# (attack selection, attack execution, idle movement, phase transition
-# thresholds, add-spawning) stays in each subclass — only the boilerplate
-# that was byte-for-byte identical moved here, same split as EnemyBase uses
-# for the 8 standard enemies.
+# shared machinery for bosses, on top of the standard enemy body: health
+# phases with a short invulnerable transition, a timed attack-sequence runner,
+# and a kit of reusable attack pieces (warned blasts, shockwaves, projectile
+# fans and rings, mortar rain, charges, summons).
+#
+# a concrete boss sets its numbers in _setup(), moves in _idle(), and picks
+# its next attack in _pick_attack() by calling _run() with a list of timed
+# steps. no coroutines: every step is a plain callable fired by the frame
+# loop, so a boss dying or changing phase mid-attack just drops the list.
 
 signal phase_changed(phase: int)
 signal boss_defeated
 
-enum Phase { ONE, TWO }
-enum AttackState { IDLE, TELEGRAPH, ATTACKING, COOLDOWN }
+var boss_id: StringName = &""
+var title: String = ""
+var phase: int = 1
+## health ratios at which the boss enters phase 2, phase 3, ...
+var phase_thresholds: Array[float] = [0.66, 0.33]
+var attack_cooldown: float = 2.2
+var core_radius: float = 0.6
+var core_part: String = "phase_core"
+var idle_color: Color = Color(0.62, 1.0, 0.36)
 
-var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
-var target: CharacterBody3D
-var current_phase: Phase = Phase.ONE
-var _player_manager: PlayerManager
-var attack_state: AttackState = AttackState.IDLE
-var attack_timer: float = 0.0
-# each boss's base cooldown before its next attack choice — a real mutable
-# field (not a constant) since boss_controller permanently discounts it once
-# when phase 2 triggers. subclasses set their starting value in _ready().
-var attack_cooldown_base: float = 3.0
-var phase_two_triggered: bool = false
-var is_dying: bool = false
-var _telegraph_timer: float = 0.0
-var _attack_duration: float = 0.0
-var _pending_attack: String = ""
-var _adds_spawned: int = 0
-
-@onready var health: HealthComponent = $HealthComponent
-
-# the single mesh part used for telegraph-color signaling (_show_telegraph /
-# _clear_telegraph / _flash_phase_transition) — set by a subclass's
-# _build_visual(), normally to a model's biolum "core" glow mesh. hit-flash
-# and death-fade below don't depend on it, they act on every mesh part found.
-var mesh: MeshInstance3D
+var _cooldown: float = 2.5
+var _seq: Array = []
+var _seq_clock: float = 0.0
+var _seq_end: float = 0.0
+var _seq_face: bool = true
+var _timers: Array = []
+var _transition: float = 0.0
+var _charge: Dictionary = {}
+var _core: MeshInstance3D
+var _core_mat: StandardMaterial3D
+var _last_attack: StringName = &""
 
 
 func _ready() -> void:
-	health.died.connect(_on_died)
-	health.damaged.connect(_on_damaged)
-	add_to_group("enemies")
+	super._ready()
 	add_to_group("boss")
-	_player_manager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
-	_build_visual()
 
 
-## override in a subclass to build its unique procedural mesh or load a model.
 func _build_visual() -> void:
+	super._build_visual()
+	_core = _find_part(core_part)
+	if _core:
+		var src: Material = _core.get_active_material(0)
+		if src is StandardMaterial3D:
+			_core_mat = (src as StandardMaterial3D).duplicate() as StandardMaterial3D
+			_core.set_surface_override_material(0, _core_mat)
+			idle_color = _core_mat.emission
+
+
+# --- overrides for concrete bosses --------------------------------------------
+
+## override: movement between attacks.
+func _idle(delta: float, _dist: float) -> void:
+	_brake(10.0, delta)
+	_face_target(delta, 4.0)
+
+
+## override: start the next attack with _run() or _begin_charge().
+func _pick_attack(_dist: float) -> void:
 	pass
 
 
-## loads an imported model (e.g. a .glb) and adds it as a child. returns the
-## instantiated root so a subclass can pull named parts out of it via
-## _find_mesh() — glTF import preserves each part's original mesh name as its
-## Godot node name.
-func _load_visual_model(path: String) -> Node3D:
-	var scene: PackedScene = load(path) as PackedScene
-	if not scene:
-		return null
-	var instance: Node3D = scene.instantiate() as Node3D
-	add_child(instance)
-	return instance
+## override: react to entering a new phase (2, 3, ...).
+func _on_phase(_new_phase: int) -> void:
+	pass
 
 
-func _find_mesh(root: Node, mesh_name: String) -> MeshInstance3D:
-	if not root:
-		return null
-	return root.find_child(mesh_name, true, false) as MeshInstance3D
+# --- bosses shrug off crowd control --------------------------------------------
+
+func stun(_seconds: float) -> void:
+	pass
 
 
-## makes a mesh's material a per-instance override so the telegraph-color
-## mutations below never bleed into the shared imported resource every other
-## boss instance (or the next run's boss) would otherwise reuse.
-func _make_material_unique(mi: MeshInstance3D) -> void:
-	if not mi:
+func apply_knockback(_dir: Vector3, _force: float) -> void:
+	pass
+
+
+func apply_status(id: StringName, seconds: float, power: float, source: Node = null) -> void:
+	if id == &"slow":
+		power = minf(power, 0.15)
+	super.apply_status(id, seconds, power, source)
+
+
+func is_weak_point(hit_pos: Vector3) -> bool:
+	if _core and is_instance_valid(_core):
+		return hit_pos.distance_to(_core.global_position) <= core_radius * 1.3 * _base_scale
+	return super.is_weak_point(hit_pos)
+
+
+## fraction of attack cooldown for the current phase: later phases act faster.
+func _tempo() -> float:
+	return maxf(0.5, 1.0 - 0.18 * float(phase - 1))
+
+
+# --- frame logic ------------------------------------------------------------------
+
+func _ai(delta: float, dist: float) -> void:
+	_check_phase()
+
+	if _transition > 0.0:
+		_transition -= delta
+		_brake(30.0, delta)
+		if _transition <= 0.0 and health:
+			health.invulnerable = false
 		return
-	var mat: Material = mi.get_active_material(0)
-	if mat:
-		mi.set_surface_override_material(0, mat.duplicate())
+
+	if not _charge.is_empty():
+		_tick_charge(delta)
+		return
+
+	if _seq_clock < _seq_end:
+		_seq_clock += delta
+		_brake(30.0, delta)
+		if _seq_face:
+			_face_target(delta, 5.0)
+		while not _seq.is_empty() and _seq[0][0] <= _seq_clock:
+			var step: Array = _seq.pop_front()
+			(step[1] as Callable).call()
+			if _charge.is_empty() == false or _transition > 0.0:
+				break
+		return
+
+	_cooldown -= delta
+	_idle(delta, dist)
+	if _cooldown <= 0.0:
+		_cooldown = attack_cooldown * _tempo()
+		_pick_attack(dist)
 
 
-func _all_meshes() -> Array[MeshInstance3D]:
-	var found: Array[MeshInstance3D] = []
-	_collect_meshes(self, found)
-	return found
+func _tick_always(delta: float) -> void:
+	var i: int = 0
+	while i < _timers.size():
+		_timers[i][0] -= delta
+		if _timers[i][0] <= 0.0:
+			var cb: Callable = _timers[i][1]
+			_timers.remove_at(i)
+			cb.call()
+		else:
+			i += 1
 
 
-func _collect_meshes(node: Node, found: Array[MeshInstance3D]) -> void:
-	for child in node.get_children():
-		if child is MeshInstance3D:
-			found.append(child)
-		_collect_meshes(child, found)
+## runs a list of [time, Callable] steps, in order, over `duration` seconds.
+## the boss holds still (and by default keeps facing its target) meanwhile.
+func _run(attack: StringName, steps: Array, duration: float, face: bool = true) -> void:
+	_last_attack = attack
+	_seq = steps.duplicate()
+	_seq.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
+	_seq_clock = 0.0
+	_seq_end = duration
+	_seq_face = face
 
 
-func _physics_process(delta: float) -> void:
+## fires `callback` after `seconds`, independent of whatever the boss does next.
+func _later(seconds: float, callback: Callable) -> void:
+	_timers.append([seconds, callback])
+
+
+func _cancel_actions() -> void:
+	_seq.clear()
+	_seq_end = 0.0
+	_seq_clock = 0.0
+	_charge.clear()
+	_timers.clear()
+
+
+func _check_phase() -> void:
+	if not health or not health.is_alive():
+		return
+	var ratio: float = health.ratio()
+	var changed: bool = false
+	while phase - 1 < phase_thresholds.size() and ratio <= phase_thresholds[phase - 1]:
+		phase += 1
+		changed = true
+	if changed:
+		_begin_transition()
+
+
+func _begin_transition() -> void:
+	_cancel_actions()
+	_transition = 1.1
+	health.invulnerable = true
+	_cooldown = 1.0
+	velocity = Vector3.ZERO
+	_fx_ring(global_position, 14.0, idle_color, 0.7)
+	_fx_blast(aim_point(), 3.5, idle_color)
+	Game.sfx_at(&"boss_phase", global_position, 0.0)
+	Game.shake(9.0)
+	if _core_mat:
+		var tw: Tween = create_tween()
+		tw.tween_property(_core_mat, "emission_energy_multiplier", 8.0, 0.15)
+		tw.tween_property(_core_mat, "emission_energy_multiplier", 2.2, 0.6)
+	phase_changed.emit(phase)
+	_on_phase(phase)
+
+
+## pulses the core's colour as a tell for the attack that is winding up.
+func _signal_core(color: Color, seconds: float) -> void:
+	if not _core_mat:
+		return
+	_core_mat.emission = color
+	_core_mat.emission_energy_multiplier = 4.5
+	_later(seconds, func() -> void:
+		if _core_mat:
+			_core_mat.emission = idle_color
+			_core_mat.emission_energy_multiplier = 2.0
+	)
+
+
+# --- attack kit -------------------------------------------------------------------
+
+## marks a circle, then damages everyone still inside it when the mark fills.
+func _warned_blast(centre: Vector3, radius: float, windup: float, amount: int, color: Color, ground_only: bool = false) -> void:
+	_warn_circle(centre, radius, windup, color)
+	_later(windup, func() -> void:
+		_fx_blast(centre + Vector3(0, 0.5, 0), radius, color)
+		Game.sfx_at(&"explosion", centre, -3.0, 0.1)
+		Game.shake(5.0, centre, 28.0)
+		_hit_players_in_radius(centre, radius, amount, DamageInfo.KIND_BLAST, ground_only)
+	)
+
+
+## fan of projectiles centred on the target.
+func _fan(kind: StringName, count: int, arc: float, shot_speed: float, amount: int, color: Color, lead: float = 0.3) -> void:
+	var pm: ProjectileManager = Game.projectiles()
+	if not pm or not is_instance_valid(target):
+		return
+	var from: Vector3 = _muzzle_position()
+	var aim: Vector3 = target.global_position + Vector3(target.velocity.x, 0, target.velocity.z) * lead * (from.distance_to(target.global_position) / maxf(1.0, shot_speed))
+	var base: Vector3 = (aim - from).normalized()
+	for i: int in count:
+		var t: float = 0.0 if count <= 1 else float(i) / float(count - 1) - 0.5
+		pm.fire_enemy(kind, from, base.rotated(Vector3.UP, t * arc) * shot_speed, amount, color)
+	Game.sfx_at(&"enemy_shot", from, -5.0, 0.1)
+
+
+## flat ring of projectiles in every direction. `offset` rotates the ring so
+## consecutive rings can leave gaps in different places.
+func _ring_burst(kind: StringName, count: int, shot_speed: float, amount: int, color: Color, offset: float = 0.0, height: float = 1.2) -> void:
+	var pm: ProjectileManager = Game.projectiles()
+	if not pm:
+		return
+	var from: Vector3 = Vector3(global_position.x, global_position.y + height, global_position.z)
+	for i: int in count:
+		var a: float = TAU * float(i) / float(count) + offset
+		pm.fire_enemy(kind, from + Vector3(cos(a), 0, sin(a)) * (body_radius + 0.4), Vector3(cos(a), 0, sin(a)) * shot_speed, amount, color)
+	Game.sfx_at(&"enemy_shot", from, -4.0, 0.1)
+
+
+## lobs mortars onto and around the target.
+func _mortar_rain(count: int, scatter: float, flight: float, amount: int, color: Color, pool_seconds: float = 0.0, kind: StringName = &"mortar") -> void:
+	var pm: ProjectileManager = Game.projectiles()
+	if not pm or not is_instance_valid(target):
+		return
+	var rooms: RoomController = Game.rooms()
+	for i: int in count:
+		var land: Vector3 = target.global_position
+		if i > 0:
+			var a: float = randf() * TAU
+			land += Vector3(cos(a), 0, sin(a)) * randf_range(scatter * 0.3, scatter)
+		else:
+			land += Vector3(target.velocity.x, 0, target.velocity.z) * flight * 0.5
+		land.y = 0.1
+		if rooms:
+			land = rooms.clamp_to_arena(land, 1.0)
+		pm.fire_enemy_mortar(_muzzle_position(), land, flight + float(i) * 0.12, amount, color, kind, pool_seconds)
+	Game.sfx_at(&"spit", global_position, -3.0, 0.1)
+
+
+func _summon(type_id: StringName, count: int, spread: float = 4.0) -> void:
+	var rooms: RoomController = Game.rooms()
+	if not rooms:
+		return
+	for i: int in count:
+		var a: float = randf() * TAU
+		var at: Vector3 = global_position + Vector3(cos(a), 0, sin(a)) * (body_radius + randf_range(1.5, spread))
+		rooms.spawn_add(type_id, at, false)
+	Game.sfx_at(&"spawn", global_position, -5.0, 0.1)
+
+
+## warns a lane, then rushes down it. anyone the boss touches takes `amount`.
+func _begin_charge(windup: float, charge_speed: float, seconds: float, amount: int, width: float, color: Color, recover: float = 0.7) -> void:
+	var dir: Vector3 = _to_target()
+	if dir.length() < 0.1:
+		dir = -global_transform.basis.z
+	_charge = {"windup": windup, "time": seconds, "speed": charge_speed, "dir": dir, "damage": amount, "hit": {}, "reach": width * 0.5 + 0.6, "recover": recover}
+	_warn_line(global_position, global_position + dir * charge_speed * seconds, width, windup, color)
+	_signal_core(color, windup)
+	Game.sfx_at(&"heavy_windup", global_position, -3.0, 0.05)
+
+
+func _tick_charge(delta: float) -> void:
+	if _charge.windup > 0.0:
+		_charge.windup -= delta
+		_brake(40.0, delta)
+		_face_dir(_charge.dir, delta, 12.0)
+		if _charge.windup <= 0.0:
+			Game.sfx_at(&"enemy_dash", global_position, -2.0, 0.05)
+		return
+	_charge.time -= delta
+	velocity.x = _charge.dir.x * _charge.speed
+	velocity.z = _charge.dir.z * _charge.speed
+	var pm: PlayerManager = Game.players()
+	if pm:
+		for p: CharacterBody3D in pm.get_all_players():
+			if not is_instance_valid(p) or _charge.hit.has(p.get_instance_id()):
+				continue
+			if _flat_distance(p.global_position) <= _charge.reach + body_radius and absf(p.global_position.y - 0.9 - global_position.y) < body_height:
+				_charge.hit[p.get_instance_id()] = true
+				_hit_player(p, _charge.damage)
+				if p.has_method("apply_impulse"):
+					p.apply_impulse(_charge.dir * 12.0 + Vector3(0, 6.0, 0))
+	if _charge.time <= 0.0 or is_on_wall():
+		if is_on_wall():
+			Game.shake(6.0, global_position, 30.0)
+			_fx_ring(global_position, 6.0, idle_color, 0.3)
+		velocity.x = 0.0
+		velocity.z = 0.0
+		_recover = _charge.get("recover", 0.7)
+		_charge.clear()
+
+
+## warns a straight lane between two points, then damages everyone inside it.
+func _line_strike(from: Vector3, to: Vector3, width: float, windup: float, amount: int, color: Color) -> void:
+	_warn_line(from, to, width, windup, color)
+	_later(windup, func() -> void:
+		Vfx.tracer(from + Vector3(0, 1.0, 0), to + Vector3(0, 1.0, 0), color, 0.3, width * 0.22, width * 0.22)
+		Game.sfx_at(&"sniper_fire", from, -2.0, 0.1)
+		var pm: PlayerManager = Game.players()
+		if not pm:
+			return
+		for p: CharacterBody3D in pm.get_all_players():
+			if not is_instance_valid(p) or p.get("is_dead") == true:
+				continue
+			var flat: Vector3 = Vector3(p.global_position.x, from.y, p.global_position.z)
+			var closest: Vector3 = Geometry3D.get_closest_point_to_segment(flat, from, Vector3(to.x, from.y, to.z))
+			if closest.distance_to(flat) <= width * 0.5 + 0.35:
+				_hit_player(p, amount, DamageInfo.KIND_BLAST)
+	)
+
+
+## enemies currently alive in the room, to cap how many a boss summons.
+func _minion_count() -> int:
+	return maxi(0, Combat.living_enemies(get_tree()).size() - 1)
+
+
+## instantly relocates, with an effect at both ends.
+func _blink_to(point: Vector3, color: Color) -> void:
+	_fx_ring(global_position, 3.0, color, 0.3)
+	global_position = Vector3(point.x, global_position.y, point.z)
+	velocity = Vector3.ZERO
+	_fx_ring(global_position, 3.0, color, 0.3)
+	Game.sfx_at(&"warp", global_position, -4.0, 0.08)
+
+
+# --- death ------------------------------------------------------------------------
+
+func _on_health_died(info: DamageInfo) -> void:
 	if is_dying:
 		return
-
-	if not _is_local_authority():
-		return
-
-	_apply_gravity(delta)
-	_check_phase_transition()
-
-	if not target:
-		_find_target()
-		move_and_slide()
-		return
-
-	var distance: float = global_position.distance_to(target.global_position)
-	if distance > _get_detection_range():
-		move_and_slide()
-		return
-
-	match attack_state:
-		AttackState.IDLE:
-			_handle_idle(delta, distance)
-		AttackState.TELEGRAPH:
-			_handle_telegraph(delta)
-		AttackState.ATTACKING:
-			_handle_attacking(delta)
-		AttackState.COOLDOWN:
-			_handle_cooldown(delta)
-
-	_face_target()
-	move_and_slide()
-
-	_phase_tick(delta)
-
-
-## override — each boss's detection range differs. named distinctly (not
-## `detection_range`) so each subclass can still declare its own
-## @export var detection_range without colliding with this method.
-func _get_detection_range() -> float:
-	return 40.0
-
-
-## override — per-phase, per-frame extras (add-spawning, arena hazards).
-func _phase_tick(_delta: float) -> void:
-	pass
-
-
-## override — idle movement + attack-timer countdown, differs per boss.
-func _handle_idle(_delta: float, _distance: float) -> void:
-	pass
-
-
-## override — pick which attack to telegraph next.
-func _choose_attack(_distance: float) -> void:
-	pass
-
-
-## override — resolve the telegraphed attack (_pending_attack) into damage/VFX.
-func _execute_attack() -> void:
-	pass
-
-
-## override — return this boss's cooldown multiplier once phase 2 hits.
-func _phase_two_cooldown_mult() -> float:
-	return 1.0
-
-
-func _begin_telegraph(attack_name: String, duration: float) -> void:
-	attack_state = AttackState.TELEGRAPH
-	_pending_attack = attack_name
-	_telegraph_timer = duration
-	velocity.x = 0
-	velocity.z = 0
-	_show_telegraph(attack_name)
-
-
-func _handle_telegraph(delta: float) -> void:
-	_telegraph_timer -= delta
-	if _telegraph_timer <= 0:
-		_execute_attack()
-
-
-func _handle_attacking(delta: float) -> void:
-	_attack_duration -= delta
-	if _attack_duration <= 0:
-		var cd: float = attack_cooldown_base
-		if current_phase == Phase.TWO:
-			cd *= _phase_two_cooldown_mult()
-		attack_timer = cd
-		attack_state = AttackState.IDLE
-		_clear_telegraph()
-
-
-func _handle_cooldown(delta: float) -> void:
-	attack_timer -= delta
-	if attack_timer <= 0:
-		attack_state = AttackState.IDLE
-
-
-## override — telegraph-specific emission color/intensity per attack name.
-func _show_telegraph(_attack_name: String) -> void:
-	pass
-
-
-## override — reset emission back to this boss's idle look.
-func _clear_telegraph() -> void:
-	pass
-
-
-func _get_players() -> Array:
-	if _player_manager:
-		return _player_manager.get_all_players()
-	return get_tree().get_nodes_in_group("player")
-
-
-## override — chase movement toward target, differs per boss (acceleration
-## constant and phase-dependent speed multiplier both differ, so this stays
-## fully per-subclass rather than a shared parameterized helper — same
-## reasoning EnemyBase uses for never hoisting _chase()).
-func _chase(_delta: float) -> void:
-	pass
-
-
-## override — hp-ratio threshold and phase-2 side effects differ per boss.
-func _check_phase_transition() -> void:
-	pass
-
-
-func _face_target() -> void:
-	if not target:
-		return
-	var look_pos: Vector3 = target.global_position
-	look_pos.y = global_position.y
-	if global_position.distance_to(look_pos) > 0.1:
-		look_at(look_pos)
-
-
-func _apply_gravity(delta: float) -> void:
-	if not is_on_floor():
-		velocity.y -= gravity * delta
-
-
-func _find_target() -> void:
-	if _player_manager:
-		target = _player_manager.get_nearest_player(global_position)
-	else:
-		var players: Array[Node] = get_tree().get_nodes_in_group("player")
-		if players.size() > 0:
-			target = players[0] as CharacterBody3D
-
-
-func _on_damaged(_amount: int, _current: int) -> void:
-	_flash_hit()
-
-
-func _on_died() -> void:
 	is_dying = true
+	collision_layer = 0
+	_cancel_actions()
 	boss_defeated.emit()
-	_play_death()
+	Game.sfx_at(&"boss_death", global_position, 0.0)
 
+	if _is_local_authority():
+		_on_death(info)
+		var rooms: RoomController = Game.rooms()
+		if rooms:
+			rooms.on_enemy_dropped(self, info)
 
-func _flash_hit() -> void:
-	# flashes every mesh part, not just the telegraph-color core — a
-	# multi-part model needs the whole body to read as "hit."
-	for mi: MeshInstance3D in _all_meshes():
-		var mat: Material = mi.get_surface_override_material(0)
-		if not mat:
-			mat = mi.get_active_material(0)
-		if not mat is StandardMaterial3D:
-			continue
-		var unique_mat: StandardMaterial3D = mat.duplicate() as StandardMaterial3D
-		mi.set_surface_override_material(0, unique_mat)
-		var original_color: Color = unique_mat.albedo_color
-		unique_mat.albedo_color = Color.WHITE
-		var tween: Tween = create_tween()
-		tween.tween_property(unique_mat, "albedo_color", original_color, 0.1)
-
-
-func _play_death() -> void:
-	var tween: Tween = create_tween()
-	tween.tween_property(self, "scale:y", 0.1, 0.8).set_ease(Tween.EASE_IN)
-	for mi: MeshInstance3D in _all_meshes():
-		tween.parallel().tween_property(mi, "transparency", 1.0, 1.0)
-	tween.tween_callback(queue_free)
-
-
-## override — bright flash + scale-up when phase 2 triggers, colors differ.
-func _flash_phase_transition() -> void:
-	pass
-
-
-func get_phase() -> int:
-	return current_phase + 1
-
-
-func _get_audio() -> AudioManager:
-	return get_node_or_null("/root/Main/AudioManager") as AudioManager
-
-
-func get_health_ratio() -> float:
-	if not health:
-		return 0.0
-	return float(health.current_health) / float(health.max_health)
-
-
-func _is_local_authority() -> bool:
-	if not multiplayer or not multiplayer.has_multiplayer_peer():
-		return true
-	return is_multiplayer_authority()
-
-
-## static-size disc that fades out in place — used by both bosses' slam VFX.
-func _spawn_flat_ring_visual(radius: float, albedo: Color, emission: Color, energy: float = 2.0) -> void:
-	var indicator: MeshInstance3D = MeshInstance3D.new()
-	var disc: CylinderMesh = CylinderMesh.new()
-	disc.top_radius = radius
-	disc.bottom_radius = radius
-	disc.height = 0.1
-	indicator.mesh = disc
-
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = albedo
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	mat.emission = emission
-	mat.emission_energy_multiplier = energy
-	indicator.material_override = mat
-
-	indicator.position = Vector3(global_position.x, 0.1, global_position.z)
-	get_tree().root.add_child(indicator)
-
-	var tween: Tween = get_tree().create_tween()
-	tween.tween_property(mat, "albedo_color:a", 0.0, 0.4)
-	tween.tween_callback(func():
-		if is_instance_valid(indicator):
-			indicator.queue_free()
-	)
-
-
-## ring that grows from a point to target_radius while fading — used by
-## both bosses' shockwave/pulse VFX.
-func _spawn_expanding_ring_visual(target_radius: float, albedo: Color, emission: Color, duration: float = 0.4, energy: float = 2.0, height: float = 0.12) -> void:
-	var ring: MeshInstance3D = MeshInstance3D.new()
-	var cyl: CylinderMesh = CylinderMesh.new()
-	cyl.top_radius = 1.0
-	cyl.bottom_radius = 1.0
-	cyl.height = height
-	ring.mesh = cyl
-
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = albedo
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	mat.emission = emission
-	mat.emission_energy_multiplier = energy
-	ring.material_override = mat
-
-	ring.position = Vector3(global_position.x, 0.1, global_position.z)
-	get_tree().root.add_child(ring)
-
-	var tween: Tween = get_tree().create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(ring, "scale", Vector3(target_radius, 1, target_radius), duration)
-	tween.tween_property(mat, "albedo_color:a", 0.0, duration)
-	tween.chain().tween_callback(func():
-		if is_instance_valid(ring):
-			ring.queue_free()
-	)
+	# a string of bursts up the body, then it collapses
+	var glow: Color = Skins.glow(skin_id)
+	for i: int in 6:
+		var delay: float = 0.18 * float(i)
+		var at: Vector3 = global_position + Vector3(randf_range(-1.0, 1.0) * body_radius, body_height * randf_range(0.2, 0.9), randf_range(-1.0, 1.0) * body_radius)
+		get_tree().create_timer(delay).timeout.connect(func() -> void:
+			Vfx.blast(at, 2.2, glow)
+			Vfx.chunks(at, glow.darkened(0.3), 9.0)
+		)
+	var tw: Tween = create_tween()
+	tw.tween_interval(1.0)
+	tw.tween_property(self, "scale", Vector3(_base_scale * 1.2, 0.05, _base_scale * 1.2), 0.5).set_ease(Tween.EASE_IN)
+	for g: GeometryInstance3D in _meshes:
+		if is_instance_valid(g):
+			tw.parallel().tween_property(g, "transparency", 1.0, 0.5)
+	tw.tween_callback(queue_free)

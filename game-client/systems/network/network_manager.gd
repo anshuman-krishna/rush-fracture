@@ -264,3 +264,37 @@ func _disconnect_signals() -> void:
 		mp.peer_connected.disconnect(_on_peer_connected)
 	if mp.peer_disconnected.is_connected(_on_peer_disconnected):
 		mp.peer_disconnected.disconnect(_on_peer_disconnected)
+
+
+# --- starting a match together ---------------------------------------------------
+
+signal match_starting(coop_mode: int, run_mode: String, ascension: int, seed_value: int)
+
+const GAME_SCENE: String = "res://scenes/main.tscn"
+
+
+## host only: tells every client which mode was picked and to load the run
+## scene, then loads it here too.
+func start_match(coop_mode: int, run_mode: String, ascension: int, seed_value: int) -> void:
+	if not is_host():
+		return
+	_rpc_start_match.rpc(coop_mode, run_mode, ascension, seed_value)
+	_load_match(coop_mode, run_mode, ascension, seed_value)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_start_match(coop_mode: int, run_mode: String, ascension: int, seed_value: int) -> void:
+	_load_match(coop_mode, run_mode, ascension, seed_value)
+
+
+func _load_match(coop_mode: int, run_mode: String, ascension: int, seed_value: int) -> void:
+	var modes: GameModeManager = get_node_or_null("/root/GameModeManager") as GameModeManager
+	if modes:
+		modes.set_mode(clampi(coop_mode, 0, GameModeManager.GameMode.size() - 1) as GameModeManager.GameMode)
+		modes.run_mode = StringName(run_mode)
+		modes.ascension = clampi(ascension, 0, MetaProgression.MAX_ASCENSION)
+		modes.custom_seed = seed_value
+	match_starting.emit(coop_mode, run_mode, ascension, seed_value)
+	var err: Error = get_tree().change_scene_to_file(GAME_SCENE)
+	if err != OK:
+		push_error("failed to load the run scene: %s" % error_string(err))

@@ -1,52 +1,47 @@
 class_name RaceGenerator
 extends RefCounted
 
-# generates room sequences for race mode.
-# each player gets an independent path of rooms.
-# after race_rooms rooms, players meet for a pvp encounter.
+# the short fixed map used by race and pvp-encounter matches: four rooms of
+# rising difficulty, no boss and no path choices, so every player runs the
+# same gauntlet before they meet.
 
 const RACE_ROOMS: int = 4
 const BASE_DIFFICULTY: float = 1.0
 const DIFFICULTY_STEP: float = 0.25
 
 
-static func generate(seed_value: int = -1) -> Array[RunData.RoomData]:
+## returns floors (each with a single room), in the shape RunManager expects.
+static func generate(seed_value: int, players: int = 1) -> Array:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	if seed_value >= 0:
-		rng.seed = seed_value
-	else:
-		rng.randomize()
-
-	var sequence: Array[RunData.RoomData] = []
-
-	# race path: 4 combat/varied rooms, no boss, escalating difficulty
-	for i in RACE_ROOMS:
+	rng.seed = seed_value
+	var biome: StringName = Biome.for_act(rng.randi() % Biome.ACT_ORDER.size())
+	var floors: Array = []
+	for i: int in RACE_ROOMS:
 		var difficulty: float = BASE_DIFFICULTY + DIFFICULTY_STEP * i
-		var type: RoomDefinitions.RoomType = _pick_race_room(rng, i)
+		var type: RoomDefinitions.RoomType = _pick_type(rng, i)
 		var room: RunData.RoomData = RunData.RoomData.new()
-		room.id = "race_%d" % i
+		room.seed_value = rng.randi()
+		room.id = "race_%d_%d" % [i, room.seed_value % 100000]
 		room.type = type
+		room.act = 0
+		room.floor_index = i
+		room.biome = biome
 		room.difficulty = difficulty
-		room.enemy_budget = RoomDefinitions.enemy_budget_for(type, difficulty)
-		room.reward_flag = i == 1 or i == 3  # upgrades at rooms 2 and 4
-		sequence.append(room)
+		room.enemy_budget = RoomDefinitions.enemy_budget_for(type, difficulty, players)
+		# upgrades after rooms two and four
+		room.reward = RoomDefinitions.REWARD_UPGRADE if i == 1 or i == 3 else RoomDefinitions.REWARD_NONE
+		floors.append([room])
+	return floors
 
-	return sequence
 
-
-static func _pick_race_room(rng: RandomNumberGenerator, index: int) -> RoomDefinitions.RoomType:
-	# first room is always combat
+static func _pick_type(rng: RandomNumberGenerator, index: int) -> RoomDefinitions.RoomType:
 	if index == 0:
 		return RoomDefinitions.RoomType.COMBAT
-
 	var roll: float = rng.randf()
-
-	# later rooms get harder types
 	if index >= 3 and roll < 0.3:
 		return RoomDefinitions.RoomType.ELITE
 	if index >= 2 and roll < 0.4:
 		return RoomDefinitions.RoomType.SWARM
 	if roll < 0.25:
 		return RoomDefinitions.RoomType.HAZARD
-
 	return RoomDefinitions.RoomType.COMBAT

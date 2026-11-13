@@ -1,265 +1,399 @@
 extends Control
 
-# main menu — entry point. aggressive, minimal.
-# supports solo play and multiplayer via room codes.
+# title screen: pick a mode and difficulty, manage the armory and
+# progression, change settings, or host / join a multiplayer room.
 
-@onready var title_label: Label = $Panel/ContentMargin/Content/TitleLabel
-@onready var tagline_label: Label = $Panel/ContentMargin/Content/TaglineLabel
-@onready var start_button: Button = $Panel/ContentMargin/Content/StartButton
-@onready var best_stats_label: Label = $Panel/ContentMargin/Content/BestStatsLabel
-@onready var quit_button: Button = $Panel/ContentMargin/Content/QuitButton
-@onready var host_button: Button = $Panel/ContentMargin/Content/HostButton
-@onready var code_input: LineEdit = $Panel/ContentMargin/Content/CodeInput
-@onready var ip_input: LineEdit = $Panel/ContentMargin/Content/IpInput
-@onready var join_button: Button = $Panel/ContentMargin/Content/JoinButton
-@onready var status_label: Label = $Panel/ContentMargin/Content/StatusLabel
-@onready var mode_button: Button = $Panel/ContentMargin/Content/ModeButton
-@onready var upgrades_button: Button = $Panel/ContentMargin/Content/UpgradesButton
-@onready var shards_label: Label = $Panel/ContentMargin/Content/ShardsLabel
-@onready var settings_button: Button = $Panel/ContentMargin/Content/SettingsButton
+const RUN_MODES: Array[StringName] = [
+	RunData.MODE_STANDARD, RunData.MODE_SPRINT, RunData.MODE_ENDLESS, RunData.MODE_BOSS_RUSH, RunData.MODE_DAILY,
+]
+const COOP_MODE_NAMES: Array[String] = ["co-op", "race", "pvp encounter"]
 
-var _network_manager: NetworkManager
-var _game_mode_manager: GameModeManager
-var _selected_mode: GameModeManager.GameMode = GameModeManager.GameMode.COOP
-var _progression_ui: ProgressionUI
-var _settings_menu: SettingsMenu
+var _profile: PlayerProfile
+var _network: NetworkManager
+var _modes: GameModeManager
+var _backdrop: MenuBackdrop
+var _audio: AudioManager
+
+var _run_mode_index: int = 0
+var _coop_mode: int = 0
+var _ascension: int = 0
+
+var _root_panel: Control
+var _mode_button: Button
+var _mode_blurb: Label
+var _ascension_button: Button
+var _ascension_blurb: Label
+var _start_button: Button
+var _shards_label: Label
+var _stats_label: Label
+var _seed_input: LineEdit
+var _net_box: VBoxContainer
+var _host_button: Button
+var _join_button: Button
+var _leave_button: Button
+var _code_input: LineEdit
+var _ip_input: LineEdit
+var _status: Label
+var _coop_button: Button
+
+var _armory: ArmoryPanel
+var _progression: ProgressionPanel
+var _settings_panel: SettingsPanel
 
 
 func _ready() -> void:
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	theme = UiKit.theme()
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	Engine.time_scale = 1.0
+	get_tree().paused = false
 
-	# apply saved settings on startup
-	var settings: GameSettings = GameSettings.load_settings()
-	settings.apply()
+	GameSettings.load_settings().apply()
+	_profile = PlayerProfile.load_profile()
+	_ascension = _profile.ascension_selected
 
-	start_button.pressed.connect(_on_start)
-	quit_button.pressed.connect(_on_quit)
-	host_button.pressed.connect(_on_host)
-	join_button.pressed.connect(_on_join)
-	start_button.grab_focus()
-	_show_best_stats()
-	_show_shards()
-	_animate_in()
+	_audio = AudioManager.new()
+	_audio.name = "MenuAudio"
+	add_child(_audio)
+	Game.set_audio(_audio)
 
-	# create network manager as root-level node
-	_network_manager = NetworkManager.new()
-	_network_manager.name = "NetworkManager"
-	get_tree().root.add_child(_network_manager)
+	_backdrop = MenuBackdrop.new()
+	add_child(_backdrop)
+	_backdrop.set_tint(Skins.accent(_profile.skin))
+	_backdrop.show_random_boss()
 
-	# create game mode manager
-	_game_mode_manager = GameModeManager.new()
-	_game_mode_manager.name = "GameModeManager"
-	get_tree().root.add_child(_game_mode_manager)
+	_setup_persistent_nodes()
+	_build()
+	_refresh()
 
-	_network_manager.connection_succeeded.connect(_on_connection_succeeded)
-	_network_manager.connection_failed.connect(_on_connection_failed)
+	modulate.a = 0.0
+	create_tween().tween_property(self, "modulate:a", 1.0, 0.4)
 
-	# mode selection button
-	if mode_button:
-		mode_button.pressed.connect(_on_mode_cycle)
-		_update_mode_label()
 
-	# progression ui
-	if upgrades_button:
-		upgrades_button.pressed.connect(_on_upgrades)
-	_load_progression_ui()
+func _exit_tree() -> void:
+	if Game.audio() == _audio:
+		Game.set_audio(null)
 
-	# settings menu
-	if settings_button:
-		settings_button.pressed.connect(_on_settings)
-	_load_settings_menu()
+
+## the network and mode managers live on the tree root so they survive the
+## change into the run scene. reuse them when coming back from a run.
+func _setup_persistent_nodes() -> void:
+	var root: Node = get_tree().root
+	_network = root.get_node_or_null("NetworkManager") as NetworkManager
+	if not _network:
+		_network = NetworkManager.new()
+		_network.name = "NetworkManager"
+		root.add_child.call_deferred(_network)
+	_modes = root.get_node_or_null("GameModeManager") as GameModeManager
+	if not _modes:
+		_modes = GameModeManager.new()
+		_modes.name = "GameModeManager"
+		root.add_child.call_deferred(_modes)
+	else:
+		_run_mode_index = maxi(0, RUN_MODES.find(_modes.run_mode))
+	_network.connection_succeeded.connect(_on_connection_changed)
+	_network.connection_failed.connect(_on_connection_failed)
+	_network.player_connected.connect(func(_id: int) -> void: _refresh())
+	_network.player_disconnected.connect(func(_id: int) -> void: _refresh())
+	_network.server_disconnected.connect(_on_connection_changed)
+
+
+func _build() -> void:
+	var margin: MarginContainer = MarginContainer.new()
+	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	margin.add_theme_constant_override("margin_left", 90)
+	margin.add_theme_constant_override("margin_top", 70)
+	margin.add_theme_constant_override("margin_bottom", 60)
+	margin.add_theme_constant_override("margin_right", 90)
+	margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(margin)
+	_root_panel = margin
+
+	var col: VBoxContainer = VBoxContainer.new()
+	col.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	col.custom_minimum_size = Vector2(520, 0)
+	col.add_theme_constant_override("separation", 10)
+	margin.add_child(col)
+
+	col.add_child(UiKit.label("RUSH FRACTURE", 76, Color(0.95, 0.98, 0.95), true))
+	col.add_child(UiKit.label("break speed. survive chaos.", 22, UiKit.ACCENT))
+	_shards_label = UiKit.label("", 19, UiKit.ACCENT, true)
+	col.add_child(_shards_label)
+	_stats_label = UiKit.label("", 15, UiKit.TEXT_DIM)
+	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(_stats_label)
+	col.add_child(_spacer(8))
+
+	_start_button = UiKit.button("start run", 26, Vector2(520, 66))
+	_start_button.add_theme_color_override("font_color", UiKit.ACCENT)
+	_start_button.pressed.connect(_on_start)
+	col.add_child(_start_button)
+
+	_mode_button = UiKit.button("", 19, Vector2(520, 46))
+	_mode_button.pressed.connect(func() -> void:
+		_run_mode_index = (_run_mode_index + 1) % RUN_MODES.size()
+		Game.sfx(&"ui_select", -8.0)
+		_refresh())
+	col.add_child(_mode_button)
+	_mode_blurb = UiKit.label("", 15, UiKit.TEXT_DIM)
+	_mode_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(_mode_blurb)
+
+	_ascension_button = UiKit.button("", 19, Vector2(520, 46))
+	_ascension_button.pressed.connect(func() -> void:
+		_ascension = (_ascension + 1) % (_profile.ascension_unlocked + 1)
+		_profile.ascension_selected = _ascension
+		_profile.save()
+		Game.sfx(&"ui_select", -8.0)
+		_refresh())
+	col.add_child(_ascension_button)
+	_ascension_blurb = UiKit.label("", 15, UiKit.TEXT_DIM)
+	_ascension_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(_ascension_blurb)
+
+	var seed_row: HBoxContainer = HBoxContainer.new()
+	seed_row.add_child(UiKit.label("seed", 16, UiKit.TEXT_DIM))
+	_seed_input = LineEdit.new()
+	_seed_input.placeholder_text = "random"
+	_seed_input.max_length = 9
+	_seed_input.custom_minimum_size = Vector2(180, 36)
+	seed_row.add_child(_seed_input)
+	col.add_child(seed_row)
+	col.add_child(_spacer(6))
+
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	col.add_child(row)
+	_small_button(row, "armory", _open_armory)
+	_small_button(row, "progression", _open_progression)
+	_small_button(row, "settings", _open_settings)
+
+	col.add_child(_spacer(6))
+	col.add_child(UiKit.label("multiplayer", 16, UiKit.WARN, true))
+	_net_box = VBoxContainer.new()
+	_net_box.add_theme_constant_override("separation", 8)
+	col.add_child(_net_box)
+
+	_coop_button = UiKit.button("", 17, Vector2(520, 40))
+	_coop_button.pressed.connect(func() -> void:
+		_coop_mode = (_coop_mode + 1) % COOP_MODE_NAMES.size()
+		_refresh())
+	_net_box.add_child(_coop_button)
+
+	var net_row: HBoxContainer = HBoxContainer.new()
+	net_row.add_theme_constant_override("separation", 10)
+	_net_box.add_child(net_row)
+	_host_button = UiKit.button("host", 17, Vector2(120, 40))
+	_host_button.pressed.connect(_on_host)
+	net_row.add_child(_host_button)
+	_code_input = LineEdit.new()
+	_code_input.placeholder_text = "room code"
+	_code_input.max_length = NetworkManager.CODE_LENGTH
+	_code_input.custom_minimum_size = Vector2(130, 40)
+	net_row.add_child(_code_input)
+	_ip_input = LineEdit.new()
+	_ip_input.placeholder_text = "host ip (blank = this pc)"
+	_ip_input.custom_minimum_size = Vector2(150, 40)
+	_ip_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	net_row.add_child(_ip_input)
+	_join_button = UiKit.button("join", 17, Vector2(90, 40))
+	_join_button.pressed.connect(_on_join)
+	net_row.add_child(_join_button)
+
+	_leave_button = UiKit.button("leave room", 16, Vector2(160, 36))
+	_leave_button.pressed.connect(func() -> void:
+		_network.disconnect_game()
+		_refresh())
+	_net_box.add_child(_leave_button)
+	_status = UiKit.label("", 15, UiKit.TEXT_DIM)
+	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_net_box.add_child(_status)
+
+	col.add_child(_spacer(6))
+	var quit: Button = UiKit.button("quit", 17, Vector2(160, 40))
+	quit.pressed.connect(func() -> void:
+		_network.disconnect_game()
+		get_tree().quit())
+	col.add_child(quit)
+
+	_armory = ArmoryPanel.new()
+	add_child(_armory)
+	_armory.closed.connect(_on_panel_closed)
+	_armory.profile_changed.connect(_refresh)
+	_armory.preview_requested.connect(func(path: String, skin: StringName) -> void:
+		_backdrop.set_tint(Skins.accent(skin))
+		_backdrop.show_model(path, skin, 0.6))
+	_progression = ProgressionPanel.new()
+	add_child(_progression)
+	_progression.closed.connect(_on_panel_closed)
+	_progression.profile_changed.connect(_refresh)
+	_settings_panel = SettingsPanel.new()
+	add_child(_settings_panel)
+	_settings_panel.closed.connect(_on_panel_closed)
+
+	_start_button.grab_focus.call_deferred()
+
+
+func _spacer(height: float) -> Control:
+	var c: Control = Control.new()
+	c.custom_minimum_size = Vector2(0, height)
+	return c
+
+
+func _small_button(row: HBoxContainer, text: String, callback: Callable) -> void:
+	var b: Button = UiKit.button(text, 18, Vector2(166, 46))
+	b.pressed.connect(callback)
+	row.add_child(b)
+
+
+# --- state ----------------------------------------------------------------------
+
+func _refresh() -> void:
+	if not _mode_button:
+		return
+	var mode: StringName = RUN_MODES[_run_mode_index]
+	var online: bool = _network.is_online()
+	var hosting: bool = _network.is_host()
+	var versus: bool = online and _coop_mode != 0
+
+	_shards_label.text = "%d shards" % _profile.fracture_shards
+	_stats_label.text = "   ·   ".join(_profile.get_stat_summary())
+
+	_mode_button.text = "mode:  %s" % GameModeManager.run_mode_name(mode)
+	_mode_blurb.text = GameModeManager.run_mode_description(mode)
+	if mode == RunData.MODE_DAILY and _profile.daily_last_played == GameModeManager.daily_key():
+		_mode_blurb.text += " (already played today: best %d kills)" % _profile.daily_best_kills
+	_mode_button.disabled = versus or (online and not hosting)
+
+	_ascension = clampi(_ascension, 0, _profile.ascension_unlocked)
+	_ascension_button.visible = _profile.ascension_unlocked > 0
+	_ascension_blurb.visible = _profile.ascension_unlocked > 0
+	_ascension_button.text = "ascension:  %d" % _ascension
+	_ascension_blurb.text = MetaProgression.ascension_description(_ascension)
+	_ascension_button.disabled = online and not hosting
+
+	_seed_input.editable = mode != RunData.MODE_DAILY and (not online or hosting)
+
+	_coop_button.text = "together as:  %s" % COOP_MODE_NAMES[_coop_mode]
+	_coop_button.disabled = online and not hosting
+	_host_button.disabled = online
+	_join_button.disabled = online
+	_code_input.editable = not online
+	_ip_input.editable = not online
+	_leave_button.visible = online
+
+	if not online:
+		_start_button.text = "start run"
+		_start_button.disabled = false
+	elif hosting:
+		var others: int = _network.connected_peers.size() - 1
+		_start_button.text = "start for everyone (%d joined)" % others
+		_start_button.disabled = false
+		var ip: String = _local_lan_ip()
+		_status.text = "room code %s%s. share it, then start." % [_network.room_code, ("   ·   ip %s" % ip) if not ip.is_empty() else ""]
+	else:
+		_start_button.text = "waiting for the host"
+		_start_button.disabled = true
+		_status.text = "connected to room %s. the host starts the run." % _network.room_code
+
+
+func _selected_seed() -> int:
+	var text: String = _seed_input.text.strip_edges()
+	if text.is_empty() or not text.is_valid_int():
+		return 0
+	return clampi(absi(text.to_int()), 0, 999999999)
 
 
 func _on_start() -> void:
-	_game_mode_manager.set_mode(_selected_mode)
-
-	# solo mode — clean up network manager
-	if _network_manager and not _network_manager.is_online():
-		_network_manager.queue_free()
-		_network_manager = null
-	_animate_out(func():
-		var err: Error = get_tree().change_scene_to_file("res://scenes/main.tscn")
+	var mode: StringName = RUN_MODES[_run_mode_index]
+	if _network.is_online():
+		if not _network.is_host():
+			return
+		_network.start_match(_coop_mode, String(mode), _ascension, _selected_seed())
+		return
+	_modes.set_mode(GameModeManager.GameMode.COOP)
+	_modes.run_mode = mode
+	_modes.ascension = _ascension
+	_modes.custom_seed = _selected_seed()
+	Game.sfx(&"run_start", -6.0)
+	var tween: Tween = create_tween()
+	tween.tween_property(self, "modulate:a", 0.0, 0.25)
+	tween.tween_callback(func() -> void:
+		var err: Error = get_tree().change_scene_to_file(NetworkManager.GAME_SCENE)
 		if err != OK:
-			push_error("failed to change scene to main: %s" % error_string(err))
-	)
+			push_error("failed to load the run scene: %s" % error_string(err)))
 
+
+# --- panels ---------------------------------------------------------------------
+
+func _open_armory() -> void:
+	_root_panel.visible = false
+	_armory.open(_profile)
+
+
+func _open_progression() -> void:
+	_root_panel.visible = false
+	_progression.open(_profile)
+
+
+func _open_settings() -> void:
+	_root_panel.visible = false
+	_settings_panel.open()
+
+
+func _on_panel_closed() -> void:
+	_root_panel.visible = true
+	_backdrop.set_tint(Skins.accent(_profile.skin))
+	_backdrop.show_random_boss()
+	_refresh()
+	_start_button.grab_focus.call_deferred()
+
+
+# --- multiplayer ----------------------------------------------------------------
 
 func _on_host() -> void:
-	status_label.text = "creating room..."
-	status_label.visible = true
-	var err: Error = _network_manager.host_game()
+	var err: Error = _network.host_game()
 	if err != OK:
-		status_label.text = "failed to host: %s" % error_string(err)
+		_status.text = "could not host: %s" % error_string(err)
 		return
-	var local_ip: String = _get_local_lan_ip()
-	if local_ip != "":
-		status_label.text = "code: %s  ip: %s — share both with other players" % [_network_manager.room_code, local_ip]
-	else:
-		status_label.text = "room code: %s — share this code" % _network_manager.room_code
-	join_button.disabled = true
-	host_button.disabled = true
-	code_input.text = _network_manager.room_code
-	code_input.editable = false
-	ip_input.editable = false
-	start_button.text = "start run (host)"
+	_refresh()
 
 
 func _on_join() -> void:
-	var code: String = code_input.text.strip_edges().to_upper()
+	var code: String = _code_input.text.strip_edges().to_upper()
 	if code.length() != NetworkManager.CODE_LENGTH:
-		status_label.text = "enter a %d-character room code" % NetworkManager.CODE_LENGTH
-		status_label.visible = true
+		_status.text = "enter the %d-character room code." % NetworkManager.CODE_LENGTH
 		return
-	var address: String = ip_input.text.strip_edges()
-	if address == "":
+	var address: String = _ip_input.text.strip_edges()
+	if address.is_empty():
 		address = "127.0.0.1"
-	status_label.text = "connecting to %s with code %s..." % [address, code]
-	status_label.visible = true
-	var err: Error = _network_manager.join_by_code(code, address)
+	_status.text = "connecting to %s..." % address
+	var err: Error = _network.join_by_code(code, address)
 	if err != OK:
-		status_label.text = "failed to connect: %s" % error_string(err)
+		_status.text = "could not connect: %s" % error_string(err)
 		return
-	host_button.disabled = true
-	join_button.disabled = true
-	ip_input.editable = false
+	_host_button.disabled = true
+	_join_button.disabled = true
 
 
-func _get_local_lan_ip() -> String:
-	# best-effort LAN ip for the host to share — prefers private-range ipv4,
-	# falls back to empty (caller shows the code alone) if nothing usable is found.
-	for addr: String in IP.get_local_addresses():
-		if addr == "127.0.0.1" or addr.begins_with("169.254.") or ":" in addr:
-			continue
-		if addr.begins_with("192.168.") or addr.begins_with("10.") or _is_172_private(addr):
-			return addr
-	return ""
-
-
-func _is_172_private(addr: String) -> bool:
-	if not addr.begins_with("172."):
-		return false
-	var parts: PackedStringArray = addr.split(".")
-	if parts.size() < 2:
-		return false
-	var second: int = parts[1].to_int()
-	return second >= 16 and second <= 31
-
-
-func _on_connection_succeeded() -> void:
-	if _network_manager.is_host():
-		return
-	status_label.text = "connected (peer %d)" % _network_manager.local_peer_id
-	start_button.text = "start run (client)"
+func _on_connection_changed() -> void:
+	_refresh()
 
 
 func _on_connection_failed() -> void:
-	status_label.text = "connection failed — check code, ip, and try again"
-	host_button.disabled = false
-	join_button.disabled = false
-	code_input.editable = true
-	ip_input.editable = true
+	_refresh()
+	_status.text = "connection failed. check the code and the host's ip."
 
 
-func _on_mode_cycle() -> void:
-	match _selected_mode:
-		GameModeManager.GameMode.COOP:
-			_selected_mode = GameModeManager.GameMode.RACE
-		GameModeManager.GameMode.RACE:
-			_selected_mode = GameModeManager.GameMode.PVP_ENCOUNTER
-		GameModeManager.GameMode.PVP_ENCOUNTER:
-			_selected_mode = GameModeManager.GameMode.COOP
-	_update_mode_label()
-
-
-func _update_mode_label() -> void:
-	if not mode_button:
-		return
-	match _selected_mode:
-		GameModeManager.GameMode.COOP:
-			mode_button.text = "mode: co-op"
-		GameModeManager.GameMode.RACE:
-			mode_button.text = "mode: race"
-		GameModeManager.GameMode.PVP_ENCOUNTER:
-			mode_button.text = "mode: pvp encounter"
-
-
-func _on_upgrades() -> void:
-	if _progression_ui:
-		_progression_ui.show_progression()
-
-
-func _on_settings() -> void:
-	if _settings_menu:
-		_settings_menu.show_settings()
-
-
-func _load_progression_ui() -> void:
-	var scene: PackedScene = load("res://scenes/progression_ui.tscn")
-	if scene:
-		_progression_ui = scene.instantiate() as ProgressionUI
-		add_child(_progression_ui)
-		_progression_ui.closed.connect(func():
-			_show_shards()
-			start_button.grab_focus()
-		)
-
-
-func _load_settings_menu() -> void:
-	var scene: PackedScene = load("res://scenes/settings_menu.tscn")
-	if scene:
-		_settings_menu = scene.instantiate() as SettingsMenu
-		add_child(_settings_menu)
-		_settings_menu.closed.connect(func():
-			start_button.grab_focus()
-		)
-
-
-func _on_quit() -> void:
-	if _network_manager:
-		_network_manager.disconnect_game()
-	get_tree().quit()
-
-
-func _show_shards() -> void:
-	if not shards_label:
-		return
-	var profile: PlayerProfile = PlayerProfile.load_profile()
-	if profile.fracture_shards > 0:
-		shards_label.text = "%d shards" % profile.fracture_shards
-		shards_label.visible = true
-	else:
-		shards_label.visible = false
-
-
-func _show_best_stats() -> void:
-	var profile: PlayerProfile = PlayerProfile.load_profile()
-	if profile.best_kills_single_run <= 0 and profile.best_combo <= 0:
-		best_stats_label.visible = false
-		return
-
-	var lines: PackedStringArray = PackedStringArray()
-	if profile.best_kills_single_run > 0:
-		lines.append("best kills: %d" % profile.best_kills_single_run)
-	if profile.best_combo > 0:
-		lines.append("best combo: %d" % profile.best_combo)
-	if profile.best_time > 0:
-		var m: int = int(profile.best_time) / 60
-		var s: int = int(profile.best_time) % 60
-		lines.append("best time: %d:%02d" % [m, s])
-	if profile.runs_completed > 0:
-		lines.append("runs completed: %d" % profile.runs_completed)
-
-	best_stats_label.text = " / ".join(lines)
-	best_stats_label.visible = true
-
-
-func _animate_in() -> void:
-	modulate.a = 0.0
-	var tween: Tween = create_tween()
-	tween.tween_property(self, "modulate:a", 1.0, 0.4)
-
-
-func _animate_out(callback: Callable) -> void:
-	var tween: Tween = create_tween()
-	tween.tween_property(self, "modulate:a", 0.0, 0.2)
-	tween.tween_callback(callback)
+## best-effort private ipv4 address to show the host, so they can share it.
+func _local_lan_ip() -> String:
+	for addr: String in IP.get_local_addresses():
+		if ":" in addr or addr == "127.0.0.1" or addr.begins_with("169.254."):
+			continue
+		if addr.begins_with("192.168.") or addr.begins_with("10."):
+			return addr
+		if addr.begins_with("172."):
+			var parts: PackedStringArray = addr.split(".")
+			if parts.size() >= 2 and parts[1].to_int() >= 16 and parts[1].to_int() <= 31:
+				return addr
+	return ""

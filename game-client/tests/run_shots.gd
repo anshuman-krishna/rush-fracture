@@ -37,8 +37,24 @@ func _initialize() -> void:
 	_driver.max_runs = int(opts.get("runs", 1))
 	_driver.god_mode = int(opts.get("god", 1)) != 0
 	_driver.max_sim_seconds = float(opts.get("max-sim", 600.0))
+	_driver.room_limit = int(opts.get("rooms", 0))
 	_driver.finished.connect(_on_finished)
 	root.add_child(_driver)
+
+	var mode_node: GameModeManager = GameModeManager.new()
+	mode_node.name = "GameModeManager"
+	mode_node.run_mode = StringName(String(opts.get("mode", "standard")))
+	mode_node.ascension = int(opts.get("ascension", 0))
+	mode_node.custom_seed = int(opts.get("seed", 0))
+	root.add_child(mode_node)
+	if opts.has("loadout"):
+		var profile: PlayerProfile = PlayerProfile.load_profile()
+		var ids: Array = []
+		for id: String in String(opts.loadout).split(",", false):
+			profile.unlocks[id.strip_edges()] = true
+			ids.append(id.strip_edges())
+		profile.loadout = WeaponDefs.sanitize_loadout(ids, profile.owns_weapon)
+		profile.save()
 
 	RenderingServer.frame_post_draw.connect(_on_frame_drawn)
 	var scene: String = String(opts.get("scene", "res://scenes/main.tscn"))
@@ -75,6 +91,8 @@ func _process(delta: float) -> bool:
 	_once(main, "UI/UpgradeSelection", "upgrade_ui")
 	_once(main, "UI/MutationSelection", "mutation_ui")
 	_once(main, "UI/RunSummary", "summary")
+	_once(main, "UI/PathChoice", "path_ui")
+	_once(main, "UI/Shop", "shop_ui")
 
 	_timer -= delta
 	if _timer <= 0.0:

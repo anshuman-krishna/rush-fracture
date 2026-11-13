@@ -1,106 +1,172 @@
 class_name RoomGenerator
 extends RefCounted
 
-# generates a structured room sequence for a run.
-# designed to feel paced, not random.
+# builds the map for a run: a list of floors, each offering one to three
+# rooms to choose between. fully determined by the seed, so co-op peers and
+# daily runs all get the same map.
+#
+# a standard run is three acts. each act is a few choice floors, a rest stop
+# (sanctuary or altar), then that act's boss.
 
-const MIN_ROOMS := 5
-const MAX_ROOMS := 8
-const BASE_DIFFICULTY := 1.0
-const DIFFICULTY_STEP := 0.2
+const BASE_DIFFICULTY: float = 1.0
+const FLOOR_STEP: float = 0.13
+const ACT_STEP: float = 0.1
+const ASCENSION_STEP: float = 0.12
+const CHOICE_FLOORS_PER_ACT: int = 3
+const ENDLESS_ACTS: int = 12
+
+const ACT_BOSSES: Array = [[&"warden"], [&"matriarch", &"stalker"], [&"titan"]]
+const ENDLESS_BOSSES: Array[StringName] = [&"warden", &"stalker", &"matriarch", &"titan", &"core"]
+const RUSH_BOSSES: Array[StringName] = [&"warden", &"stalker", &"matriarch", &"titan", &"core"]
 
 
-static func generate(seed_value: int = -1) -> Array[RunData.RoomData]:
+## cfg: mode, seed, ascension, players. returns floors (Array of Array[RoomData]).
+static func generate(cfg: Dictionary) -> Array:
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
-	if seed_value >= 0:
-		rng.seed = seed_value
-	else:
-		rng.randomize()
+	rng.seed = int(cfg.get("seed", 0))
+	var mode: StringName = cfg.get("mode", RunData.MODE_STANDARD)
+	var ascension: int = int(cfg.get("ascension", 0))
+	var players: int = maxi(1, int(cfg.get("players", 1)))
 
-	var room_count: int = rng.randi_range(MIN_ROOMS, MAX_ROOMS)
-	var sequence: Array[RunData.RoomData] = []
-
-	# first room is always an easy combat room
-	sequence.append(_create_room(
-		0, RoomDefinitions.RoomType.COMBAT, BASE_DIFFICULTY
-	))
-
-	# generate middle rooms
-	var elite_placed: bool = false
-	var recovery_count: int = 0
-	var last_type: RoomDefinitions.RoomType = RoomDefinitions.RoomType.COMBAT
-
-	for i in range(1, room_count - 1):
-		var progress: float = float(i) / float(room_count - 1)
-		var difficulty: float = BASE_DIFFICULTY + DIFFICULTY_STEP * i
-		var type: RoomDefinitions.RoomType = _pick_room_type(rng, progress, last_type, elite_placed, recovery_count)
-
-		if type == RoomDefinitions.RoomType.ELITE or type == RoomDefinitions.RoomType.ELITE_CHAMBER:
-			elite_placed = true
-		if type == RoomDefinitions.RoomType.RECOVERY:
-			recovery_count += 1
-
-		sequence.append(_create_room(i, type, difficulty))
-		last_type = type
-
-	# final room is the boss encounter
-	var final_difficulty: float = BASE_DIFFICULTY + DIFFICULTY_STEP * (room_count - 1) + 0.15
-	sequence.append(_create_room(
-		room_count - 1, RoomDefinitions.RoomType.BOSS, final_difficulty
-	))
-
-	return sequence
+	match mode:
+		RunData.MODE_SPRINT:
+			return _build_acts(rng, 1, ascension, players, true, false)
+		RunData.MODE_ENDLESS:
+			return _build_acts(rng, ENDLESS_ACTS, ascension, players, false, true)
+		RunData.MODE_BOSS_RUSH:
+			return _build_boss_rush(rng, ascension, players)
+	return _build_acts(rng, 3, ascension, players, false, false)
 
 
-static func _pick_room_type(
-	rng: RandomNumberGenerator,
-	progress: float,
-	last_type: RoomDefinitions.RoomType,
-	elite_placed: bool,
-	recovery_count: int,
-) -> RoomDefinitions.RoomType:
-	var roll: float = rng.randf()
-	var roll2: float = rng.randf()
+static func _build_acts(rng: RandomNumberGenerator, act_count: int, ascension: int, players: int,
+		sprint: bool, endless: bool) -> Array:
+	var floors: Array = []
+	var floor_index: int = 0
+	var biome_offset: int = rng.randi() % Biome.ACT_ORDER.size() if sprint else 0
 
-	# elite chamber: once per run, late-run, not after recovery
-	if not elite_placed and progress > 0.5 and progress < 0.85:
-		if roll < 0.15 and last_type != RoomDefinitions.RoomType.RECOVERY:
-			return RoomDefinitions.RoomType.ELITE_CHAMBER
+	for act: int in act_count:
+		var biome: StringName = Biome.for_act(act + biome_offset)
+		var mutation_given: bool = false
 
-	# elite: once per run, not too early, not after recovery
-	if not elite_placed and progress > 0.4 and progress < 0.85:
-		if roll < 0.25 and last_type != RoomDefinitions.RoomType.RECOVERY:
-			return RoomDefinitions.RoomType.ELITE
+		for step: int in CHOICE_FLOORS_PER_ACT + (1 if sprint else 0):
+			var diff: float = _difficulty(floor_index, act, ascension, sprint)
+			var options: Array = []
+			if act == 0 and step == 0:
+				# every run opens on the same gentle room
+				options.append(_room(rng, floor_index, act, biome, RoomDefinitions.RoomType.COMBAT, diff, players))
+			else:
+				var count: int = 2 if rng.randf() < 0.45 else 3
+				for type: RoomDefinitions.RoomType in _pick_types(rng, count, step, act):
+					options.append(_room(rng, floor_index, act, biome, type, diff, players))
+				# make sure each act offers a mutation somewhere before its boss
+				if not mutation_given and step == CHOICE_FLOORS_PER_ACT - 1:
+					var has_mutation: bool = false
+					for r: RunData.RoomData in options:
+						if r.reward == RoomDefinitions.REWARD_MUTATION:
+							has_mutation = true
+					if not has_mutation:
+						(options[rng.randi() % options.size()] as RunData.RoomData).reward = RoomDefinitions.REWARD_MUTATION
+			for r: RunData.RoomData in options:
+				if r.reward == RoomDefinitions.REWARD_MUTATION:
+					mutation_given = true
+			floors.append(options)
+			floor_index += 1
 
-	# recovery: max 1, not back-to-back, mid-run only
-	if recovery_count < 1 and progress > 0.3 and progress < 0.7:
-		if roll > 0.75 and last_type != RoomDefinitions.RoomType.RECOVERY:
-			return RoomDefinitions.RoomType.RECOVERY
+		# rest stop: choose between healing and spending
+		var rest_diff: float = _difficulty(floor_index, act, ascension, sprint)
+		floors.append([
+			_room(rng, floor_index, act, biome, RoomDefinitions.RoomType.RECOVERY, rest_diff, players),
+			_room(rng, floor_index, act, biome, RoomDefinitions.RoomType.SHOP, rest_diff, players),
+		])
+		floor_index += 1
 
-	# gauntlet: mid-to-late run, avoid consecutive
-	if progress > 0.4 and roll2 < 0.2 and last_type != RoomDefinitions.RoomType.GAUNTLET:
-		return RoomDefinitions.RoomType.GAUNTLET
+		var boss_diff: float = _difficulty(floor_index, act, ascension, sprint) + 0.1
+		var boss_room: RunData.RoomData = _room(rng, floor_index, act, biome, RoomDefinitions.RoomType.BOSS, boss_diff, players)
+		if endless:
+			boss_room.boss_id = ENDLESS_BOSSES[act % ENDLESS_BOSSES.size()]
+		elif sprint:
+			var pool: Array = ACT_BOSSES[posmod(act + biome_offset, ACT_BOSSES.size())]
+			boss_room.boss_id = pool[rng.randi() % pool.size()]
+		else:
+			var act_pool: Array = ACT_BOSSES[mini(act, ACT_BOSSES.size() - 1)]
+			boss_room.boss_id = act_pool[rng.randi() % act_pool.size()]
+		floors.append([boss_room])
+		floor_index += 1
 
-	# hazard: difficulty-gated, avoid consecutive
-	if progress > 0.3 and roll2 > 0.7 and last_type != RoomDefinitions.RoomType.HAZARD:
-		return RoomDefinitions.RoomType.HAZARD
+	# high ascension: the titan is not the end
+	if not sprint and not endless and ascension >= 2:
+		var last_act: int = act_count - 1
+		var core_room: RunData.RoomData = _room(rng, floor_index, last_act, &"fracture", RoomDefinitions.RoomType.BOSS,
+			_difficulty(floor_index, last_act, ascension, false) + 0.15, players)
+		core_room.boss_id = &"core"
+		floors.append([core_room])
+	return floors
 
-	# swarm: avoid consecutive swarms
-	if roll < 0.35 and last_type != RoomDefinitions.RoomType.SWARM:
-		return RoomDefinitions.RoomType.SWARM
 
-	return RoomDefinitions.RoomType.COMBAT
+static func _build_boss_rush(rng: RandomNumberGenerator, ascension: int, players: int) -> Array:
+	var floors: Array = []
+	var floor_index: int = 0
+	for i: int in RUSH_BOSSES.size():
+		var biome: StringName = Biome.for_act(i)
+		var diff: float = 1.3 + 0.32 * float(i) + ASCENSION_STEP * float(ascension)
+		# an armory stop before each boss: a rare upgrade, no fight
+		var prep: RunData.RoomData = _room(rng, floor_index, i, biome, RoomDefinitions.RoomType.RECOVERY, diff, players)
+		prep.reward = RoomDefinitions.REWARD_RARE
+		prep.metadata["double_reward"] = true
+		floors.append([prep])
+		floor_index += 1
+		var boss_room: RunData.RoomData = _room(rng, floor_index, i, biome, RoomDefinitions.RoomType.BOSS, diff, players)
+		boss_room.boss_id = RUSH_BOSSES[i]
+		floors.append([boss_room])
+		floor_index += 1
+	return floors
 
 
-static func _create_room(
-	index: int,
-	type: RoomDefinitions.RoomType,
-	difficulty: float,
-) -> RunData.RoomData:
+static func _difficulty(floor_index: int, act: int, ascension: int, sprint: bool) -> float:
+	var step: float = FLOOR_STEP * (1.6 if sprint else 1.0)
+	return BASE_DIFFICULTY + step * float(floor_index) + ACT_STEP * float(act) + ASCENSION_STEP * float(ascension)
+
+
+static func _pick_types(rng: RandomNumberGenerator, count: int, step: int, act: int) -> Array:
+	var weights: Dictionary = {
+		RoomDefinitions.RoomType.COMBAT: 5.0,
+		RoomDefinitions.RoomType.SWARM: 3.0,
+		RoomDefinitions.RoomType.HAZARD: 2.0 if step >= 1 or act >= 1 else 0.0,
+		RoomDefinitions.RoomType.ELITE: 2.5 if step >= 1 or act >= 1 else 0.0,
+		RoomDefinitions.RoomType.GAUNTLET: 2.0 if step >= 1 or act >= 1 else 0.0,
+		RoomDefinitions.RoomType.ELITE_CHAMBER: 1.5 if act >= 1 or step >= 2 else 0.0,
+	}
+	var picked: Array = []
+	for i: int in count:
+		var total: float = 0.0
+		for t: Variant in weights:
+			total += weights[t]
+		if total <= 0.0:
+			break
+		var roll: float = rng.randf() * total
+		for t: Variant in weights:
+			roll -= weights[t]
+			if roll <= 0.0:
+				picked.append(t)
+				weights[t] = 0.0
+				break
+	if picked.is_empty():
+		picked.append(RoomDefinitions.RoomType.COMBAT)
+	return picked
+
+
+static func _room(rng: RandomNumberGenerator, floor_index: int, act: int, biome: StringName,
+		type: RoomDefinitions.RoomType, difficulty: float, players: int) -> RunData.RoomData:
 	var room: RunData.RoomData = RunData.RoomData.new()
-	room.id = "room_%d" % index
+	room.seed_value = rng.randi()
+	room.id = "f%d_%s_%d" % [floor_index, RoomDefinitions.type_to_string(type).replace(" ", "_"), room.seed_value % 100000]
 	room.type = type
+	room.act = act
+	room.floor_index = floor_index
+	room.biome = biome
 	room.difficulty = difficulty
-	room.enemy_budget = RoomDefinitions.enemy_budget_for(type, difficulty)
-	room.reward_flag = RoomDefinitions.has_reward(type)
+	room.enemy_budget = RoomDefinitions.enemy_budget_for(type, difficulty, players)
+	room.reward = RoomDefinitions.default_reward(type)
+	if type == RoomDefinitions.RoomType.COMBAT and rng.randf() < 0.25:
+		room.reward = RoomDefinitions.REWARD_ESSENCE
 	return room

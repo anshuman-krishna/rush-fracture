@@ -1,255 +1,151 @@
 class_name FractureManager
 extends Node
 
-signal fracture_started(type: FractureDefinitions.FractureType)
-signal fracture_ended(type: FractureDefinitions.FractureType)
+# runs fracture events. every effect on the player is a stat modifier under
+# the "fracture" key, so starting and ending an event can never clobber a
+# change some other system made in the meantime.
+#
+# in multiplayer the host rolls and broadcasts the event; each peer then
+# applies it to its own player.
 
-var active_fracture: FractureDefinitions.FractureType = -1
+signal fracture_started(type: int)
+signal fracture_ended(type: int)
+
+const KEY: StringName = &"fracture"
+const T: Dictionary = FractureDefinitions.FractureType
+
+var active_fracture: int = -1
 var fracture_timer: float = 0.0
 var is_active: bool = false
 
 var _player: CharacterBody3D
-var _original_gravity: float
-var _original_speed: float
-var _original_dash_force: float
-var _original_jump_force: float
 var _explosion_timer: float = 0.0
-var _camera: Camera3D
-var _speed_buffed_enemies: Array[Node] = []
 
 
 func bind(player: CharacterBody3D) -> void:
 	_player = player
-	_original_gravity = ProjectSettings.get_setting("physics/3d/default_gravity")
-	_original_speed = player.move_speed
 
 
 func _process(delta: float) -> void:
 	if not is_active:
 		return
-
 	fracture_timer -= delta
-	if fracture_timer <= 0:
+	if fracture_timer <= 0.0:
 		end_fracture()
 		return
-
-	# random explosions tick
-	if active_fracture == FractureDefinitions.FractureType.RANDOM_EXPLOSIONS:
+	if active_fracture == T.RANDOM_EXPLOSIONS:
 		_explosion_timer -= delta
-		if _explosion_timer <= 0:
-			_explosion_timer = 1.5 + randf() * 1.5
-			_spawn_random_explosion()
+		if _explosion_timer <= 0.0:
+			_explosion_timer = randf_range(0.9, 1.8)
+			_spawn_eruption()
 
 
-## rolls for a fracture and starts it locally if the roll succeeds. returns
-## the chosen type, or -1 if none was triggered. in multiplayer, only the
-## host should call this — see game_manager.gd's _try_start_fracture, which
-## broadcasts the winning type to every other peer's FractureManager instead
-## of letting each peer roll independently (they'd disagree on whether a
-## fracture starts at all, let alone which one).
+## rolls for an event and starts it if the roll succeeds. returns the type, or
+## -1. only the host (or a solo player) should call this.
 func try_trigger(room_difficulty: float) -> int:
 	if is_active:
 		return -1
-
-	# base 10% chance, scales with difficulty
-	var chance: float = 0.10 + (room_difficulty - 1.0) * 0.08
+	var chance: float = clampf(0.1 + (room_difficulty - 1.0) * 0.07, 0.0, 0.3)
 	if randf() > chance:
 		return -1
-
-	var types: Array = FractureDefinitions.FractureType.values()
-	var type: FractureDefinitions.FractureType = types[randi() % types.size()]
+	var types: Array = FractureDefinitions.EVENTS.keys()
+	var type: int = types[randi() % types.size()]
 	start_fracture(type)
 	return type
 
 
-func start_fracture(type: FractureDefinitions.FractureType) -> void:
+func start_fracture(type: int) -> void:
+	if is_active:
+		end_fracture()
 	active_fracture = type
 	fracture_timer = FractureDefinitions.get_duration(type)
 	is_active = true
-
-	_apply_effect(type)
+	_apply(type)
 	fracture_started.emit(type)
 
 
 func end_fracture() -> void:
 	if not is_active:
 		return
-
-	_revert_effect(active_fracture)
-	var ended_type: FractureDefinitions.FractureType = active_fracture
+	var ended: int = active_fracture
+	_revert()
 	active_fracture = -1
 	is_active = false
 	fracture_timer = 0.0
-	fracture_ended.emit(ended_type)
+	fracture_ended.emit(ended)
 
 
 func get_active_name() -> String:
-	if not is_active:
-		return ""
-	return FractureDefinitions.get_event_name(active_fracture)
+	return FractureDefinitions.get_event_name(active_fracture) if is_active else ""
 
 
 func get_time_remaining() -> float:
 	return fracture_timer if is_active else 0.0
 
 
-func _apply_effect(type: FractureDefinitions.FractureType) -> void:
-	if not _player:
+func get_time_ratio() -> float:
+	if not is_active:
+		return 0.0
+	return clampf(fracture_timer / FractureDefinitions.get_duration(active_fracture), 0.0, 1.0)
+
+
+func _apply(type: int) -> void:
+	var rooms: RoomController = Game.rooms()
+	if type == T.DOUBLE_SPEED_ENEMIES and rooms:
+		rooms.set_enemy_speed_mod(KEY, 1.7)
+	if type == T.RANDOM_EXPLOSIONS:
+		_explosion_timer = 1.0
+	if not is_instance_valid(_player):
 		return
-
-	_original_speed = _player.move_speed
-	_original_dash_force = _player.dash_force
-	_original_jump_force = _player.jump_force
-
+	var s: StatBlock = _player.stats
 	match type:
-		FractureDefinitions.FractureType.VELOCITY_SURGE:
-			_player.move_speed *= 1.8
-			_player.dash_force *= 1.5
-		FractureDefinitions.FractureType.UNSTABLE_GRAVITY:
-			_player.gravity *= 0.35
-			_player.jump_force *= 1.6
-		FractureDefinitions.FractureType.ENEMY_DUPLICATION:
-			pass
-		FractureDefinitions.FractureType.LOW_GRAVITY:
-			_player.gravity *= 0.15
-			_player.jump_force *= 2.0
-		FractureDefinitions.FractureType.DOUBLE_SPEED_ENEMIES:
-			_buff_all_enemy_speeds(2.0)
-		FractureDefinitions.FractureType.RANDOM_EXPLOSIONS:
-			_explosion_timer = 1.0
-		FractureDefinitions.FractureType.VISION_DISTORTION:
-			_apply_vision_distortion()
+		T.VELOCITY_SURGE:
+			s.set_mul(&"move_speed", KEY, 1.7)
+			s.set_mul(&"dash_force", KEY, 1.4)
+		T.UNSTABLE_GRAVITY:
+			s.set_mul(&"gravity_scale", KEY, 0.4)
+			s.set_mul(&"jump_force", KEY, 1.3)
+		T.LOW_GRAVITY:
+			s.set_mul(&"gravity_scale", KEY, 0.18)
+			s.set_mul(&"jump_force", KEY, 1.15)
+		T.VISION_DISTORTION:
+			s.set_add(&"fov_bias", KEY, -32.0)
+		T.BLOOD_FRENZY:
+			s.set_mul(&"damage", KEY, 1.5)
+			s.set_mul(&"damage_taken", KEY, 1.5)
+		T.ESSENCE_STORM:
+			s.set_mul(&"essence_gain", KEY, 3.0)
 
 
-func _revert_effect(type: FractureDefinitions.FractureType) -> void:
-	if not _player:
+func _revert() -> void:
+	var rooms: RoomController = Game.rooms()
+	if rooms:
+		rooms.set_enemy_speed_mod(KEY, 1.0)
+	if is_instance_valid(_player):
+		_player.stats.remove_key(KEY)
+
+
+## a marked circle near the player that goes off a moment later. it hurts
+## whoever is standing in it, enemies included.
+func _spawn_eruption() -> void:
+	if not is_instance_valid(_player):
 		return
-
-	match type:
-		FractureDefinitions.FractureType.VELOCITY_SURGE:
-			_player.move_speed = _original_speed
-			_player.dash_force = _original_dash_force
-		FractureDefinitions.FractureType.UNSTABLE_GRAVITY:
-			_player.gravity = _original_gravity
-			_player.jump_force = _original_jump_force
-		FractureDefinitions.FractureType.ENEMY_DUPLICATION:
-			pass
-		FractureDefinitions.FractureType.LOW_GRAVITY:
-			_player.gravity = _original_gravity
-			_player.jump_force = _original_jump_force
-		FractureDefinitions.FractureType.DOUBLE_SPEED_ENEMIES:
-			_revert_enemy_speeds()
-		FractureDefinitions.FractureType.RANDOM_EXPLOSIONS:
-			_explosion_timer = 0.0
-		FractureDefinitions.FractureType.VISION_DISTORTION:
-			_revert_vision_distortion()
-
-
-func _buff_all_enemy_speeds(multiplier: float) -> void:
-	# enemies only ever simulate movement where they hold multiplayer
-	# authority (the host) — a non-host peer mutating move_speed here would be
-	# touching an inert local copy, so only the host should bother.
-	if not _is_host():
-		return
-	# only enemies alive right now get buffed and tracked for revert — anything
-	# spawned mid-fracture (gauntlet waves, duplication procs) is left alone,
-	# so it never gets wrongly halved when the fracture ends.
-	_speed_buffed_enemies.clear()
-	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
-	for enemy in enemies:
-		if "move_speed" in enemy:
-			enemy.move_speed *= multiplier
-			_speed_buffed_enemies.append(enemy)
-
-
-func _revert_enemy_speeds() -> void:
-	if not _is_host():
-		return
-	for enemy in _speed_buffed_enemies:
-		if is_instance_valid(enemy) and "move_speed" in enemy:
-			enemy.move_speed *= 0.5
-	_speed_buffed_enemies.clear()
-
-
-func _is_host() -> bool:
-	if not multiplayer or not multiplayer.has_multiplayer_peer():
-		return true
-	return multiplayer.is_server()
-
-
-func _spawn_random_explosion() -> void:
-	if not _player:
-		return
-
-	# explosion at random position near the player
 	var angle: float = randf() * TAU
-	var dist: float = 3.0 + randf() * 12.0
-	var pos: Vector3 = _player.global_position + Vector3(cos(angle) * dist, 0.5, sin(angle) * dist)
-
-	# damage anything nearby (player and enemies)
-	var radius: float = 3.5
-	var damage: int = 10
-
-	# damage player
-	if _player.global_position.distance_to(pos) < radius:
-		if _player.has_method("take_damage"):
-			_player.take_damage(damage)
-
-	# damage enemies
-	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
-	for enemy in enemies:
-		if enemy is Node3D and enemy.global_position.distance_to(pos) < radius:
-			var h: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
-			if h and h.is_alive():
-				h.take_damage(damage)
-
-	_spawn_explosion_visual(pos, radius)
-
-
-func _spawn_explosion_visual(pos: Vector3, radius: float) -> void:
-	var indicator: MeshInstance3D = MeshInstance3D.new()
-	var sphere: SphereMesh = SphereMesh.new()
-	sphere.radius = 0.5
-	sphere.height = 1.0
-	indicator.mesh = sphere
-
-	var mat: StandardMaterial3D = StandardMaterial3D.new()
-	mat.albedo_color = Color(1.0, 0.5, 0.0, 0.7)
-	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-	mat.emission_enabled = true
-	mat.emission = Color(1.0, 0.3, 0.0)
-	mat.emission_energy_multiplier = 3.0
-	indicator.material_override = mat
-
-	indicator.position = pos
-	get_tree().root.add_child(indicator)
-
-	var tween: Tween = get_tree().create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(indicator, "scale", Vector3(radius, radius, radius), 0.25)
-	tween.tween_property(mat, "albedo_color:a", 0.0, 0.35)
-	tween.chain().tween_callback(func():
-		if is_instance_valid(indicator):
-			indicator.queue_free()
+	var at: Vector3 = _player.global_position + Vector3(cos(angle), 0, sin(angle)) * randf_range(0.0, 9.0)
+	at.y = 0.1
+	var rooms: RoomController = Game.rooms()
+	if rooms:
+		at = rooms.clamp_to_arena(at, 1.0)
+	var radius: float = 3.6
+	var color: Color = Color(1.0, 0.45, 0.1)
+	Vfx.telegraph_circle(at, radius, 0.9, color)
+	var player: CharacterBody3D = _player
+	get_tree().create_timer(0.9).timeout.connect(func() -> void:
+		Vfx.blast(at + Vector3(0, 0.5, 0), radius, color)
+		Game.sfx_at(&"explosion_small", at, -5.0, 0.2)
+		if is_instance_valid(player) and Vector2(player.global_position.x - at.x, player.global_position.z - at.z).length() <= radius:
+			player.take_damage(12, DamageInfo.make(12, DamageInfo.KIND_HAZARD))
+		var combat: Combat = Game.combat()
+		if combat:
+			combat.blast(at, radius, 40.0, {"can_proc": false})
 	)
-
-
-func _apply_vision_distortion() -> void:
-	_camera = _get_camera()
-	if not _camera:
-		return
-	# reduce fov for claustrophobic feel
-	_camera.fov = 55.0
-
-
-func _revert_vision_distortion() -> void:
-	if _camera:
-		_camera.fov = 75.0
-	_camera = null
-
-
-func _get_camera() -> Camera3D:
-	var pm: PlayerManager = get_node_or_null("/root/Main/PlayerManager") as PlayerManager
-	if pm:
-		return pm.get_primary_camera()
-	return null

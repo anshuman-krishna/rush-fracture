@@ -5,7 +5,10 @@ extends Node
 # to avoid allocation during combat. sounds are referenced by name.
 
 const POOL_SIZE := 12
+const POOL_3D_SIZE := 10
 
+var _pool_3d: Array[AudioStreamPlayer3D] = []
+var _pool_3d_index: int = 0
 var _pool: Array[AudioStreamPlayer] = []
 var _pool_index: int = 0
 var _sounds: Dictionary = {}
@@ -25,7 +28,7 @@ func _ready() -> void:
 func play(sound_name: String, volume_db: float = 0.0, pitch_variance: float = 0.0) -> void:
 	if not _enabled:
 		return
-	var stream: AudioStream = _sounds.get(sound_name)
+	var stream: AudioStream = _stream_for(sound_name)
 	if not stream:
 		return
 
@@ -37,6 +40,40 @@ func play(sound_name: String, volume_db: float = 0.0, pitch_variance: float = 0.
 	else:
 		player.pitch_scale = 1.0
 	player.play()
+
+
+## plays a sound from a point in the world, so it pans and fades with distance.
+func play_at(sound_name: String, world_pos: Vector3, volume_db: float = 0.0, pitch_variance: float = 0.0) -> void:
+	if not _enabled:
+		return
+	var stream: AudioStream = _stream_for(sound_name)
+	if not stream:
+		return
+	if _pool_3d.is_empty():
+		for i: int in POOL_3D_SIZE:
+			var p3: AudioStreamPlayer3D = AudioStreamPlayer3D.new()
+			p3.bus = "Master"
+			p3.unit_size = 9.0
+			p3.max_distance = 70.0
+			p3.attenuation_model = AudioStreamPlayer3D.ATTENUATION_INVERSE_DISTANCE
+			add_child(p3)
+			_pool_3d.append(p3)
+	var player: AudioStreamPlayer3D = _pool_3d[_pool_3d_index]
+	_pool_3d_index = (_pool_3d_index + 1) % POOL_3D_SIZE
+	player.global_position = world_pos
+	player.stream = stream
+	player.volume_db = volume_db
+	player.pitch_scale = 1.0 + (randf_range(-pitch_variance, pitch_variance) if pitch_variance > 0.0 else 0.0)
+	player.play()
+
+
+func _stream_for(sound_name: String) -> AudioStream:
+	var stream: AudioStream = _sounds.get(sound_name)
+	if not stream:
+		# any name nobody registered still makes a sound instead of silence
+		stream = _generate_tone(sound_name)
+		_sounds[sound_name] = stream
+	return stream
 
 
 func play_ui(sound_name: String) -> void:

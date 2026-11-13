@@ -1,6 +1,10 @@
 class_name RunManager
 extends Node
 
+# owns the current RunData and moves the run from floor to floor. it knows
+# nothing about combat; game_manager tells it when a room is cleared and
+# which path was chosen.
+
 signal run_started(data: RunData)
 signal room_entered(room: RunData.RoomData)
 signal room_cleared(room: RunData.RoomData)
@@ -18,26 +22,34 @@ func _process(delta: float) -> void:
 		data.elapsed_time += delta
 
 
-func start_run(seed_value: int = -1) -> void:
+## cfg: mode, seed, ascension, players (see RoomGenerator.generate).
+func start_run(cfg: Dictionary) -> void:
+	start_run_with_floors(RoomGenerator.generate(cfg), cfg)
+
+
+## starts a run on a ready-made map (race/versus sequences, tests).
+func start_run_with_floors(floors: Array, cfg: Dictionary = {}) -> void:
 	data = RunData.new()
 	data.run_id = _generate_id()
-	data.room_sequence = RoomGenerator.generate(seed_value)
+	data.mode = cfg.get("mode", RunData.MODE_STANDARD)
+	data.seed_value = int(cfg.get("seed", 0))
+	data.ascension = int(cfg.get("ascension", 0))
+	data.floors = floors
+	data.room_sequence.clear()
+	for options: Array in floors:
+		data.room_sequence.append(options[0] as RunData.RoomData)
 	data.status = RunData.RunStatus.ACTIVE
 	is_active = true
 	run_started.emit(data)
-
 	enter_current_room()
 
 
-func start_run_with_sequence(sequence: Array[RunData.RoomData]) -> void:
-	data = RunData.new()
-	data.run_id = _generate_id()
-	data.room_sequence = sequence
-	data.status = RunData.RunStatus.ACTIVE
-	is_active = true
-	run_started.emit(data)
-
-	enter_current_room()
+## wraps a flat list of rooms as single-option floors.
+func start_run_with_sequence(sequence: Array[RunData.RoomData], cfg: Dictionary = {}) -> void:
+	var floors: Array = []
+	for room: RunData.RoomData in sequence:
+		floors.append([room])
+	start_run_with_floors(floors, cfg)
 
 
 func enter_current_room() -> void:
@@ -49,19 +61,26 @@ func enter_current_room() -> void:
 
 
 func on_room_enemies_cleared() -> void:
+	if not data:
+		return
 	var room: RunData.RoomData = data.current_room()
 	if not room or room.status != RoomDefinitions.RoomStatus.ACTIVE:
 		return
-
 	room.status = RoomDefinitions.RoomStatus.CLEARED
 	data.rooms_cleared += 1
+	if room.is_boss():
+		data.bosses_defeated += 1
 	room_cleared.emit(room)
 
 
-func advance_to_next_room() -> void:
+## moves on to the next floor, taking `option_index` of its choices.
+func advance_to_next_room(option_index: int = 0) -> void:
+	if not data or data.status != RunData.RunStatus.ACTIVE:
+		return
 	if data.is_final_room():
 		complete_run()
 		return
+	data.choose_next(option_index)
 	data.advance_room()
 	enter_current_room()
 
@@ -83,6 +102,14 @@ func apply_upgrade(upgrade: Dictionary) -> void:
 	upgrade_chosen.emit(upgrade)
 
 
+func add_essence(amount: int) -> void:
+	if not data or amount == 0:
+		return
+	data.essence = maxi(0, data.essence + amount)
+	if amount > 0:
+		data.essence_earned += amount
+
+
 func fail_run() -> void:
 	if not data or data.status != RunData.RunStatus.ACTIVE:
 		return
@@ -92,12 +119,8 @@ func fail_run() -> void:
 
 
 func complete_run() -> void:
-	# guards against double-completion — in co-op, both host and a client can
-	# now independently reach "final room, nothing left to offer" and each
-	# call this (game_manager._complete_run() routes a client's call through
-	# the host, but two near-simultaneous calls on the host itself, one
-	# direct and one via a client's request, would otherwise both go
-	# through and double-fire run_completed, double-saving run rewards).
+	# guarded against a second call: in co-op the host and a client can both
+	# reach "nothing left to do" and ask for completion at nearly the same time.
 	if not data or data.status != RunData.RunStatus.ACTIVE:
 		return
 	data.status = RunData.RunStatus.COMPLETED
@@ -108,6 +131,6 @@ func complete_run() -> void:
 func _generate_id() -> String:
 	var chars: String = "abcdef0123456789"
 	var id: String = ""
-	for i in 16:
+	for i: int in 16:
 		id += chars[randi() % chars.length()]
 	return id

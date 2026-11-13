@@ -1,289 +1,251 @@
 class_name UpgradeManager
 extends Node
 
-# applies upgrades to player and weapon systems.
-# tracks accumulated modifiers and special flags.
+# applies in-run upgrades to the local player and runs their ongoing effects.
+# stat changes go into the player's StatBlock under a key per upgrade
+# ("up:<id>"), so resetting a run is just removing that prefix.
 
-var kill_heal_amount: int = 0
-var has_unstable_rounds: bool = false
-var has_chain_reaction: bool = false
-var has_adrenaline_surge: bool = false
-var has_temporal_break: bool = false
-var has_berserker: bool = false
-var has_explosive_dash: bool = false
-var has_enemy_slow_aura: bool = false
+signal upgrade_applied(upgrade: Dictionary)
+## raised when a cursed upgrade changes how fast enemies should move
+signal enemy_speed_bonus_changed(total: float)
+
+const KILL_HEAL_PER_STACK: int = 3
+const NULL_FIELD_RADIUS: float = 8.0
+const CHAIN_BUDGET: int = 6
+
+## id -> how many times it has been taken this run
+var owned: Dictionary = {}
 var enemy_speed_bonus: float = 0.0
-var damage_taken_multiplier: float = 1.0
-var _slow_aura_radius: float = 8.0
-var _slow_aura_timer: float = 0.0
 
 var _player: CharacterBody3D
 var _weapon_manager: WeaponManager
-var _adrenaline_active: bool = false
-var _adrenaline_bonus: float = 0.0
-
-
-func _process(delta: float) -> void:
-	if has_enemy_slow_aura and _player:
-		_slow_aura_timer -= delta
-		if _slow_aura_timer <= 0:
-			_slow_aura_timer = 0.5
-			_apply_slow_aura()
+var _specials: Dictionary = {}
+var _aura_timer: float = 0.0
+var _slide_hits: Dictionary = {}
+var _chain_budget: int = CHAIN_BUDGET
+var _chain_refill: float = 0.0
+var _plating_filter: Callable
+var _combo_multiplier: int = 1
 
 
 func bind(player: CharacterBody3D, weapon_manager: WeaponManager) -> void:
 	_player = player
 	_weapon_manager = weapon_manager
+	_plating_filter = _kinetic_filter
 
 
-func apply(upgrade: Dictionary) -> void:
-	var stat: String = upgrade.get("stat", "")
-	var modifier: Variant = upgrade.get("modifier", 0)
-	var mode: String = upgrade.get("apply_mode", "add")
-
-	match stat:
-		"damage":
-			_apply_to(_weapon_manager, stat, modifier, mode)
-		"fire_rate":
-			_apply_to(_weapon_manager, stat, modifier, mode)
-		"max_health":
-			_apply_to(_player, stat, modifier, mode)
-			_player.health = mini(_player.health + int(modifier), _player.max_health)
-		"dash_cooldown":
-			_apply_to(_player, stat, modifier, mode)
-		"move_speed":
-			_apply_to(_player, stat, modifier, mode)
-		"air_friction":
-			_apply_to(_player, stat, modifier, mode)
-		"kill_heal":
-			kill_heal_amount += int(modifier)
-		"overdrive":
-			_apply_overdrive()
-		"unstable_rounds":
-			has_unstable_rounds = true
-		"burst_fire":
-			_apply_weapon_flag("PulseRifle", "burst_mode", true)
-		"armor_piercing":
-			_apply_weapon_flag("PulseRifle", "armor_piercing", true)
-		"tight_spread":
-			_apply_weapon_flag("ScatterCannon", "tight_spread", true)
-		"double_blast":
-			_apply_weapon_flag("ScatterCannon", "double_blast", true)
-		"beam_chain":
-			_apply_weapon_flag("BeamEmitter", "chain_beam", true)
-		"heat_capacity":
-			_apply_beam_capacity()
-		"chain_reaction":
-			has_chain_reaction = true
-		"adrenaline_surge":
-			has_adrenaline_surge = true
-		"temporal_break":
-			has_temporal_break = true
-		"ricochet_rounds":
-			_apply_weapon_flag("PulseRifle", "ricochet", true)
-		"piercing_beam":
-			_apply_weapon_flag("BeamEmitter", "piercing", true)
-		"explosive_dash":
-			has_explosive_dash = true
-		"enemy_slow_aura":
-			has_enemy_slow_aura = true
-		"power_surge":
-			_apply_power_surge()
-		"fragile_speed":
-			_apply_fragile_speed()
-		"berserker_pact":
-			_apply_berserker_pact()
+func has(special: StringName) -> bool:
+	return _specials.get(special, 0) > 0
 
 
-func on_enemy_killed() -> void:
-	if kill_heal_amount > 0 and _player:
-		_player.health = mini(_player.health + kill_heal_amount, _player.max_health)
-
-	if has_chain_reaction and _weapon_manager:
-		_trigger_chain_reaction()
-
-	if has_temporal_break:
-		_trigger_temporal_break()
-
-
-func on_enemy_hit(hit_position: Vector3) -> void:
-	if has_unstable_rounds and _weapon_manager:
-		_apply_aoe_damage(hit_position)
-
-
-func on_combo_changed(multiplier: int) -> void:
-	if has_adrenaline_surge and _player and multiplier >= 2:
-		_apply_adrenaline(multiplier)
-
-
-func on_combo_reset() -> void:
-	if _adrenaline_active:
-		_revert_adrenaline()
-
-
-func get_effective_damage(base_damage: int) -> int:
-	if has_berserker and _player:
-		var hp_ratio: float = float(_player.health) / float(_player.max_health)
-		if hp_ratio <= 0.4:
-			return int(base_damage * 1.25)
-	return base_damage
-
-
-func on_player_dashed() -> void:
-	if has_explosive_dash and _player:
-		_trigger_explosive_dash()
+func stacks(id: StringName) -> int:
+	return int(owned.get(id, 0))
 
 
 func reset() -> void:
-	kill_heal_amount = 0
-	has_unstable_rounds = false
-	has_chain_reaction = false
-	has_adrenaline_surge = false
-	has_temporal_break = false
-	has_berserker = false
-	has_explosive_dash = false
-	has_enemy_slow_aura = false
+	owned.clear()
+	_specials.clear()
 	enemy_speed_bonus = 0.0
-	damage_taken_multiplier = 1.0
-	_adrenaline_active = false
-	_adrenaline_bonus = 0.0
-	_slow_aura_timer = 0.0
+	_slide_hits.clear()
+	_combo_multiplier = 1
+	_chain_budget = CHAIN_BUDGET
+	if is_instance_valid(_player):
+		_player.stats.remove_prefix("up:")
+		_player.damage_filters.erase(_plating_filter)
+	var combat: Combat = Game.combat()
+	if combat:
+		combat.pre_damage_hooks.erase(_executioner_hook)
+	enemy_speed_bonus_changed.emit(0.0)
 
 
-func _apply_overdrive() -> void:
-	if _weapon_manager:
-		_weapon_manager.fire_rate *= 0.4
-		_weapon_manager.shake_on_fire *= 1.2
-
-
-func _apply_weapon_flag(weapon_name: String, flag: String, value: bool) -> void:
-	if not _weapon_manager:
+func apply(upgrade: Dictionary) -> void:
+	if upgrade.is_empty() or not is_instance_valid(_player):
 		return
-	var weapon: Node = _weapon_manager.get_node_or_null(weapon_name)
-	if weapon and flag in weapon:
-		weapon.set(flag, value)
-
-
-func _apply_beam_capacity() -> void:
-	if not _weapon_manager:
+	var id: StringName = upgrade.get("id", &"")
+	if stacks(id) >= UpgradeDefinitions.max_stacks(upgrade):
 		return
-	var beam: BeamEmitter = _weapon_manager.get_node_or_null("BeamEmitter") as BeamEmitter
-	if beam:
-		beam.max_heat *= 1.5
-		beam.overheat_threshold *= 1.5
+	owned[id] = stacks(id) + 1
+	var key: StringName = StringName("up:%s" % id)
+
+	for mod: Array in upgrade.get("mods", []):
+		if mod[1] == "mul":
+			_player.stats.stack_mul(mod[0], key, float(mod[2]))
+		else:
+			_player.stats.stack_add(mod[0], key, float(mod[2]))
+
+	var flag: Array = upgrade.get("flag", [])
+	if flag.size() == 3 and _weapon_manager:
+		var value: Variant = flag[2]
+		if value is int:
+			# numeric flags (extra jumps, extra bounces) add up across stacks
+			var weapon: BaseWeapon = _weapon_manager.get_weapon(flag[0])
+			value = int(weapon.flag_value(flag[1], 0)) + int(flag[2]) if weapon else int(flag[2])
+		_weapon_manager.set_weapon_flag(flag[0], flag[1], value)
+
+	var special: StringName = upgrade.get("special", &"")
+	if special != &"":
+		_specials[special] = int(_specials.get(special, 0)) + 1
+		_on_special_gained(special)
+
+	upgrade_applied.emit(upgrade)
 
 
-func _apply_aoe_damage(position: Vector3) -> void:
-	var aoe_radius: float = 3.0
-	var aoe_damage: int = int(_weapon_manager.damage * 0.5)
-	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
-	for enemy in enemies:
-		if not enemy is Node3D:
-			continue
-		if enemy.global_position.distance_to(position) < aoe_radius:
-			var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
-			if health and health.is_alive():
-				health.take_damage(aoe_damage)
+func _on_special_gained(special: StringName) -> void:
+	match special:
+		&"heal_25":
+			_player.heal(25)
+		&"heal_full":
+			_player.heal(_player.max_health)
+		&"second_wind":
+			_player.lethal_guards += 1
+		&"kinetic_plating":
+			if not _player.damage_filters.has(_plating_filter):
+				_player.damage_filters.append(_plating_filter)
+		&"executioner":
+			var combat: Combat = Game.combat()
+			if combat and not combat.pre_damage_hooks.has(_executioner_hook):
+				combat.pre_damage_hooks.append(_executioner_hook)
+		&"power_surge":
+			enemy_speed_bonus += 0.2
+			enemy_speed_bonus_changed.emit(enemy_speed_bonus)
 
 
-func _trigger_chain_reaction() -> void:
-	# explosion at the last killed enemy position is handled via game_manager
-	pass
+# --- per-frame effects --------------------------------------------------------
 
-
-func _trigger_temporal_break() -> void:
-	var tree: SceneTree = get_tree()
-	Engine.time_scale = 0.3
-	tree.create_timer(0.4, true, false, true).timeout.connect(func():
-		Engine.time_scale = 1.0
-	)
-
-
-func _apply_adrenaline(multiplier: int) -> void:
-	if _adrenaline_active:
-		_revert_adrenaline()
-
-	_adrenaline_bonus = 0.1 * (multiplier - 1)
-	_player.move_speed *= (1.0 + _adrenaline_bonus)
-	_adrenaline_active = true
-
-
-func _revert_adrenaline() -> void:
-	if not _player or _adrenaline_bonus <= 0:
-		return
-	_player.move_speed /= (1.0 + _adrenaline_bonus)
-	_adrenaline_bonus = 0.0
-	_adrenaline_active = false
-
-
-func _apply_power_surge() -> void:
-	if _weapon_manager:
-		_weapon_manager.damage_multiplier *= 1.4
-	enemy_speed_bonus += 0.2
-
-
-func _apply_fragile_speed() -> void:
-	if _player:
-		_player.move_speed *= 1.3
-	damage_taken_multiplier *= 1.25
-
-
-func _apply_berserker_pact() -> void:
-	has_berserker = true
-	if _player:
-		_player.max_health = maxi(_player.max_health - 20, 20)
-		_player.health = mini(_player.health, _player.max_health)
-
-
-func _apply_slow_aura() -> void:
-	# keyed by this UpgradeManager's own instance id, not a plain bool, so two
-	# co-op players who both picked this upgrade don't stomp each other's
-	# in-range state (one player's aura ending would otherwise flip the
-	# shared flag and incorrectly un-slow an enemy the other player is still
-	# standing next to). the multiplier is only applied/reverted on the
-	# 0-sources<->1-source transition so overlapping auras don't stack.
-	var source: int = get_instance_id()
-	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
-	for enemy in enemies:
-		if not enemy is Node3D or not "move_speed" in enemy:
-			continue
-		var dist: float = enemy.global_position.distance_to(_player.global_position)
-		var sources: Dictionary = enemy.get_meta("slow_aura_sources", {})
-		var was_covered: bool = sources.has(source)
-		if dist < _slow_aura_radius and not was_covered:
-			sources[source] = true
-			if sources.size() == 1:
-				enemy.move_speed *= 0.8
-			enemy.set_meta("slow_aura_sources", sources)
-		elif dist >= _slow_aura_radius and was_covered:
-			sources.erase(source)
-			if sources.is_empty():
-				enemy.move_speed /= 0.8
-			enemy.set_meta("slow_aura_sources", sources)
-
-
-func _trigger_explosive_dash() -> void:
-	var radius: float = 4.0
-	var damage: int = 20
-	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
-	for enemy in enemies:
-		if not enemy is Node3D:
-			continue
-		if enemy.global_position.distance_to(_player.global_position) < radius:
-			var h: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
-			if h and h.is_alive():
-				h.take_damage(damage)
-
-
-static func _apply_to(target: Node, property: String, modifier, mode: String) -> void:
-	if not target or not property in target:
+func _process(delta: float) -> void:
+	if not is_instance_valid(_player) or _specials.is_empty():
 		return
 
-	var current: Variant = target.get(property)
-	match mode:
-		"multiply":
-			target.set(property, current * modifier)
-		"add":
-			target.set(property, current + modifier)
-		"set":
-			target.set(property, modifier)
+	_chain_refill += delta
+	if _chain_refill >= 0.25:
+		_chain_refill = 0.0
+		_chain_budget = CHAIN_BUDGET
+
+	if has(&"momentum_rounds"):
+		var over: float = clampf((_player.horizontal_speed() - 8.0) / 14.0, 0.0, 1.0)
+		_player.stats.set_mul(&"damage", &"up:momentum", 1.0 + over * 0.35)
+
+	if has(&"berserker_pact"):
+		var low: bool = float(_player.health) / float(_player.max_health) <= 0.4
+		_player.stats.set_mul(&"damage", &"up:berserker", 1.35 if low else 1.0)
+
+	if has(&"null_field"):
+		_aura_timer -= delta
+		if _aura_timer <= 0.0:
+			_aura_timer = 0.35
+			for e: Node3D in Combat.enemies_in_radius(get_tree(), _player.global_position, NULL_FIELD_RADIUS):
+				if e.has_method("apply_status"):
+					e.apply_status(&"slow", 0.6, 0.25, _player)
+
+	if has(&"razor_slide") and _player.get("is_sliding") == true:
+		for key: Variant in _slide_hits.keys():
+			_slide_hits[key] -= delta
+			if _slide_hits[key] <= 0.0:
+				_slide_hits.erase(key)
+		var combat: Combat = Game.combat()
+		if combat:
+			var feet: Vector3 = _player.global_position - Vector3(0, 0.6, 0)
+			for e: Node3D in Combat.enemies_in_radius(get_tree(), feet, 1.7):
+				var id: int = e.get_instance_id()
+				if _slide_hits.has(id):
+					continue
+				_slide_hits[id] = 0.5
+				combat.deal(e, 25.0 + _player.horizontal_speed(), {"kind": DamageInfo.KIND_MELEE, "can_proc": false, "knockback": 5.0})
+
+
+# --- event hooks (wired by game_manager) --------------------------------------
+
+func on_enemy_killed(enemy: Node3D, info: DamageInfo) -> void:
+	if not is_instance_valid(_player):
+		return
+	var heal_stacks: int = int(_specials.get(&"kill_heal", 0))
+	if heal_stacks > 0:
+		_player.heal(KILL_HEAL_PER_STACK * heal_stacks)
+
+	if has(&"temporal_break"):
+		var feel: GameFeel = Game.feel()
+		if feel:
+			feel.request(&"temporal", 0.35, 0.4, GameFeel.PRIORITY_EFFECT, 0.1)
+
+	if has(&"chain_reaction") and _chain_budget > 0 and is_instance_valid(enemy):
+		_chain_budget -= 1
+		var at: Vector3 = enemy.aim_point() if enemy.has_method("aim_point") else enemy.global_position
+		var radius: float = 4.0 * _player.stats.value(&"blast_radius")
+		Vfx.blast(at, radius, Color(1.0, 0.55, 0.15))
+		Game.sfx_at(&"explosion_small", at, -6.0, 0.2)
+		var combat: Combat = Game.combat()
+		if combat:
+			# these kills can chain again; the per-quarter-second budget is what
+			# stops one kill from clearing the room in a single frame
+			combat.blast(at, radius, 35.0, {"can_proc": false, "weapon": info.weapon if info else &""})
+
+
+func on_enemy_hit(_enemy: Node3D, info: DamageInfo) -> void:
+	if not info or not is_instance_valid(_player):
+		return
+	if info.crit:
+		var leech: int = int(_specials.get(&"leech", 0))
+		if leech > 0:
+			_player.heal(2 * leech)
+	if info.can_proc and has(&"unstable_rounds") and randf() < 0.2:
+		var combat: Combat = Game.combat()
+		if combat:
+			var radius: float = 3.0 * _player.stats.value(&"blast_radius")
+			Vfx.blast(info.position, radius, Color(1.0, 0.7, 0.3), false)
+			combat.blast(info.position, radius, 15.0, {"can_proc": false})
+
+
+func on_player_dashed() -> void:
+	if not is_instance_valid(_player):
+		return
+	if has(&"phase_dash"):
+		_player.grant_invulnerability(0.45)
+	if has(&"explosive_dash"):
+		var combat: Combat = Game.combat()
+		if combat:
+			var radius: float = 4.5 * _player.stats.value(&"blast_radius")
+			Vfx.blast(_player.global_position, radius, Color(1.0, 0.5, 0.2))
+			Game.sfx(&"explosion_small", -8.0, 0.15)
+			combat.blast(_player.global_position, radius, 30.0, {"can_proc": false, "knockback": 8.0})
+
+
+func on_player_slammed(at: Vector3, fall_speed: float) -> void:
+	if not has(&"impact_slam"):
+		return
+	var combat: Combat = Game.combat()
+	if not combat or not is_instance_valid(_player):
+		return
+	var radius: float = 5.5 * _player.stats.value(&"blast_radius")
+	var amount: float = 45.0 + clampf(fall_speed, 0.0, 40.0)
+	Vfx.blast(at + Vector3(0, 0.4, 0), radius, Color(0.6, 0.9, 1.0))
+	for e: Node3D in Combat.enemies_in_radius(get_tree(), at, radius):
+		if e.has_method("stun"):
+			e.stun(1.0)
+	combat.blast(at, radius, amount, {"can_proc": false, "knockback": 10.0})
+
+
+func on_combo_changed(multiplier: int) -> void:
+	_combo_multiplier = multiplier
+	if has(&"adrenaline_surge") and is_instance_valid(_player):
+		_player.stats.set_mul(&"move_speed", &"up:adrenaline", 1.0 + 0.06 * float(maxi(0, multiplier - 1)))
+
+
+func on_combo_reset() -> void:
+	_combo_multiplier = 1
+	if is_instance_valid(_player):
+		_player.stats.set_mul(&"move_speed", &"up:adrenaline", 1.0)
+
+
+# --- conditional effects ------------------------------------------------------
+
+func _kinetic_filter(_info: DamageInfo) -> float:
+	if not is_instance_valid(_player):
+		return 1.0
+	return 0.7 if _player.horizontal_speed() > _player.stats.value(&"move_speed") + 1.0 else 1.0
+
+
+func _executioner_hook(target: Node, _info: DamageInfo, amount: float) -> float:
+	var hc: HealthComponent = target.get_node_or_null("HealthComponent") as HealthComponent
+	if hc and hc.ratio() < 0.3:
+		return amount * 1.4
+	return amount

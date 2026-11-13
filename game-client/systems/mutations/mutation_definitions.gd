@@ -1,7 +1,8 @@
 class_name MutationDefinitions
 extends RefCounted
 
-# powerful run-altering modifiers with meaningful trade-offs.
+# run-altering modifiers. each one is a strong upside welded to a real cost,
+# and you may always refuse.
 
 enum MutationType {
 	GLASS_CANNON,
@@ -12,84 +13,75 @@ enum MutationType {
 	TEMPORAL_DISTORTION,
 	MOMENTUM_SHIELD,
 	FRACTURE_ECHO,
+	HOLLOW_BONES,
+	PREDATOR,
+	HOARDER,
+	VOLATILE_BLOOD,
 }
 
-
-static var catalog: Array[Dictionary] = [
-	{
-		"type": MutationType.GLASS_CANNON,
-		"name": "glass cannon",
-		"description": "+50% damage, -40% max health",
-		"upside": "+50% damage",
-		"downside": "-40% max health",
-	},
-	{
-		"type": MutationType.OVERCLOCK,
-		"name": "overclock",
-		"description": "+40% fire rate, heat builds 2x faster",
-		"upside": "+40% fire rate",
-		"downside": "2x heat buildup",
-	},
-	{
-		"type": MutationType.BLOOD_PACT,
-		"name": "blood pact",
-		"description": "heal 8 per kill, lose 2 hp/sec",
-		"upside": "heal 8 per kill",
-		"downside": "constant hp drain",
-	},
-	{
-		"type": MutationType.UNSTABLE_CORE,
-		"name": "unstable core",
-		"description": "20% chance to explode on hit, 10% to self-damage",
-		"upside": "aoe on hit",
-		"downside": "self-damage risk",
-	},
-	{
-		"type": MutationType.VELOCITY_ADDICT,
-		"name": "velocity addict",
-		"description": "+40% speed, -25% friction (less control)",
-		"upside": "+40% speed",
-		"downside": "reduced control",
-	},
-	{
-		"type": MutationType.TEMPORAL_DISTORTION,
-		"name": "temporal distortion",
-		"description": "kills slow time 0.5s, -20% base speed",
-		"upside": "time slow on kill",
-		"downside": "reduced speed",
-	},
-	{
-		"type": MutationType.MOMENTUM_SHIELD,
-		"name": "momentum shield",
-		"description": "moving fast reduces damage taken, standing still takes 40% more",
-		"upside": "damage reduction at speed",
-		"downside": "vulnerable when slow",
-	},
-	{
-		"type": MutationType.FRACTURE_ECHO,
-		"name": "fracture echo",
-		"description": "+35% damage during fracture events, -20% damage otherwise",
-		"upside": "massive fracture boost",
-		"downside": "weaker in normal rooms",
-	},
+const CATALOG: Array[Dictionary] = [
+	{"type": MutationType.GLASS_CANNON, "name": "glass cannon",
+		"upside": "+50% damage", "downside": "-40% max health",
+		"mods": [[&"damage", "mul", 1.5], [&"max_health", "mul", 0.6]]},
+	{"type": MutationType.OVERCLOCK, "name": "overclock",
+		"upside": "+40% fire rate", "downside": "heat and coil drain build twice as fast",
+		"mods": [[&"fire_rate", "mul", 1.4], [&"heat_gain", "mul", 2.0]]},
+	{"type": MutationType.BLOOD_PACT, "name": "blood pact",
+		"upside": "heal 8 on every kill", "downside": "lose 2 health every second (never the last point)",
+		"mods": []},
+	{"type": MutationType.UNSTABLE_CORE, "name": "unstable core",
+		"upside": "hits have a 20% chance to explode", "downside": "and a 10% chance to hurt you",
+		"mods": []},
+	{"type": MutationType.VELOCITY_ADDICT, "name": "velocity addict",
+		"upside": "+40% movement speed", "downside": "far less grip: you slide and drift",
+		"mods": [[&"move_speed", "mul", 1.4], [&"friction", "mul", 0.5], [&"acceleration", "mul", 0.7]]},
+	{"type": MutationType.TEMPORAL_DISTORTION, "name": "temporal distortion",
+		"upside": "kills slow time for half a second", "downside": "-20% movement speed",
+		"mods": [[&"move_speed", "mul", 0.8]]},
+	{"type": MutationType.MOMENTUM_SHIELD, "name": "momentum shield",
+		"upside": "take 40% less damage while moving fast", "downside": "take 40% more while nearly still",
+		"mods": []},
+	{"type": MutationType.FRACTURE_ECHO, "name": "fracture echo",
+		"upside": "+35% damage during fracture events", "downside": "-20% damage the rest of the time",
+		"mods": []},
+	{"type": MutationType.HOLLOW_BONES, "name": "hollow bones",
+		"upside": "+1 air jump, +30% jump height", "downside": "-25% max health",
+		"mods": [[&"air_jumps", "add", 1.0], [&"jump_force", "mul", 1.3], [&"max_health", "mul", 0.75]]},
+	{"type": MutationType.PREDATOR, "name": "predator",
+		"upside": "+20% critical chance", "downside": "take 20% more damage",
+		"mods": [[&"crit_chance", "add", 0.2], [&"damage_taken", "mul", 1.2]]},
+	{"type": MutationType.HOARDER, "name": "hoarder",
+		"upside": "double essence from everything", "downside": "-15% damage",
+		"mods": [[&"essence_gain", "mul", 2.0], [&"damage", "mul", 0.85]]},
+	{"type": MutationType.VOLATILE_BLOOD, "name": "volatile blood",
+		"upside": "being hit detonates you, damaging everything nearby", "downside": "-15% max health",
+		"mods": [[&"max_health", "mul", 0.85]]},
 ]
 
 
-static func pick_choices(count: int, exclude: Array = []) -> Array[Dictionary]:
-	var available: Array[Dictionary] = []
-	for mutation in catalog:
-		if mutation.get("type") not in exclude:
-			available.append(mutation)
-
-	available.shuffle()
-	var result: Array[Dictionary] = []
-	for i in mini(count, available.size()):
-		result.append(available[i])
-	return result
+static func find(type: MutationType) -> Dictionary:
+	for m: Dictionary in CATALOG:
+		if m.type == type:
+			return m
+	return {}
 
 
 static func get_name(type: MutationType) -> String:
-	for m in catalog:
-		if m.get("type") == type:
-			return m.get("name", "")
-	return ""
+	return find(type).get("name", "")
+
+
+static func description(mutation: Dictionary) -> String:
+	return "%s, but %s" % [mutation.get("upside", ""), mutation.get("downside", "")]
+
+
+static func pick_choices(count: int, exclude: Array = [], rng: RandomNumberGenerator = null) -> Array[Dictionary]:
+	var available: Array[Dictionary] = []
+	for m: Dictionary in CATALOG:
+		if m.type not in exclude:
+			available.append(m)
+	var result: Array[Dictionary] = []
+	while result.size() < count and not available.is_empty():
+		var idx: int = (rng.randi() if rng else randi()) % available.size()
+		result.append(available[idx])
+		available.remove_at(idx)
+	return result

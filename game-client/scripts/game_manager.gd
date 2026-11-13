@@ -1,14 +1,30 @@
 extends Node
 
-# central coordinator. connects run, room, combat, fracture, combo,
-# mutation, difficulty, and ui systems.
-# in multiplayer: host drives room progression, clients follow via rpc.
-# supports game modes: coop (default), race, pvp encounter.
+# coordinates a run: starts it, moves it from room to room, hands out
+# rewards, reacts to combat events, and ends it.
+#
+# it owns no gameplay rules of its own. each system (rooms, combat, upgrades,
+# mutations, fracture, combo) does its job; this script listens to their
+# signals and decides what happens next.
+#
+# multiplayer: the host owns room progression, path choices, fracture events
+# and the run's outcome, and broadcasts them. rewards are per player and stay
+# local.
+
+const CONTINUE_PROMPT: String = "press %s to continue"
+const HEAL_ROOM_RATIO: float = 0.4
+const BOSS_HEAL_RATIO: float = 0.3
+const READY_TIMEOUT: float = 8.0
+
+const SHOP_PRICES: Dictionary = {
+	UpgradeDefinitions.RARITY_COMMON: 35,
+	UpgradeDefinitions.RARITY_RARE: 55,
+	UpgradeDefinitions.RARITY_EPIC: 85,
+	UpgradeDefinitions.RARITY_CURSED: 30,
+}
 
 @onready var player_manager: PlayerManager = $"../PlayerManager"
 @onready var player_spawner: PlayerSpawner = $"../PlayerSpawner"
-@onready var damage_vignette: ColorRect = $"../UI/DamageVignette"
-@onready var crosshair: CenterContainer = $"../UI/Crosshair"
 @onready var run_manager: RunManager = $"../RunManager"
 @onready var room_controller: RoomController = $"../RoomController"
 @onready var upgrade_manager: UpgradeManager = $"../UpgradeManager"
@@ -18,14 +34,17 @@ extends Node
 @onready var difficulty_tracker: DifficultyTracker = $"../DifficultyTracker"
 @onready var audio: AudioManager = $"../AudioManager"
 @onready var game_feel: GameFeel = $"../GameFeel"
-@onready var run_hud: Control = $"../UI/RunHUD"
+@onready var combat: Combat = $"../Combat"
+@onready var damage_vignette: ColorRect = $"../UI/DamageVignette"
+@onready var hud: Hud = $"../UI/Hud"
 @onready var room_announce: Control = $"../UI/RoomAnnounce"
 @onready var upgrade_ui: Control = $"../UI/UpgradeSelection"
 @onready var mutation_ui: Control = $"../UI/MutationSelection"
+@onready var path_ui: Control = $"../UI/PathChoice"
+@onready var shop_ui: Control = $"../UI/Shop"
 @onready var summary_ui: Control = $"../UI/RunSummary"
 @onready var pause_menu: Control = $"../UI/PauseMenu"
 
-# resolved from player_manager each run
 var player: CharacterBody3D
 var weapon_manager: WeaponManager
 var camera: Camera3D
@@ -33,86 +52,164 @@ var network_manager: NetworkManager
 var game_mode: GameModeManager
 var pvp_manager: PvPManager
 
+# read by the pause menu and the playtest bot
 var awaiting_upgrade: bool = false
 var awaiting_mutation: bool = false
 var awaiting_transition: bool = false
-var _pending_mutation_after_upgrade: bool = false
-var _boss_active: bool = false
-var _boss_defeated: bool = false
-var _run_seed: int = 0
-# "power surge" (a cursed upgrade trading more weapon damage for faster
-# enemies) is per-player-local, but only the host's own enemy simulation
-# actually moves anyone — see _contribute_enemy_speed_bonus.
+var awaiting_path: bool = false
+var awaiting_shop: bool = false
+
+var _profile: PlayerProfile
+var _settings: GameSettings
+var _run_cfg: Dictionary = {}
+var _reward_queue: Array[StringName] = []
+var _shop_items: Array[Dictionary] = []
 var _shared_enemy_speed_bonus: float = 0.0
 var _pvp_active: bool = false
 var _match_ended: bool = false
-var _profile: PlayerProfile
-var _scavenger_healed_this_room: bool = false
 var _onboarding: OnboardingOverlay
+var _fracture_delay: float = -1.0
+var _head_start: float = 0.0
+var _scavenger_used: bool = false
+var _momentum_start_used: bool = false
+var _room_flawless: bool = true
+var _flawless_boss: bool = false
+var _bosses_killed: Array[StringName] = []
+var _hit_sound_cooldown: float = 0.0
+var _down_peers: Dictionary = {}
+var _ready_peers: Dictionary = {}
+var _waiting_for_peers: float = -1.0
+var _death_timer: float = -1.0
+var _dash_from: Vector3
+
+
+# --- setup ----------------------------------------------------------------------
+
+func _enter_tree() -> void:
+	# every node's _enter_tree runs before any node's _ready, so by the time
+	# anything in the scene starts up, the shared registry is already filled
+	var main: Node = get_parent()
+	Game.register(self, main.get_node("PlayerManager"), main.get_node("RoomController"), main.get_node("AudioManager"),
+		main.get_node("GameFeel"), main.get_node("Combat"), main.get_node("Fx") as Node3D, main.get_node("RunManager"))
+	Game.set_projectiles(main.get_node("Projectiles"))
+	var net: NetworkManager = get_node_or_null("/root/NetworkManager") as NetworkManager
+	if net and net.is_online() and main.has_node("Player"):
+		main.get_node("Player").set_multiplayer_authority(net.local_peer_id)
+
+
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
+	Game.clear()
 
 
 func _ready() -> void:
+	InputSetup.ensure()
 	_profile = PlayerProfile.load_profile()
+	_settings = GameSettings.load_settings()
+	Game.set_hud(hud)
+
 	_detect_network()
 	_detect_game_mode()
 	_setup_multiplayer_spawning()
-	_resolve_player_refs()
-	_validate_dependencies()
 
-	player.player_damaged.connect(_on_player_damaged)
-	player.player_dashed.connect(_on_player_dashed)
-	weapon_manager.enemy_killed.connect(_on_weapon_kill)
-	weapon_manager.enemy_hit.connect(_on_weapon_hit)
-	weapon_manager.weapon_switched.connect(_on_weapon_switched)
+	player = player_manager.get_primary_player()
+	weapon_manager = player_manager.get_primary_weapon_manager()
+	camera = player_manager.get_primary_camera()
+	if not player or not weapon_manager:
+		push_error("game manager: no local player in the scene")
+		return
+
+	weapon_manager.set_skin(_profile.skin)
+	weapon_manager.set_loadout(_profile.loadout)
+	_apply_settings()
+
+	player.damaged.connect(_on_player_damaged)
+	player.died.connect(_on_player_died)
+	player.dashed.connect(_on_player_dashed)
+	player.slammed.connect(_on_player_slammed)
+	player.death_defied.connect(_on_death_defied)
+	player.jumped.connect(func() -> void: Game.sfx(&"jump", -14.0, 0.1))
+	player.landed.connect(func(speed: float) -> void:
+		if speed > 8.0:
+			Game.sfx(&"land", -12.0, 0.1))
+	player.slide_started.connect(func() -> void: Game.sfx(&"slide", -10.0, 0.08))
+
+	combat.bind(player)
+	combat.pvp_manager = pvp_manager
+	combat.enemy_hit.connect(_on_enemy_hit)
+	combat.enemy_killed.connect(_on_enemy_killed)
+	weapon_manager.weapon_switched.connect(func(_w: BaseWeapon) -> void: pass)
 
 	run_manager.room_entered.connect(_on_room_entered)
 	run_manager.room_cleared.connect(_on_room_cleared)
-	run_manager.run_failed.connect(_on_run_failed)
-	run_manager.run_completed.connect(_on_run_completed)
+	run_manager.run_failed.connect(_on_run_ended)
+	run_manager.run_completed.connect(_on_run_ended)
 
 	room_controller.all_enemies_dead.connect(_on_all_enemies_dead)
-	room_controller.enemy_killed.connect(_on_room_enemy_killed)
+	room_controller.enemy_killed.connect(_on_room_enemy_died)
+	room_controller.boss_spawned.connect(_on_boss_spawned)
 	room_controller.boss_defeated.connect(_on_boss_defeated)
+	room_controller.pickup_collected.connect(_on_pickup_collected)
+	room_controller.wave_started.connect(_on_wave_started)
 
 	fracture_manager.fracture_started.connect(_on_fracture_started)
 	fracture_manager.fracture_ended.connect(_on_fracture_ended)
-
 	combo_tracker.combo_changed.connect(_on_combo_changed)
 	combo_tracker.combo_reset.connect(_on_combo_reset)
+	upgrade_manager.enemy_speed_bonus_changed.connect(_on_enemy_speed_bonus_changed)
 
 	upgrade_ui.upgrade_selected.connect(_on_upgrade_selected)
 	mutation_ui.mutation_selected.connect(_on_mutation_selected)
 	mutation_ui.mutation_skipped.connect(_on_mutation_skipped)
+	path_ui.path_chosen.connect(_on_path_chosen)
+	shop_ui.buy_requested.connect(_on_shop_buy)
+	shop_ui.closed.connect(_on_shop_closed)
 	summary_ui.restart_requested.connect(_on_restart)
-
-	if pause_menu:
-		pause_menu.restart_requested.connect(_on_restart)
-		pause_menu.main_menu_requested.connect(_on_main_menu)
-
-	get_tree().node_added.connect(_on_node_added)
+	summary_ui.menu_requested.connect(_on_main_menu)
+	pause_menu.restart_requested.connect(_on_restart)
+	pause_menu.main_menu_requested.connect(_on_main_menu)
 
 	upgrade_manager.bind(player, weapon_manager)
 	mutation_manager.bind(player, weapon_manager)
 	fracture_manager.bind(player)
 	combo_tracker.bind(player)
-	run_hud.bind_run_manager(run_manager)
-	run_hud.bind_pvp(pvp_manager)
-	run_hud.bind_player(player, weapon_manager)
+	hud.bind(player, weapon_manager, run_manager, combo_tracker, fracture_manager)
+	hud.accent = Skins.accent(_profile.skin)
 	if network_manager:
-		run_hud.bind_network(network_manager)
+		hud.bind_network(network_manager)
+	hud.bind_pvp(pvp_manager)
 
-	# defer run start to next frame so all sibling nodes have _ready() resolved
 	call_deferred("_deferred_start")
 
 
 func _deferred_start() -> void:
-	var settings: GameSettings = GameSettings.load_settings()
-	if not settings.has_seen_onboarding:
+	if not _settings.has_seen_onboarding:
 		_show_onboarding()
-	elif is_host_or_solo():
+	else:
+		_begin()
+
+
+## starts the run, or in multiplayer tells the host this peer is loaded.
+func _begin() -> void:
+	if not _is_online():
 		_start_run()
-	elif _is_online():
-		_rpc_request_run_seed.rpc_id(1)
+	elif is_host_or_solo():
+		_ready_peers[network_manager.local_peer_id] = true
+		_waiting_for_peers = READY_TIMEOUT
+		_check_all_ready()
+	else:
+		_rpc_client_ready.rpc_id(1)
+
+
+func _apply_settings() -> void:
+	var fx: Vfx = Vfx.inst()
+	if fx:
+		fx.numbers_enabled = _settings.damage_numbers
+	game_feel.freeze_strength = _settings.hit_stop
+	room_controller.apply_quality(_settings.quality)
+	if player and player.has_method("apply_settings"):
+		player.apply_settings(_settings)
+	hud.ui_scale = _settings.hud_scale
 
 
 func _detect_network() -> void:
@@ -125,451 +222,216 @@ func _detect_network() -> void:
 func _detect_game_mode() -> void:
 	game_mode = get_node_or_null("/root/GameModeManager") as GameModeManager
 	if not game_mode:
-		# solo play — create default coop mode
+		# started straight into the run scene (tests, editor): default options
 		game_mode = GameModeManager.new()
 		game_mode.name = "GameModeManager"
-		get_tree().root.add_child(game_mode)
+		get_tree().root.add_child.call_deferred(game_mode)
 
-	# setup pvp manager for all modes that need it
 	pvp_manager = PvPManager.new()
 	pvp_manager.name = "PvPManager"
 	add_child(pvp_manager)
-	if _is_online() and player_manager and network_manager:
-		pvp_manager.setup(game_mode, player_manager, network_manager)
-	pvp_manager.player_eliminated.connect(_on_pvp_player_eliminated)
-	pvp_manager.match_over.connect(_on_pvp_match_over)
-
-	# register peers for scoring
 	if _is_online():
+		pvp_manager.setup(game_mode, player_manager, network_manager)
 		for peer_id: int in network_manager.connected_peers:
-			game_mode._ensure_score(peer_id)
+			game_mode.ensure_score(peer_id)
 			if game_mode.is_race():
 				game_mode.register_race_peer(peer_id)
 	else:
-		game_mode._ensure_score(1)
-		if game_mode.is_race():
-			game_mode.register_race_peer(1)
+		game_mode.ensure_score(1)
+	pvp_manager.player_eliminated.connect(_on_pvp_player_eliminated)
+	pvp_manager.match_over.connect(_on_pvp_match_over)
 
 
 func _setup_multiplayer_spawning() -> void:
-	if not network_manager or not network_manager.is_online():
+	if not _is_online():
 		return
-
-	# setup player spawner for multiplayer
-	var main_node: Node = get_parent()
-	player_spawner.setup(main_node, player_manager, network_manager)
-
-	# spawn players for all connected peers (except local — already in scene)
+	player_spawner.setup(get_parent(), network_manager)
+	var scene_player: CharacterBody3D = get_parent().get_node_or_null("Player") as CharacterBody3D
+	if scene_player:
+		player_spawner.adopt_player(network_manager.local_peer_id, scene_player)
 	for peer_id: int in network_manager.connected_peers:
 		if peer_id != network_manager.local_peer_id:
-			player_spawner._spawn_player_for_peer(peer_id)
-
-	# set authority on the scene-tree player
-	var scene_player: CharacterBody3D = player_manager.get_primary_player()
-	if scene_player:
-		scene_player.set_multiplayer_authority(network_manager.local_peer_id)
-		player_spawner._add_synchronizer(scene_player, network_manager.local_peer_id)
-		player_spawner._spawned_players[network_manager.local_peer_id] = scene_player
+			player_spawner.spawn_for_peer(peer_id)
 
 
 func is_host_or_solo() -> bool:
-	if not network_manager or not network_manager.is_online():
-		return true
-	return network_manager.is_host()
+	return not _is_online() or network_manager.is_host()
 
 
 func _is_online() -> bool:
-	return network_manager and network_manager.is_online()
+	return network_manager != null and network_manager.is_online()
 
 
-func _validate_dependencies() -> void:
-	if not player_manager:
-		push_error("player_manager missing")
-	if not run_manager:
-		push_error("run_manager missing")
-	if not room_controller:
-		push_error("room_controller missing")
-	if not upgrade_manager:
-		push_error("upgrade_manager missing")
-	if not player:
-		push_error("player not found — check player_manager registration")
-	if not weapon_manager:
-		push_error("weapon_manager not found on player")
+func _local_peer_id() -> int:
+	return network_manager.local_peer_id if _is_online() else 1
 
 
-func _resolve_player_refs() -> void:
-	player = player_manager.get_primary_player()
-	weapon_manager = player_manager.get_primary_weapon_manager()
-	camera = player_manager.get_primary_camera()
+# --- per-frame ------------------------------------------------------------------
+
+func _process(delta: float) -> void:
+	_hit_sound_cooldown = maxf(0.0, _hit_sound_cooldown - delta)
+
+	if _waiting_for_peers >= 0.0:
+		_waiting_for_peers -= delta
+		if _waiting_for_peers < 0.0:
+			_start_run()
+
+	if _death_timer >= 0.0:
+		_death_timer -= delta
+		if _death_timer < 0.0:
+			_resolve_death()
+
+	if not run_manager.is_active or not is_instance_valid(player):
+		return
+
+	if _head_start > 0.0:
+		_head_start -= delta
+		if _head_start <= 0.0:
+			player.stats.set_mul(&"move_speed", &"perk:head_start", 1.0)
+
+	if _profile.has_unlock("last_stand"):
+		var low: bool = float(player.health) / float(player.max_health) <= 0.2 and not player.is_dead
+		player.stats.set_mul(&"damage", &"perk:last_stand", 1.4 if low else 1.0)
+		player.stats.set_mul(&"move_speed", &"perk:last_stand", 1.2 if low else 1.0)
+
+	if _fracture_delay >= 0.0:
+		_fracture_delay -= delta
+		if _fracture_delay < 0.0:
+			_try_start_fracture()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if awaiting_transition and event.is_action_pressed("jump"):
 		awaiting_transition = false
-		run_hud.hide_prompt()
+		hud.hide_prompt()
 		if is_host_or_solo():
-			_advance_room()
+			_advance_room(0)
 		else:
 			_rpc_request_advance_room.rpc_id(1)
 
 
-# --- run lifecycle ---
+# --- run lifecycle ---------------------------------------------------------------
 
 func _start_run() -> void:
-	_run_seed = randi()
-	_do_start_run(_run_seed)
-
+	_waiting_for_peers = -1.0
+	var cfg: Dictionary = _build_run_config()
+	_do_start_run(cfg)
 	if _is_online():
-		_rpc_start_run.rpc(_run_seed)
+		_rpc_start_run.rpc(cfg)
 
 
-func _do_start_run(seed_value: int) -> void:
-	_reset_player()
-	upgrade_manager.reset()
-	mutation_manager.reset()
-	weapon_manager.reset_multipliers()
-	fracture_manager.end_fracture()
-	combo_tracker.reset()
-	difficulty_tracker.reset()
-	_boss_active = false
-	_boss_defeated = false
-	_pending_mutation_after_upgrade = false
+func _build_run_config() -> Dictionary:
+	var mode: StringName = game_mode.run_mode
+	if game_mode.is_versus():
+		mode = RunData.MODE_VERSUS
+	var seed_value: int = game_mode.custom_seed
+	if mode == RunData.MODE_DAILY:
+		seed_value = GameModeManager.daily_seed()
+	elif seed_value == 0:
+		seed_value = randi() % 2000000000 + 1
+	return {
+		"mode": mode,
+		"seed": seed_value,
+		"ascension": game_mode.ascension if mode != RunData.MODE_VERSUS else 0,
+		"players": maxi(1, player_manager.get_player_count()),
+	}
+
+
+func _do_start_run(cfg: Dictionary) -> void:
+	_run_cfg = cfg
+	awaiting_upgrade = false
+	awaiting_mutation = false
+	awaiting_transition = false
+	awaiting_path = false
+	awaiting_shop = false
+	_reward_queue.clear()
 	_shared_enemy_speed_bonus = 0.0
 	_pvp_active = false
 	_match_ended = false
-	game_feel.reset()
-	_apply_meta_bonuses()
-	audio.play("run_start", -3.0)
+	_bosses_killed.clear()
+	_flawless_boss = false
+	_down_peers.clear()
+	_death_timer = -1.0
+	_fracture_delay = -1.0
+	_hide_all_panels()
 
-	# race and pvp_encounter modes use shorter race generator
-	if game_mode and (game_mode.is_race() or game_mode.is_pvp_mode()):
-		run_manager.start_run_with_sequence(RaceGenerator.generate(seed_value))
+	game_feel.reset()
+	fracture_manager.end_fracture()
+	upgrade_manager.reset()
+	mutation_manager.reset()
+	combo_tracker.reset_run()
+	difficulty_tracker.reset()
+	combat.reset_totals()
+	weapon_manager.reset_for_run()
+	room_controller.set_enemy_speed_mod(&"cursed", 1.0)
+	room_controller.player_count = int(cfg.get("players", 1))
+
+	player.stats.clear_modifiers()
+	_apply_profile_bonuses()
+	player.reset_for_run(Vector3(0, 2, 0))
+
+	if cfg.get("mode", RunData.MODE_STANDARD) == RunData.MODE_DAILY:
+		_profile.daily_last_played = GameModeManager.daily_key()
+
+	Game.sfx(&"run_start", -3.0)
+	if cfg.mode == RunData.MODE_VERSUS:
+		run_manager.start_run_with_floors(RaceGenerator.generate(int(cfg.seed), int(cfg.players)), cfg)
 	else:
-		run_manager.start_run(seed_value)
+		run_manager.start_run(cfg)
 
 
 @rpc("authority", "call_remote", "reliable")
-func _rpc_start_run(seed_value: int) -> void:
-	_do_start_run(seed_value)
+func _rpc_start_run(cfg: Dictionary) -> void:
+	_do_start_run(cfg)
 
 
 @rpc("any_peer", "call_remote", "reliable")
-func _rpc_request_run_seed() -> void:
-	# client asks host for current run seed after loading
-	if is_host_or_solo() and _run_seed != 0:
-		var sender_id: int = multiplayer.get_remote_sender_id()
-		_rpc_start_run.rpc_id(sender_id, _run_seed)
+func _rpc_client_ready() -> void:
+	if not is_host_or_solo():
+		return
+	var sender: int = multiplayer.get_remote_sender_id()
+	_ready_peers[sender] = true
+	if run_manager.is_active:
+		# the run already started without them (they loaded late): send it over
+		_rpc_start_run.rpc_id(sender, _run_cfg)
+	else:
+		_check_all_ready()
 
 
-func _advance_room() -> void:
-	run_manager.advance_to_next_room()
+func _check_all_ready() -> void:
+	for peer_id: int in network_manager.connected_peers:
+		if not _ready_peers.has(peer_id):
+			return
+	_start_run()
+
+
+func _advance_room(option_index: int) -> void:
+	run_manager.advance_to_next_room(option_index)
 	if _is_online():
-		_rpc_advance_room.rpc()
+		_rpc_advance_room.rpc(option_index)
 
 
 @rpc("authority", "call_remote", "reliable")
-func _rpc_advance_room() -> void:
-	run_manager.advance_to_next_room()
+func _rpc_advance_room(option_index: int) -> void:
+	awaiting_transition = false
+	awaiting_path = false
+	hud.hide_prompt()
+	path_ui.hide_panel()
+	run_manager.advance_to_next_room(option_index)
 
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_advance_room() -> void:
-	# client requests host to advance — host validates and advances
-	if is_host_or_solo():
-		_advance_room()
-
-
-# --- player ---
-
-func _reset_player() -> void:
-	player.health = player.max_health
-	player.global_position = Vector3(0, 2, 0)
-	player.velocity = Vector3.ZERO
-
-
-func _on_death() -> void:
-	if damage_vignette:
-		damage_vignette.flash(3.0)
-	if camera and is_instance_valid(camera):
-		game_feel.camera_punch(camera, 12.0)
-	audio.play("player_damage", 0.0, 0.05)
-	# brief death slow-mo
-	Engine.time_scale = 0.3
-	var tween: Tween = create_tween().set_ignore_time_scale(true)
-	tween.tween_interval(0.4)
-	tween.tween_callback(func(): Engine.time_scale = 1.0)
-
-
-func _on_player_damaged(amount: int) -> void:
-	# apply cursed damage multiplier and mutation modifiers
-	var mutation_mult: float = mutation_manager.get_damage_multiplier()
-	var effective: int = int(amount * upgrade_manager.damage_taken_multiplier * mutation_mult)
-	if effective != amount:
-		# player_controller already subtracted `amount` (post damage_resist)
-		# before this fires — correct it up or down to the true value so a
-		# reduction (e.g. momentum shield at speed) actually refunds health,
-		# not just an increase (e.g. glass cannon, momentum shield when slow).
-		var delta: int = effective - amount
-		player.health = clampi(player.health - delta, 0, player.max_health)
-
-	difficulty_tracker.on_player_damaged(effective)
-	audio.play("player_damage", -2.0, 0.1)
-
-	var intensity: float = clamp(float(effective) / 30.0, 0.5, 2.0)
-	if damage_vignette:
-		damage_vignette.flash(intensity)
-	if camera and is_instance_valid(camera):
-		game_feel.camera_punch(camera, effective * 0.3)
-	if player.health <= 0:
-		_on_death()
-		# dismiss any open selection ui
-		if awaiting_upgrade:
-			awaiting_upgrade = false
-			upgrade_ui.visible = false
-		if awaiting_mutation:
-			awaiting_mutation = false
-			mutation_ui.visible = false
-		if awaiting_transition:
-			awaiting_transition = false
-		_pending_mutation_after_upgrade = false
-		# pvp death is handled by pvp_manager, not run failure
-		if not _pvp_active and is_host_or_solo():
-			run_manager.fail_run()
-			if _is_online():
-				_rpc_fail_run.rpc()
-
-
-@rpc("authority", "call_remote", "reliable")
-func _rpc_fail_run() -> void:
-	run_manager.fail_run()
-
-
-# --- combat ---
-
-func _on_weapon_kill(kill_position: Vector3) -> void:
-	run_manager.register_kill()
-	upgrade_manager.on_enemy_killed()
-	mutation_manager.on_enemy_killed()
-	combo_tracker.register_kill()
-	difficulty_tracker.on_enemy_killed()
-
-	# mode scoring
-	if game_mode:
-		var local_id: int = network_manager.local_peer_id if _is_online() else 1
-		game_mode.register_kill(local_id)
-
-	# meta kill recovery
-	if is_instance_valid(player) and player.meta_kill_heal > 0:
-		player.health = mini(player.health + player.meta_kill_heal, player.max_health)
-
-	# scavenger perk: first kill per room heals
-	if not _scavenger_healed_this_room and _profile and _profile.has_unlock("scavenger"):
-		_scavenger_healed_this_room = true
-		if is_instance_valid(player):
-			player.health = mini(player.health + 10, player.max_health)
-
-	audio.play("enemy_death", -4.0, 0.15)
-	game_feel.kill_freeze()
-	crosshair.show_kill()
-
-	if upgrade_manager.has_chain_reaction:
-		_spawn_kill_explosion(kill_position)
-
-
-func _on_weapon_hit(hit_position: Vector3) -> void:
-	upgrade_manager.on_enemy_hit(hit_position)
-	mutation_manager.on_enemy_hit(hit_position)
-	audio.play("enemy_hit", -8.0, 0.2)
-
-
-func _on_player_dashed() -> void:
-	upgrade_manager.on_player_dashed()
-	audio.play("dash", -5.0, 0.1)
-
-
-func _on_weapon_switched(_weapon_name: String) -> void:
-	run_hud.update_weapon_display(weapon_manager.get_weapon_name())
-
-
-func _on_room_enemy_killed() -> void:
-	if fracture_manager.is_active and fracture_manager.active_fracture == FractureDefinitions.FractureType.ENEMY_DUPLICATION:
-		if randf() < 0.3:
-			room_controller.spawn_duplicate_enemy()
-
-
-func _on_boss_phase_changed(_phase: int) -> void:
-	audio.play("boss_phase", 0.0)
-	game_feel.boss_phase_slowmo()
-	if camera and is_instance_valid(camera):
-		game_feel.camera_punch(camera, 8.0)
-
-
-func _on_boss_defeated() -> void:
-	_boss_defeated = true
-	_boss_active = false
-	room_announce.show_boss_defeated()
-	audio.play("boss_death", 0.0)
-	game_feel.boss_death_slowmo()
-
-
-# --- room progression (host-driven) ---
-
-func _on_all_enemies_dead() -> void:
-	if is_host_or_solo():
-		run_manager.on_room_enemies_cleared()
-		if _is_online():
-			_rpc_room_cleared.rpc()
-
-
-@rpc("authority", "call_remote", "reliable")
-func _rpc_room_cleared() -> void:
-	run_manager.on_room_enemies_cleared()
-
-
-func _on_room_entered(room: RunData.RoomData) -> void:
-	var data: RunData = run_manager.data
-	_reset_player_position()
-	_scavenger_healed_this_room = false
-
-	# apply dynamic difficulty subtly — solo only. difficulty_tracker
-	# accumulates from *this peer's own* local player's damage/kill history,
-	# so in co-op it would give each peer a different room.difficulty; since
-	# that value drives how many obstacles/hazards get placed (each a random
-	# draw against the shared room-seeded RNG stream, see room_controller.gd's
-	# "both peers get identical layout" comment), letting it diverge per-peer
-	# would desync the room layout itself, not just difficulty feel.
-	if not _is_online():
-		var diff_mod: float = difficulty_tracker.get_difficulty_modifier()
-		room.difficulty *= diff_mod
-
-	# apply enemy speed bonus from cursed upgrades — the shared, host-
-	# aggregated value (see _contribute_enemy_speed_bonus), not this peer's
-	# own local upgrade_manager.enemy_speed_bonus: only the host's own
-	# enemy simulation actually moves anyone, so a client's pick would
-	# otherwise silently do nothing while still paying the upgrade's cost.
-	if _shared_enemy_speed_bonus > 0:
-		room.metadata["enemy_speed_bonus"] = _shared_enemy_speed_bonus
-
-	if room.type == RoomDefinitions.RoomType.BOSS or room.type == RoomDefinitions.RoomType.ELITE_CHAMBER:
-		_boss_active = true
-		_boss_defeated = false
-		audio.play("boss_warning", 0.0)
-		room_announce.show_boss_warning()
-		await get_tree().create_timer(2.0).timeout
-		if not is_instance_valid(room_announce) or not run_manager.is_active:
-			return
-		room_announce.show_room_enter(room, data.current_room_index + 1, data.total_rooms())
-	else:
-		room_announce.show_room_enter(room, data.current_room_index + 1, data.total_rooms())
-
-	room_controller.enter_room(room)
-
-	# connect boss phase signal after spawn delay
-	var is_boss_room: bool = room.type == RoomDefinitions.RoomType.BOSS or room.type == RoomDefinitions.RoomType.ELITE_CHAMBER
-	if is_boss_room:
-		await get_tree().create_timer(0.5).timeout
-		if not is_instance_valid(room_controller) or not run_manager.is_active:
-			return
-		if room_controller.active_boss and is_instance_valid(room_controller.active_boss) and room_controller.active_boss.has_signal("phase_changed"):
-			room_controller.active_boss.phase_changed.connect(_on_boss_phase_changed)
-
-	# no fracture events during boss fights
-	if not is_boss_room:
-		_try_start_fracture(room.difficulty)
-	difficulty_tracker.on_room_entered()
-
-
-func _try_start_fracture(room_difficulty: float) -> void:
-	# each peer used to roll (and pick a type) independently, so co-op players
-	# could end up with different fractures active — or one active and one
-	# not — in the same room. only the host rolls now; the result is
-	# broadcast so everyone's FractureManager agrees on type and timing.
-	if not is_host_or_solo():
-		return
-	var type: int = fracture_manager.try_trigger(room_difficulty)
-	if type < 0:
-		return
-	if _is_online():
-		_rpc_start_fracture.rpc(type)
-
-
-@rpc("authority", "call_remote", "reliable")
-func _rpc_start_fracture(type: int) -> void:
-	fracture_manager.start_fracture(type)
-
-
-func _on_room_cleared(room: RunData.RoomData) -> void:
-	room_announce.show_room_clear()
-	fracture_manager.end_fracture()
-	difficulty_tracker.on_room_cleared()
-	audio.play("room_clear", -3.0)
-
-	# race mode: track room progress and check for pvp encounter
-	if game_mode and game_mode.is_race():
-		var local_id: int = network_manager.local_peer_id if _is_online() else 1
-		game_mode.on_race_room_cleared(local_id)
-		if is_host_or_solo() and game_mode.should_start_encounter():
-			_transition_to_pvp()
-			return
-		# race rooms still grant upgrades if flagged, then continue — every
-		# peer picks their own (see the note below on the main co-op path)
-		if room.reward_flag:
-			_show_upgrade_selection()
-			return
-		if not run_manager.data.is_final_room():
-			_prompt_next_room()
-			return
-		_complete_run()
-		return
-
-	# pvp encounter mode: transition to pvp after all rooms
-	if game_mode and game_mode.is_pvp_mode():
-		if run_manager.data.is_final_room():
-			if is_host_or_solo():
-				_transition_to_pvp()
-			return
-		# pvp rooms also allow upgrades
-		if room.reward_flag:
-			_show_upgrade_selection()
-			return
-		_prompt_next_room()
-		return
-
-	# upgrade/mutation choices are per-player content — each peer (host and
-	# clients alike) independently rolls and applies their own, same as
-	# solo. only genuinely shared state (advancing the room, completing the
-	# run) stays host-authoritative; _complete_run() below routes itself
-	# through the host on a client's behalf, mirroring _advance_room's
-	# request/broadcast RPC pair, so it's safe to call from any peer.
-	if room.type == RoomDefinitions.RoomType.BOSS:
-		_pending_mutation_after_upgrade = true
-		_show_upgrade_selection()
-		return
-
-	if room.type == RoomDefinitions.RoomType.ELITE_CHAMBER:
-		_pending_mutation_after_upgrade = true
-		_show_upgrade_selection()
-		return
-
-	if room.reward_flag:
-		_show_upgrade_selection()
-	elif _should_offer_mutation():
-		_show_mutation_selection()
-	elif run_manager.data.is_final_room():
-		_complete_run()
-	else:
-		_prompt_next_room()
+	# only honoured when there is exactly one way forward; a real choice is the host's
+	if is_host_or_solo() and run_manager.data and run_manager.data.next_options().size() <= 1:
+		var room: RunData.RoomData = run_manager.data.current_room()
+		if room and room.status == RoomDefinitions.RoomStatus.CLEARED:
+			_advance_room(0)
 
 
 func _complete_run() -> void:
-	# safe to call from any peer (clients reach this too now that upgrade/
-	# mutation selection runs per-player) — a non-host peer can't legally
-	# invoke _rpc_complete_run itself (it's authority-only), so it asks the
-	# host to complete the run instead, mirroring _advance_room's
-	# request/broadcast pair.
 	if not is_host_or_solo():
-		if _is_online():
-			_rpc_request_complete_run.rpc_id(1)
+		_rpc_request_complete_run.rpc_id(1)
 		return
 	run_manager.complete_run()
 	if _is_online():
@@ -578,7 +440,7 @@ func _complete_run() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_complete_run() -> void:
-	if is_host_or_solo():
+	if is_host_or_solo() and run_manager.data and run_manager.data.is_final_room():
 		_complete_run()
 
 
@@ -587,518 +449,736 @@ func _rpc_complete_run() -> void:
 	run_manager.complete_run()
 
 
-# --- upgrades and mutations (per-player) ---
-
-# must match upgrade_manager.gd's _apply_power_surge()
-const POWER_SURGE_ENEMY_SPEED_BONUS: float = 0.2
-
-
-func _contribute_enemy_speed_bonus(amount: float) -> void:
-	if is_host_or_solo():
-		_shared_enemy_speed_bonus += amount
-	elif _is_online():
-		_rpc_contribute_enemy_speed_bonus.rpc_id(1, amount)
+@rpc("authority", "call_remote", "reliable")
+func _rpc_fail_run() -> void:
+	run_manager.fail_run()
 
 
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_contribute_enemy_speed_bonus(amount: float) -> void:
-	if is_host_or_solo():
-		_shared_enemy_speed_bonus += amount
+# --- rooms ----------------------------------------------------------------------
+
+func _on_room_entered(room: RunData.RoomData) -> void:
+	var data: RunData = run_manager.data
+	awaiting_transition = false
+	awaiting_path = false
+	_hide_all_panels()
+	_scavenger_used = false
+	_momentum_start_used = false
+	_room_flawless = true
+	_fracture_delay = -1.0
+	_down_peers.clear()
+
+	# solo only: nudge the room toward how the run has been going. in co-op
+	# every peer must build the same room, so the budget is left alone.
+	if not _is_online() and not room.metadata.has("tuned") and room.enemy_budget > 0.0:
+		room.metadata["tuned"] = true
+		room.enemy_budget *= difficulty_tracker.get_difficulty_modifier()
+
+	room_controller.collect_all_pickups()
+	room_controller.set_enemy_speed_mod(&"cursed", 1.0 + _shared_enemy_speed_bonus)
+	room_controller.enter_room(room)
+
+	if player.is_dead:
+		# a downed co-op player gets back up for the next room
+		player.is_dead = false
+		player.health = maxi(1, int(player.max_health * 0.5))
+	var index: int = maxi(0, player_manager.get_all_players().find(player))
+	player.teleport(room_controller.player_spawn_point(index))
+
+	hud.set_boss(null)
+	if room.is_boss():
+		Game.sfx(&"boss_warning", 0.0)
+		room_announce.show_boss_intro(BossDefs.display_name(room.boss_id), BossDefs.intro(room.boss_id))
+	else:
+		room_announce.show_room_enter(room, data.current_room_index + 1, data.total_rooms())
+		if data.current_room_index == 0 or data.room_sequence[data.current_room_index - 1].act != room.act:
+			room_announce.show_subtitle("act %d: %s" % [room.act + 1, Biome.display_name(room.biome)])
+
+	if not room.is_boss() and not room.is_peaceful():
+		_fracture_delay = randf_range(4.0, 8.0)
+	difficulty_tracker.on_room_entered()
 
 
-func _show_upgrade_selection() -> void:
-	awaiting_upgrade = true
-	var choices: Array[Dictionary] = UpgradeDefinitions.pick_choices(3)
-	upgrade_ui.show_choices(choices)
+func _on_all_enemies_dead() -> void:
+	if not is_host_or_solo():
+		return
+	run_manager.on_room_enemies_cleared()
+	if _is_online():
+		_rpc_room_cleared.rpc()
 
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_room_cleared() -> void:
+	run_manager.on_room_enemies_cleared()
+
+
+func _on_room_cleared(room: RunData.RoomData) -> void:
+	fracture_manager.end_fracture()
+	_fracture_delay = -1.0
+	difficulty_tracker.on_room_cleared()
+	if not room.is_peaceful():
+		room_announce.show_room_clear()
+		Game.sfx(&"room_clear", -3.0)
+	if room.is_boss() and _room_flawless:
+		_flawless_boss = true
+
+	if game_mode.is_race():
+		game_mode.on_race_room_cleared(_local_peer_id())
+		if is_host_or_solo() and game_mode.should_start_encounter():
+			_transition_to_pvp()
+			return
+	elif game_mode.is_pvp_mode() and run_manager.data.is_final_room():
+		if is_host_or_solo():
+			_transition_to_pvp()
+		return
+
+	_reward_queue = _rewards_for(room)
+	_next_reward()
+
+
+func _rewards_for(room: RunData.RoomData) -> Array[StringName]:
+	var q: Array[StringName] = []
+	match room.reward:
+		RoomDefinitions.REWARD_UPGRADE:
+			q.append(&"upgrade")
+		RoomDefinitions.REWARD_RARE:
+			q.append(&"rare")
+		RoomDefinitions.REWARD_MUTATION:
+			q.append(&"upgrade")
+			q.append(&"mutation")
+		RoomDefinitions.REWARD_HEAL:
+			q.append(&"heal")
+		RoomDefinitions.REWARD_ESSENCE:
+			q.append(&"essence")
+		RoomDefinitions.REWARD_SHOP:
+			q.append(&"shop")
+		RoomDefinitions.REWARD_BOSS:
+			q.append(&"boss_heal")
+			q.append(&"rare")
+			q.append(&"mutation")
+	if room.metadata.get("double_reward", false) and not q.is_empty():
+		q.append(q[0])
+	return q
+
+
+func _next_reward() -> void:
+	if not run_manager.is_active:
+		return
+	if _reward_queue.is_empty():
+		_after_rewards()
+		return
+	var kind: StringName = _reward_queue.pop_front()
+	match kind:
+		&"upgrade", &"rare":
+			var choices: Array[Dictionary] = UpgradeDefinitions.pick_choices(3, upgrade_manager.owned, _loadout_ids(), kind == &"rare")
+			if choices.is_empty():
+				_next_reward()
+				return
+			awaiting_upgrade = true
+			upgrade_ui.show_choices(choices, "rare upgrade" if kind == &"rare" else "choose an upgrade")
+		&"mutation":
+			var options: Array[Dictionary] = MutationDefinitions.pick_choices(2, mutation_manager.owned_types())
+			if options.is_empty():
+				_next_reward()
+				return
+			awaiting_mutation = true
+			mutation_ui.show_choices(options)
+		&"heal":
+			var healed: int = player.heal(int(player.max_health * HEAL_ROOM_RATIO))
+			room_announce.show_text("restored %d health" % healed, Color(0.4, 1.0, 0.5))
+			Game.sfx(&"heal", -4.0)
+			_next_reward()
+		&"boss_heal":
+			player.heal(int(player.max_health * BOSS_HEAL_RATIO))
+			_next_reward()
+		&"essence":
+			var room: RunData.RoomData = run_manager.data.current_room()
+			var amount: int = 18 + (room.act if room else 0) * 8 + randi() % 10
+			var at: Vector3 = player.global_position + Vector3(0, 1.0, 0) - player.global_transform.basis.z * 3.0
+			for i: int in 6:
+				room_controller.drop_pickup(Pickup.KIND_ESSENCE, maxi(1, amount / 6), at)
+			room_announce.show_text("essence cache", Color(0.62, 1.0, 0.36))
+			_next_reward()
+		&"shop":
+			_open_shop()
+		_:
+			_next_reward()
+
+
+func _after_rewards() -> void:
+	var data: RunData = run_manager.data
+	if not data or not run_manager.is_active:
+		return
+	if data.is_final_room():
+		_complete_run()
+		return
+	var options: Array = data.next_options()
+	if options.size() <= 1:
+		awaiting_transition = true
+		hud.show_prompt(CONTINUE_PROMPT % InputSetup.key_label("jump").to_lower())
+	elif is_host_or_solo():
+		awaiting_path = true
+		path_ui.show_options(options, data.current_room_index + 2, data.total_rooms())
+	else:
+		hud.show_prompt("the host is choosing the path")
+
+
+func _on_path_chosen(index: int) -> void:
+	if not awaiting_path:
+		return
+	awaiting_path = false
+	Game.sfx(&"ui_select", -6.0)
+	_advance_room(index)
+
+
+func _loadout_ids() -> Array:
+	var ids: Array = []
+	for w: BaseWeapon in weapon_manager.weapons:
+		ids.append(w.weapon_id)
+	return ids
+
+
+func _on_wave_started(index: int, total: int) -> void:
+	if total > 1 and index > 1:
+		room_announce.show_text("wave %d of %d" % [index, total], Color(1.0, 0.5, 0.2))
+
+
+# --- rewards ---------------------------------------------------------------------
 
 func _on_upgrade_selected(upgrade: Dictionary) -> void:
+	if not awaiting_upgrade:
+		return
 	awaiting_upgrade = false
 	upgrade_manager.apply(upgrade)
 	run_manager.apply_upgrade(upgrade)
-	audio.play("upgrade_pick", -3.0)
-
-	if upgrade.get("stat", "") == "power_surge":
-		_contribute_enemy_speed_bonus(POWER_SURGE_ENEMY_SPEED_BONUS)
-
-	# boss reward guarantees a mutation choice
-	if _pending_mutation_after_upgrade:
-		_pending_mutation_after_upgrade = false
-		_show_mutation_selection()
-		return
-
-	# check if mutation should follow upgrade
-	if _should_offer_mutation():
-		_show_mutation_selection()
-		return
-
-	if run_manager.data.is_final_room():
-		_complete_run()
-	else:
-		_prompt_next_room()
-
-
-func _should_offer_mutation() -> bool:
-	var data: RunData = run_manager.data
-	# offer mutation at rooms 3 and 6 (0-indexed: 2 and 5)
-	var room_idx: int = data.current_room_index
-	if room_idx == 2 or room_idx == 5:
-		# only offer once per room index
-		if data.chosen_mutations.size() < (1 if room_idx == 2 else 2):
-			return true
-	return false
-
-
-func _show_mutation_selection() -> void:
-	awaiting_mutation = true
-	var exclude: Array = []
-	for m in run_manager.data.chosen_mutations:
-		exclude.append(m.get("type"))
-	var choices: Array[Dictionary] = MutationDefinitions.pick_choices(2, exclude)
-	mutation_ui.show_choices(choices)
+	Game.sfx(&"upgrade_pick", -3.0)
+	_next_reward()
 
 
 func _on_mutation_selected(mutation: Dictionary) -> void:
+	if not awaiting_mutation:
+		return
 	awaiting_mutation = false
 	mutation_manager.apply(mutation)
 	run_manager.data.chosen_mutations.append(mutation)
-	audio.play("upgrade_pick", -3.0)
-
-	if run_manager.data.is_final_room():
-		_complete_run()
-	else:
-		_prompt_next_room()
+	Game.sfx(&"mutation_pick", -3.0)
+	_next_reward()
 
 
 func _on_mutation_skipped() -> void:
+	if not awaiting_mutation:
+		return
 	awaiting_mutation = false
-	if run_manager.data.is_final_room():
-		_complete_run()
-	else:
-		_prompt_next_room()
+	_next_reward()
 
 
-func _prompt_next_room() -> void:
-	awaiting_transition = true
-	run_hud.show_prompt("press SPACE to continue")
+func _on_enemy_speed_bonus_changed(total: float) -> void:
+	# a cursed pick makes enemies faster for everyone. only the host's
+	# simulation moves enemies, so clients send their share up.
+	if is_host_or_solo():
+		_shared_enemy_speed_bonus = total + _client_speed_bonus()
+		room_controller.set_enemy_speed_mod(&"cursed", 1.0 + _shared_enemy_speed_bonus)
+	elif _is_online():
+		_rpc_report_speed_bonus.rpc_id(1, total)
 
 
-# --- pvp encounter ---
+var _peer_speed_bonus: Dictionary = {}
 
-func _transition_to_pvp() -> void:
-	# solo: no opponents — complete the run with a victory screen
-	if not _is_online():
-		room_controller.clear_current_room()
-		fracture_manager.end_fracture()
-		room_announce.show_fracture("run complete")
-		audio.play("boss_death", 0.0)
-		await get_tree().create_timer(1.5).timeout
-		if not is_instance_valid(self):
-			return
-		_complete_run()
+
+func _client_speed_bonus() -> float:
+	var sum: float = 0.0
+	for peer: Variant in _peer_speed_bonus:
+		sum += _peer_speed_bonus[peer]
+	return sum
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_report_speed_bonus(total: float) -> void:
+	if not is_host_or_solo():
 		return
+	_peer_speed_bonus[multiplayer.get_remote_sender_id()] = clampf(total, 0.0, 2.0)
+	_shared_enemy_speed_bonus = upgrade_manager.enemy_speed_bonus + _client_speed_bonus()
+	room_controller.set_enemy_speed_mod(&"cursed", 1.0 + _shared_enemy_speed_bonus)
 
-	_pvp_active = true
-	room_controller.clear_current_room()
-	fracture_manager.end_fracture()
 
-	# announce pvp
-	room_announce.show_fracture("pvp encounter")
-	audio.play("boss_warning", 0.0)
+# --- shop ------------------------------------------------------------------------
 
-	# reset player health and position for fair fight
-	_reset_pvp_players()
+func _open_shop() -> void:
+	_shop_items.clear()
+	_shop_items.append({"kind": "heal", "name": "mend", "description": "restore 35% of your health", "cost": 25, "sold": false})
+	_shop_items.append({"kind": "graft", "name": "graft", "description": "+15 max health for this run", "cost": 40, "sold": false})
+	for u: Dictionary in UpgradeDefinitions.pick_choices(3, upgrade_manager.owned, _loadout_ids(), false):
+		_shop_items.append({
+			"kind": "upgrade", "name": u.name, "description": u.description, "upgrade": u,
+			"cost": SHOP_PRICES.get(u.get("rarity", UpgradeDefinitions.RARITY_COMMON), 40), "sold": false,
+		})
+	_shop_items.append({"kind": "reroll", "name": "reroll", "description": "replace the upgrades on offer", "cost": 15, "sold": false})
+	awaiting_shop = true
+	shop_ui.show_shop(_shop_items, run_manager.data.essence)
 
-	# start pvp after brief delay
-	await get_tree().create_timer(2.0).timeout
-	if not is_instance_valid(self):
+
+func _on_shop_buy(index: int) -> void:
+	if not awaiting_shop or index < 0 or index >= _shop_items.size():
 		return
-	if pvp_manager:
-		pvp_manager.start_pvp()
-		game_mode.start_pvp()
-		_set_pvp_on_weapons(true)
-
-	if _is_online():
-		_rpc_start_pvp.rpc()
-
-
-func _reset_pvp_players() -> void:
-	var players: Array[CharacterBody3D] = player_manager.get_all_players()
-	for i in players.size():
-		var p: CharacterBody3D = players[i] as CharacterBody3D
-		if not p:
-			continue
-		p.health = p.max_health
-		# space players apart for pvp
-		var angle: float = (float(i) / float(maxi(players.size(), 1))) * TAU
-		p.global_position = Vector3(cos(angle) * 10.0, 2.0, sin(angle) * 10.0)
-		p.velocity = Vector3.ZERO
-
-
-@rpc("authority", "call_remote", "reliable")
-func _rpc_start_pvp() -> void:
-	_pvp_active = true
-	room_controller.clear_current_room()
-	_reset_pvp_players()
-	if pvp_manager:
-		pvp_manager.start_pvp()
-		_set_pvp_on_weapons(true)
-
-
-func _on_pvp_player_eliminated(peer_id: int) -> void:
-	var is_local: bool = _is_online() and peer_id == network_manager.local_peer_id
-	if is_local:
-		room_announce.show_fracture("eliminated")
-	else:
-		room_announce.show_room_clear()
-
-
-func _on_pvp_match_over(winner_peer_id: int) -> void:
-	_pvp_active = false
-	_match_ended = true
-
-	if pvp_manager:
-		pvp_manager.stop_pvp()
-	_set_pvp_on_weapons(false)
-	game_mode.end_pvp(winner_peer_id)
-
-	# determine if local player won
-	var is_winner: bool = not _is_online() or winner_peer_id == network_manager.local_peer_id
-	if is_winner:
-		room_announce.show_boss_defeated()
-		audio.play("boss_death", 0.0)
-	else:
-		room_announce.show_fracture("defeated")
-
-	# show match summary after delay
-	await get_tree().create_timer(2.0).timeout
-	if not is_instance_valid(self):
-		return
-	_show_match_summary()
-
-
-func _show_match_summary() -> void:
-	# use run summary ui to display match results
+	var item: Dictionary = _shop_items[index]
 	var data: RunData = run_manager.data
-	if data:
-		data.status = RunData.RunStatus.COMPLETED
-		run_manager.is_active = false
-
-		# save profile for pvp match
-		var best: int = combo_tracker.best_combo
-		var prev_kills: int = _profile.best_kills_single_run if _profile else 0
-		var prev_combo: int = _profile.best_combo if _profile else 0
-		_save_run_to_profile(data, best)
-
-		# encode match scores into run tags for display
-		var winner: int = game_mode.get_winner()
-		var is_winner: bool = not _is_online() or winner == network_manager.local_peer_id
-		data.run_tags = PackedStringArray()
-		data.run_tags.append("mode: %s" % game_mode.get_mode_name())
-		if is_winner:
-			data.run_tags.append("victory")
-		else:
-			data.run_tags.append("defeat")
-
-		var score_data: Dictionary = game_mode.get_score_summary()
-		for peer_id: int in score_data:
-			var s: Dictionary = score_data[peer_id]
-			var label: String = "p%d" % peer_id
-			if _is_online() and peer_id == network_manager.local_peer_id:
-				label = "you"
-			data.run_tags.append("%s: %d pts" % [label, s.total])
-
-		summary_ui.show_summary(data, prev_kills, prev_combo)
-
-
-@rpc("authority", "call_remote", "reliable")
-func _rpc_pvp_match_over(winner_peer: int) -> void:
-	_on_pvp_match_over(winner_peer)
+	if item.sold or data.essence < int(item.cost):
+		Game.sfx(&"ui_deny", -8.0)
+		return
+	run_manager.add_essence(-int(item.cost))
+	match item.kind:
+		"heal":
+			player.heal(int(player.max_health * 0.35))
+			item.sold = true
+		"graft":
+			player.stats.stack_add(&"max_health", &"shop:graft", 15.0)
+			player.heal(15)
+			item.cost = int(item.cost) + 20
+		"upgrade":
+			upgrade_manager.apply(item.upgrade)
+			run_manager.apply_upgrade(item.upgrade)
+			item.sold = true
+		"reroll":
+			var fresh: Array[Dictionary] = UpgradeDefinitions.pick_choices(3, upgrade_manager.owned, _loadout_ids(), false)
+			var slot: int = 0
+			for i: int in _shop_items.size():
+				if _shop_items[i].kind == "upgrade" and slot < fresh.size():
+					var u: Dictionary = fresh[slot]
+					slot += 1
+					_shop_items[i] = {
+						"kind": "upgrade", "name": u.name, "description": u.description, "upgrade": u,
+						"cost": SHOP_PRICES.get(u.get("rarity", UpgradeDefinitions.RARITY_COMMON), 40), "sold": false,
+					}
+			item.cost = int(item.cost) + 10
+	Game.sfx(&"upgrade_pick", -5.0)
+	shop_ui.show_shop(_shop_items, data.essence)
 
 
-# --- run end ---
-
-func _on_run_failed(data: RunData) -> void:
-	run_hud.hide_prompt()
-	fracture_manager.end_fracture()
-	var best: int = combo_tracker.best_combo
-	combo_tracker.reset()
-	data.run_tags = RunTags.generate(data, best)
-	var prev_kills: int = _profile.best_kills_single_run if _profile else 0
-	var prev_combo: int = _profile.best_combo if _profile else 0
-	_save_run_to_profile(data, best)
-	summary_ui.show_summary(data, prev_kills, prev_combo)
+func _on_shop_closed() -> void:
+	if not awaiting_shop:
+		return
+	awaiting_shop = false
+	_next_reward()
 
 
-func _on_run_completed(data: RunData) -> void:
-	run_hud.hide_prompt()
-	fracture_manager.end_fracture()
-	var best: int = combo_tracker.best_combo
-	combo_tracker.reset()
-	data.run_tags = RunTags.generate(data, best)
-	var prev_kills: int = _profile.best_kills_single_run if _profile else 0
-	var prev_combo: int = _profile.best_combo if _profile else 0
-	_save_run_to_profile(data, best)
-	summary_ui.show_summary(data, prev_kills, prev_combo)
+func _on_pickup_collected(kind: StringName, value: int) -> void:
+	if not is_instance_valid(player):
+		return
+	if kind == Pickup.KIND_ESSENCE:
+		run_manager.add_essence(maxi(1, int(round(value * player.stats.value(&"essence_gain")))))
+		Game.sfx(&"pickup", -12.0, 0.2)
+	elif kind == Pickup.KIND_HEALTH:
+		player.heal(value)
+		Game.sfx(&"heal", -8.0, 0.1)
 
 
-func _on_restart() -> void:
-	Engine.time_scale = 1.0
+# --- combat events ---------------------------------------------------------------
+
+func _on_enemy_hit(enemy: Node3D, info: DamageInfo) -> void:
+	upgrade_manager.on_enemy_hit(enemy, info)
+	mutation_manager.on_enemy_hit(enemy, info)
+	game_mode.register_damage_dealt(_local_peer_id(), info.amount)
+	hud.show_hit(info.crit, info.weak)
+	if _hit_sound_cooldown <= 0.0 and info.kind != DamageInfo.KIND_DOT:
+		_hit_sound_cooldown = 0.05
+		Game.sfx(&"enemy_hit_crit" if info.crit else &"enemy_hit", -10.0 if not info.crit else -5.0, 0.15)
+	if info.crit:
+		game_feel.hit_pause(0.03)
+
+
+func _on_enemy_killed(enemy: Node3D, info: DamageInfo) -> void:
+	run_manager.register_kill()
+	var data: RunData = run_manager.data
+	if data and enemy.get("is_elite") == true:
+		data.elites_killed += 1
+	upgrade_manager.on_enemy_killed(enemy, info)
+	mutation_manager.on_enemy_killed(enemy, info)
+	combo_tracker.register_kill()
+	game_mode.register_kill(_local_peer_id())
+
+	var meta_heal: int = MetaProgression.get_kill_heal_bonus(_profile)
+	if meta_heal > 0:
+		player.heal(meta_heal)
+	if not _scavenger_used and _profile.has_unlock("scavenger"):
+		_scavenger_used = true
+		player.heal(10)
+	if _profile.has_unlock("kill_pulse") and is_instance_valid(enemy):
+		Vfx.ring(enemy.global_position, 3.5, Skins.accent(_profile.skin), 0.35, 0.4, 0.2)
+
+	game_feel.kill_freeze()
+	hud.show_kill()
+
+
+## any enemy death in the room, whoever caused it.
+func _on_room_enemy_died(enemy: Node3D, _info: DamageInfo) -> void:
+	if enemy is BossBase:
+		_bosses_killed.append((enemy as BossBase).boss_id)
+	if not is_host_or_solo():
+		return
+	if fracture_manager.is_active and fracture_manager.active_fracture == FractureDefinitions.FractureType.ENEMY_DUPLICATION:
+		if enemy.get("counts_for_room") == true and randf() < 0.3:
+			room_controller.spawn_duplicate_enemy()
+
+
+func _on_player_dashed() -> void:
+	upgrade_manager.on_player_dashed()
+	Game.sfx(&"dash", -5.0, 0.1)
+	if not _momentum_start_used and _profile.has_unlock("momentum_start"):
+		_momentum_start_used = true
+		player.grant_invulnerability(3.0)
+		room_announce.show_text("untouchable", Skins.accent(_profile.skin))
+	if _profile.has_unlock("trail_fracture"):
+		var from: Vector3 = player.global_position
+		var color: Color = Skins.accent(_profile.skin)
+		get_tree().create_timer(0.16).timeout.connect(func() -> void:
+			if is_instance_valid(player):
+				Vfx.tracer(from, player.global_position, color, 0.45, 0.12, 0.02)
+		)
+
+
+func _on_player_slammed(at: Vector3, fall_speed: float) -> void:
+	upgrade_manager.on_player_slammed(at, fall_speed)
+	Vfx.ring(at, 4.0, Skins.accent(_profile.skin), 0.3, 0.5, 0.25)
+	Game.sfx(&"thud", -4.0, 0.08)
+	Game.shake(clampf(fall_speed * 0.12, 2.0, 7.0))
+	# the slam always shoves nearby enemies back, upgrade or not
+	for e: Node3D in Combat.enemies_in_radius(get_tree(), at, 4.0):
+		if e.has_method("apply_knockback"):
+			e.apply_knockback(e.global_position - at, 7.0)
+
+
+func _on_player_damaged(amount: int, info: DamageInfo) -> void:
+	if amount <= 0:
+		return
+	_room_flawless = false
+	if run_manager.data:
+		run_manager.data.damage_taken += amount
+	difficulty_tracker.on_player_damaged(amount)
+	mutation_manager.on_player_damaged(amount, info)
+	Game.sfx(&"player_damage", -2.0, 0.1)
+	damage_vignette.flash(clampf(float(amount) / 25.0, 0.5, 2.0))
+	Game.shake(clampf(amount * 0.3, 1.5, 8.0))
+	if info and is_instance_valid(info.source) and info.source is Node3D and info.source != player:
+		hud.show_damage_from((info.source as Node3D).global_position)
+	elif info and info.position != Vector3.ZERO:
+		hud.show_damage_from(info.position)
+
+
+func _on_death_defied() -> void:
+	room_announce.show_text("second wind", Color(1.0, 0.9, 0.4))
+	Game.sfx(&"upgrade_pick", 0.0)
+	game_feel.request(&"defied", 0.3, 0.5, GameFeel.PRIORITY_DEATH, 0.15)
+	Vfx.ring(player.global_position, 8.0, Color(1.0, 0.9, 0.4), 0.5)
+
+
+func _on_player_died() -> void:
+	damage_vignette.flash(3.0)
+	Game.shake(12.0)
+	game_feel.player_death_slowmo()
+	_dismiss_reward_panels()
+
+	if _pvp_active:
+		# pvp eliminations are tracked by the pvp manager's own health pool
+		player.is_dead = false
+		player.health = 1
+		return
+	_death_timer = 0.6
+
+
+func _resolve_death() -> void:
+	if not run_manager.is_active:
+		return
+	if not _is_online():
+		run_manager.fail_run()
+		return
+	room_announce.show_text("you are down", Color(1.0, 0.2, 0.15))
+	if is_host_or_solo():
+		_register_down(_local_peer_id())
+	else:
+		_rpc_report_down.rpc_id(1)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_report_down() -> void:
+	if is_host_or_solo():
+		_register_down(multiplayer.get_remote_sender_id())
+
+
+## co-op: the run only ends when everyone is down in the same room.
+func _register_down(peer_id: int) -> void:
+	_down_peers[peer_id] = true
+	for id: int in network_manager.connected_peers:
+		if not _down_peers.has(id):
+			return
+	run_manager.fail_run()
+	_rpc_fail_run.rpc()
+
+
+func _dismiss_reward_panels() -> void:
 	awaiting_upgrade = false
 	awaiting_mutation = false
 	awaiting_transition = false
-	_pvp_active = false
-	_match_ended = false
-	upgrade_ui.visible = false
-	mutation_ui.visible = false
-	summary_ui.visible = false
-	run_hud.hide_prompt()
-	if pvp_manager and pvp_manager.is_active():
+	awaiting_path = false
+	awaiting_shop = false
+	_reward_queue.clear()
+	_hide_all_panels()
+
+
+func _hide_all_panels() -> void:
+	upgrade_ui.hide_panel()
+	mutation_ui.hide_panel()
+	path_ui.hide_panel()
+	shop_ui.hide_panel()
+	hud.hide_prompt()
+
+
+# --- bosses ----------------------------------------------------------------------
+
+func _on_boss_spawned(boss: BossBase) -> void:
+	hud.set_boss(boss)
+	boss.phase_changed.connect(_on_boss_phase_changed)
+
+
+func _on_boss_phase_changed(_phase: int) -> void:
+	game_feel.boss_phase_slowmo()
+	Game.shake(8.0)
+
+
+func _on_boss_defeated() -> void:
+	room_announce.show_boss_defeated()
+	game_feel.boss_death_slowmo()
+
+
+# --- fracture and combo ------------------------------------------------------------
+
+func _try_start_fracture() -> void:
+	if not is_host_or_solo() or not room_controller.room_active:
+		return
+	var room: RunData.RoomData = run_manager.data.current_room() if run_manager.data else null
+	if not room:
+		return
+	var type: int = fracture_manager.try_trigger(room.difficulty)
+	if type >= 0 and _is_online():
+		_rpc_start_fracture.rpc(type)
+
+
+@rpc("authority", "call_remote", "reliable")
+func _rpc_start_fracture(type: int) -> void:
+	fracture_manager.start_fracture(type)
+
+
+func _on_fracture_started(type: int) -> void:
+	room_announce.show_fracture(FractureDefinitions.get_event_name(type), FractureDefinitions.get_description(type))
+	Game.sfx(&"fracture", -2.0)
+	mutation_manager.on_fracture_started()
+
+
+func _on_fracture_ended(_type: int) -> void:
+	mutation_manager.on_fracture_ended()
+
+
+func _on_combo_changed(multiplier: int, _kill_count: int) -> void:
+	upgrade_manager.on_combo_changed(multiplier)
+
+
+func _on_combo_reset() -> void:
+	upgrade_manager.on_combo_reset()
+
+
+# --- profile ---------------------------------------------------------------------
+
+func _apply_profile_bonuses() -> void:
+	var s: StatBlock = player.stats
+	MetaProgression.apply_to_stats(_profile, s)
+
+	combo_tracker.combo_window = ComboTracker.COMBO_WINDOW + (1.0 if _profile.has_unlock("adrenaline_junkie") else 0.0)
+	_head_start = 0.0
+	if _profile.has_unlock("head_start"):
+		s.set_mul(&"move_speed", &"perk:head_start", 1.15)
+		_head_start = 30.0
+	if _profile.has_unlock("glass_cannon"):
+		s.set_mul(&"damage", &"perk:sharpened", 1.2)
+		s.set_add(&"max_health", &"perk:sharpened", -20.0)
+	if _profile.has_unlock("shard_hunger"):
+		s.set_add(&"max_health", &"perk:shard_hunger", -10.0)
+
+	# weapon variants are flags on the weapon, set after the per-run reset
+	var variants: Dictionary = {
+		"rapid_beam": [&"beam_emitter", &"rapid"],
+		"charged_beam": [&"beam_emitter", &"capacity"],
+		"wide_scatter": [&"scatter_cannon", &"wide"],
+		"incendiary_scatter": [&"scatter_cannon", &"incendiary"],
+		"marksman_rifle": [&"pulse_rifle", &"marksman"],
+		"ricochet_rifle": [&"pulse_rifle", &"ricochet"],
+	}
+	for unlock_id: String in variants:
+		if _profile.has_unlock(unlock_id):
+			weapon_manager.set_weapon_flag(variants[unlock_id][0], variants[unlock_id][1], true)
+
+
+# --- run end ---------------------------------------------------------------------
+
+func _on_run_ended(data: RunData) -> void:
+	_dismiss_reward_panels()
+	fracture_manager.end_fracture()
+	_fracture_delay = -1.0
+	var best: int = combo_tracker.best_combo
+	combo_tracker.reset()
+	data.run_tags = RunTags.generate(data, best)
+	_show_summary(data, best, false)
+
+
+func _show_summary(data: RunData, combo_best: int, pvp_won: bool) -> void:
+	var extras: Dictionary = {
+		"prev_best_kills": _profile.best_kills_single_run,
+		"prev_best_combo": _profile.best_combo,
+		"best_combo": combo_best,
+		"damage_dealt": combat.total_damage,
+		"crits": combat.crit_hits,
+		"weak_hits": combat.weak_hits,
+		"mode_name": GameModeManager.run_mode_name(data.mode),
+	}
+	var was_unlocked: int = _profile.ascension_unlocked
+	_profile.update_from_run(data, combo_best, pvp_won)
+
+	var shard_data: Dictionary = MetaProgression.calculate_shards(data, combo_best, pvp_won)
+	var total_shards: int = int(shard_data.total * MetaProgression.get_shard_multiplier(_profile))
+	_profile.fracture_shards += total_shards
+	var earned: Array[Dictionary] = MetaProgression.check_achievements(_profile, data, combo_best,
+		{"bosses_killed": _bosses_killed, "flawless_boss": _flawless_boss})
+	_profile.save()
+
+	extras["shards_earned"] = total_shards
+	extras["shard_breakdown"] = shard_data
+	extras["achievements"] = earned
+	extras["ascension_unlocked"] = _profile.ascension_unlocked if _profile.ascension_unlocked > was_unlocked else -1
+	data.metadata["shards_earned"] = total_shards
+	summary_ui.show_summary(data, extras)
+
+
+func _on_restart() -> void:
+	game_feel.reset()
+	_dismiss_reward_panels()
+	summary_ui.hide_panel()
+	if pvp_manager.is_active():
 		pvp_manager.stop_pvp()
 	_set_pvp_on_weapons(false)
 	room_controller.clear_current_room()
-	_resolve_player_refs()
 	_profile = PlayerProfile.load_profile()
+	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	if is_host_or_solo():
 		_start_run()
 
 
 func _on_main_menu() -> void:
-	Engine.time_scale = 1.0
-	awaiting_upgrade = false
-	awaiting_mutation = false
-	awaiting_transition = false
+	_leave_to_menu()
+
+
+func _leave_to_menu() -> void:
+	game_feel.reset()
+	get_tree().paused = false
 	fracture_manager.end_fracture()
-	mutation_manager.reset()
-	weapon_manager.reset_multipliers()
-	if pvp_manager and pvp_manager.is_active():
+	if pvp_manager.is_active():
 		pvp_manager.stop_pvp()
 	room_controller.clear_current_room()
+	if network_manager:
+		network_manager.disconnect_game()
 	var err: Error = get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
 	if err != OK:
 		push_error("failed to change scene to main_menu: %s" % error_string(err))
 
-
-# --- fracture / combo ---
-
-func _on_fracture_started(type: FractureDefinitions.FractureType) -> void:
-	room_announce.show_fracture(FractureDefinitions.get_event_name(type))
-	mutation_manager.on_fracture_started()
-
-
-func _on_fracture_ended(_type: FractureDefinitions.FractureType) -> void:
-	mutation_manager.on_fracture_ended()
-
-
-func _on_combo_changed(multiplier: int, kill_count: int) -> void:
-	upgrade_manager.on_combo_changed(multiplier)
-	run_hud.update_combo(multiplier, kill_count)
-
-
-func _on_combo_reset() -> void:
-	upgrade_manager.on_combo_reset()
-	run_hud.update_combo(1, 0)
-
-
-# --- network events ---
 
 func _on_server_disconnected() -> void:
-	# host dropped — full cleanup before returning to menu
-	Engine.time_scale = 1.0
-	fracture_manager.end_fracture()
-	mutation_manager.reset()
-	weapon_manager.reset_multipliers()
-	if pvp_manager and pvp_manager.is_active():
-		pvp_manager.stop_pvp()
-	room_controller.clear_current_room()
-	var err: Error = get_tree().change_scene_to_file("res://scenes/main_menu.tscn")
-	if err != OK:
-		push_error("failed to change scene to main_menu: %s" % error_string(err))
+	_leave_to_menu()
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
-	# remote player left — spawner handles despawn, just log
-	pass
+	# a player who left can no longer hold up "everyone is down" or "everyone is ready"
+	_down_peers.erase(peer_id)
+	_ready_peers.erase(peer_id)
+	_peer_speed_bonus.erase(peer_id)
 
 
-# --- utilities ---
+# --- versus ----------------------------------------------------------------------
 
-func _show_onboarding() -> void:
-	var scene: PackedScene = load("res://scenes/onboarding_overlay.tscn")
-	if not scene:
-		if is_host_or_solo():
-			_start_run()
+func _transition_to_pvp() -> void:
+	room_controller.clear_current_room()
+	fracture_manager.end_fracture()
+	if not _is_online():
+		# nobody to fight: treat the gauntlet as won
+		room_announce.show_text("run complete", Color(0.4, 1.0, 0.5))
+		_complete_run()
 		return
-	_onboarding = scene.instantiate() as OnboardingOverlay
-	var ui_layer: CanvasLayer = get_node_or_null("../UI") as CanvasLayer
-	if ui_layer:
-		ui_layer.add_child(_onboarding)
-	else:
-		add_child(_onboarding)
-	_onboarding.show_onboarding()
-	_onboarding.dismissed.connect(func():
-		if is_host_or_solo():
-			_start_run()
-		elif _is_online():
-			_rpc_request_run_seed.rpc_id(1)
-	)
+	_begin_pvp()
+	_rpc_start_pvp.rpc()
 
 
-func _reset_player_position() -> void:
-	player.global_position = Vector3(0, 2, 0)
-	player.velocity = Vector3.ZERO
+@rpc("authority", "call_remote", "reliable")
+func _rpc_start_pvp() -> void:
+	room_controller.clear_current_room()
+	_begin_pvp()
+
+
+func _begin_pvp() -> void:
+	_pvp_active = true
+	_dismiss_reward_panels()
+	room_announce.show_fracture("pvp encounter", "last one standing")
+	Game.sfx(&"boss_warning", 0.0)
+	var players: Array[CharacterBody3D] = player_manager.get_all_players()
+	for i: int in players.size():
+		var p: CharacterBody3D = players[i]
+		if not is_instance_valid(p) or not p.is_multiplayer_authority():
+			continue
+		var angle: float = TAU * float(i) / float(maxi(players.size(), 1))
+		p.is_dead = false
+		p.health = p.max_health
+		p.teleport(Vector3(cos(angle) * 10.0, 2.0, sin(angle) * 10.0))
+	pvp_manager.start_pvp()
+	game_mode.start_pvp()
+	_set_pvp_on_weapons(true)
 
 
 func _set_pvp_on_weapons(active: bool) -> void:
-	var ref: Node = pvp_manager if active else null
-	var players: Array[CharacterBody3D] = player_manager.get_all_players()
-	for p in players:
-		if not p is CharacterBody3D:
-			continue
-		var wm: WeaponManager = p.get_node_or_null("Head/WeaponManager") as WeaponManager
-		if not wm:
-			continue
-		for w: BaseWeapon in wm.weapons:
-			w.pvp_manager = ref
+	combat.pvp_manager = pvp_manager if active else null
 
 
-func _apply_meta_bonuses() -> void:
-	if not _profile:
+func _on_pvp_player_eliminated(peer_id: int) -> void:
+	if peer_id == _local_peer_id():
+		room_announce.show_text("eliminated", Color(1.0, 0.2, 0.15))
+	else:
+		room_announce.show_text("opponent down", Color(0.4, 1.0, 0.5))
+
+
+func _on_pvp_match_over(winner_peer_id: int) -> void:
+	_pvp_active = false
+	_match_ended = true
+	pvp_manager.stop_pvp()
+	_set_pvp_on_weapons(false)
+	game_mode.end_pvp(winner_peer_id)
+	var won: bool = winner_peer_id == _local_peer_id()
+	room_announce.show_text("victory" if won else "defeated", Color(0.4, 1.0, 0.5) if won else Color(1.0, 0.2, 0.15))
+	Game.sfx(&"boss_death" if won else &"player_damage", 0.0)
+
+	var data: RunData = run_manager.data
+	if not data:
 		return
-	# damage
-	var dmg_mult: float = MetaProgression.get_damage_multiplier(_profile)
-	if dmg_mult > 1.0:
-		weapon_manager.damage_multiplier *= dmg_mult
-	# speed
-	var spd_mult: float = MetaProgression.get_speed_multiplier(_profile)
-	if spd_mult > 1.0 and "move_speed" in player:
-		player.move_speed *= spd_mult
-	# health
-	var hp_bonus: int = MetaProgression.get_health_bonus(_profile)
-	if hp_bonus > 0:
-		player.max_health += hp_bonus
-		player.health += hp_bonus
-	# dash
-	var dash_mult: float = MetaProgression.get_dash_multiplier(_profile)
-	if dash_mult < 1.0 and "dash_cooldown" in player:
-		player.dash_cooldown *= dash_mult
-	# fire rate
-	var fr_mult: float = MetaProgression.get_fire_rate_multiplier(_profile)
-	if fr_mult > 1.0:
-		weapon_manager.fire_rate_multiplier *= (1.0 / fr_mult)
-	# armor plating (damage resist)
-	var dr_mult: float = MetaProgression.get_damage_resist_multiplier(_profile)
-	if dr_mult < 1.0 and "damage_resist" in player:
-		player.damage_resist = dr_mult
-	# kill recovery
-	var kill_heal: int = MetaProgression.get_kill_heal_bonus(_profile)
-	if kill_heal > 0 and "meta_kill_heal" in player:
-		player.meta_kill_heal = kill_heal
-	# jump boost
-	var jump_mult: float = MetaProgression.get_jump_multiplier(_profile)
-	if jump_mult > 1.0 and "jump_force" in player:
-		player.jump_force *= jump_mult
-	# weapon swap speed
-	var swap_level: int = MetaProgression.get_swap_speed_level(_profile)
-	if swap_level > 0:
-		weapon_manager.swap_speed_level = swap_level
-	# weapon variant unlocks
-	_apply_weapon_unlocks()
-	# starting perks
-	_apply_starting_perks()
+	data.status = RunData.RunStatus.COMPLETED if won else RunData.RunStatus.FAILED
+	run_manager.is_active = false
+	var best: int = combo_tracker.best_combo
+	data.run_tags = PackedStringArray(["mode: %s" % game_mode.get_mode_name(), "victory" if won else "defeat"])
+	var scores: Dictionary = game_mode.get_score_summary()
+	for peer_id: int in scores:
+		data.run_tags.append("%s: %d pts" % ["you" if peer_id == _local_peer_id() else "p%d" % peer_id, scores[peer_id].total])
+	_show_summary(data, best, won)
 
 
-func _apply_weapon_unlocks() -> void:
-	if not _profile:
+# --- onboarding --------------------------------------------------------------------
+
+func _show_onboarding() -> void:
+	var scene: PackedScene = load("res://scenes/onboarding_overlay.tscn") as PackedScene
+	if not scene:
+		_begin()
 		return
-	# rapid beam: beam fires faster, less damage
-	if _profile.has_unlock("rapid_beam"):
-		var beam: BeamEmitter = weapon_manager.weapons[WeaponManager.WeaponSlot.BEAM_EMITTER] as BeamEmitter
-		if beam:
-			beam.base_fire_rate *= 0.8
-			beam.base_damage = int(beam.base_damage * 0.9)
-	# wide scatter: more pellets, wider spread
-	if _profile.has_unlock("wide_scatter"):
-		var scatter: ScatterCannon = weapon_manager.weapons[WeaponManager.WeaponSlot.SCATTER_CANNON] as ScatterCannon
-		if scatter:
-			scatter.pellet_count += 3
-			scatter.spread_angle *= 1.3
-	# marksman rifle: more damage, slower fire rate
-	if _profile.has_unlock("marksman_rifle"):
-		var pulse: PulseRifle = weapon_manager.weapons[WeaponManager.WeaponSlot.PULSE_RIFLE] as PulseRifle
-		if pulse:
-			pulse.base_damage = int(pulse.base_damage * 1.5)
-			pulse.base_fire_rate *= 1.3
-
-
-func _apply_starting_perks() -> void:
-	if not _profile:
-		return
-	# head start: temporary speed boost
-	if _profile.has_unlock("head_start") and "move_speed" in player:
-		var base_speed: float = player.move_speed
-		player.move_speed *= 1.15
-		# revert after 30s
-		get_tree().create_timer(30.0).timeout.connect(func():
-			if is_instance_valid(player) and "move_speed" in player:
-				player.move_speed = base_speed
-		)
-	# glass cannon: more damage, less health
-	if _profile.has_unlock("glass_cannon"):
-		weapon_manager.damage_multiplier *= 1.2
-		player.max_health = maxi(player.max_health - 20, 30)
-		player.health = mini(player.health, player.max_health)
-
-
-func _save_run_to_profile(data: RunData, combo_best: int) -> void:
-	if not _profile:
-		return
-	var pvp_won: bool = _match_ended and game_mode and game_mode.get_winner() >= 0
-	if pvp_won and _is_online():
-		pvp_won = game_mode.get_winner() == network_manager.local_peer_id
-	elif pvp_won and not _is_online():
-		pvp_won = false
-
-	_profile.update_from_run(data, combo_best, pvp_won)
-
-	# award shards
-	var shard_data: Dictionary = MetaProgression.calculate_shards(data, combo_best, pvp_won)
-	var shard_mult: float = MetaProgression.get_shard_multiplier(_profile)
-	var total_shards: int = int(shard_data.total * shard_mult)
-	_profile.fracture_shards += total_shards
-	_profile.save()
-
-	# store shard breakdown for summary display
-	data.metadata["shards_earned"] = total_shards
-	data.metadata["shard_breakdown"] = shard_data
-
-
-func _on_node_added(node: Node) -> void:
-	if node.has_node("HealthComponent"):
-		node.ready.connect(func(): _connect_enemy_hit(node), CONNECT_ONE_SHOT)
-
-
-func _connect_enemy_hit(enemy: Node) -> void:
-	if not is_instance_valid(enemy):
-		return
-	var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
-	if health and crosshair and is_instance_valid(crosshair):
-		health.damaged.connect(func(_a, _b):
-			if is_instance_valid(crosshair):
-				crosshair.show_hit()
-		)
-
-
-func _spawn_kill_explosion(origin: Vector3) -> void:
-	var explosion_radius: float = 4.0
-	var explosion_damage: int = int(weapon_manager.damage * 0.6)
-	var enemies: Array[Node] = get_tree().get_nodes_in_group("enemies")
-
-	for enemy in enemies:
-		if not enemy is Node3D or not is_instance_valid(enemy):
-			continue
-		var health: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
-		if not health or not health.is_alive():
-			continue
-		if enemy.global_position.distance_to(origin) < explosion_radius:
-			health.take_damage(explosion_damage)
+	_onboarding = scene.instantiate() as OnboardingOverlay
+	get_node("../UI").add_child(_onboarding)
+	_onboarding.show_onboarding()
+	_onboarding.dismissed.connect(_begin)
