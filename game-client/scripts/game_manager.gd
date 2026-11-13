@@ -249,9 +249,11 @@ func _setup_multiplayer_spawning() -> void:
 	var scene_player: CharacterBody3D = get_parent().get_node_or_null("Player") as CharacterBody3D
 	if scene_player:
 		player_spawner.adopt_player(network_manager.local_peer_id, scene_player)
+	# this runs inside the scene's own setup, when nothing can be added to it
+	# yet, so the other players' bodies go in right after
 	for peer_id: int in network_manager.connected_peers:
 		if peer_id != network_manager.local_peer_id:
-			player_spawner.spawn_for_peer(peer_id)
+			player_spawner.spawn_for_peer.call_deferred(peer_id)
 
 
 func is_host_or_solo() -> bool:
@@ -339,6 +341,9 @@ func _build_run_config() -> Dictionary:
 
 func _do_start_run(cfg: Dictionary) -> void:
 	_run_cfg = cfg
+	if _is_online():
+		# every peer has the scene loaded by now
+		player_spawner.set_replicating(true)
 	awaiting_upgrade = false
 	awaiting_mutation = false
 	awaiting_transition = false

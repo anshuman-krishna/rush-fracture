@@ -278,6 +278,10 @@ const GAME_SCENE: String = "res://scenes/main.tscn"
 func start_match(coop_mode: int, run_mode: String, ascension: int, seed_value: int) -> void:
 	if not is_host():
 		return
+	# nobody can join a match that is already under way
+	var mp: MultiplayerAPI = _get_mp()
+	if mp and mp.multiplayer_peer:
+		mp.multiplayer_peer.refuse_new_connections = true
 	_rpc_start_match.rpc(coop_mode, run_mode, ascension, seed_value)
 	_load_match(coop_mode, run_mode, ascension, seed_value)
 

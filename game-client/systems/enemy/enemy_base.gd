@@ -661,7 +661,15 @@ func _on_health_died(info: DamageInfo) -> void:
 	for g: GeometryInstance3D in _meshes:
 		if is_instance_valid(g):
 			tw.tween_property(g, "transparency", 1.0, 0.2)
-	tw.chain().tween_callback(queue_free)
+	if _is_local_authority():
+		tw.chain().tween_callback(queue_free)
+	else:
+		# a client may have got here first, by predicting its own kill. the
+		# host keeps sending this enemy's state until it agrees, so stay around
+		# unseen for a moment to receive it.
+		tw.chain().tween_callback(hide)
+		tw.chain().tween_interval(1.5)
+		tw.chain().tween_callback(queue_free)
 
 
 func _volatile_burst() -> void:

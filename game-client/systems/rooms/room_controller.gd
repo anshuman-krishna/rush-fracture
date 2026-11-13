@@ -351,6 +351,8 @@ func _on_enemy_died(info: DamageInfo, enemy: Node3D) -> void:
 	enemy_killed.emit(enemy, info)
 	if not Game.is_host_or_solo():
 		return
+	if Game.is_online():
+		_rpc_enemy_died.rpc(String(enemy.name))
 	if not enemy.get("counts_for_room"):
 		return
 	enemies_alive = maxi(0, enemies_alive - 1)
@@ -684,6 +686,18 @@ func _clear_room() -> void:
 	builder = null
 
 
+## clients normally see a death through the replicated health value, but
+## those updates are allowed to get lost. this one is not.
+@rpc("authority", "call_remote", "reliable")
+func _rpc_enemy_died(node_name: String) -> void:
+	var enemy: Node = enemy_root.get_node_or_null(NodePath(node_name))
+	if not enemy:
+		return
+	var hc: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
+	if hc and hc.is_alive():
+		hc.kill()
+
+
 func _setup_enemy_multiplayer(enemy: CharacterBody3D) -> void:
 	# the host owns every enemy; clients get its transform and health
 	if not Game.is_online():
@@ -700,11 +714,11 @@ func _setup_enemy_multiplayer(enemy: CharacterBody3D) -> void:
 	sync.replication_interval = 0.05
 
 	var config: SceneReplicationConfig = SceneReplicationConfig.new()
-	config.add_property(NodePath("%s:sync_position" % interp.get_path()))
-	config.add_property(NodePath("%s:sync_rotation" % interp.get_path()))
-	var hc: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
-	if hc:
-		config.add_property(NodePath("%s:current_health" % hc.get_path()))
-		config.add_property(NodePath("%s:shield" % hc.get_path()))
+	# paths are relative to the synchronizer's root, which is the enemy
+	config.add_property(NodePath("NetInterp:sync_position"))
+	config.add_property(NodePath("NetInterp:sync_rotation"))
+	if enemy.has_node("HealthComponent"):
+		config.add_property(NodePath("HealthComponent:current_health"))
+		config.add_property(NodePath("HealthComponent:shield"))
 	sync.replication_config = config
 	enemy.add_child(sync)

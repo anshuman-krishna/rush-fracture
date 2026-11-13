@@ -11,6 +11,7 @@ var _player_scene: PackedScene
 var _spawn_root: Node
 var _network_manager: NetworkManager
 var _spawned_players: Dictionary = {}
+var _replicating: bool = false
 
 
 func setup(spawn_root: Node, network_manager: NetworkManager) -> void:
@@ -25,6 +26,9 @@ func setup(spawn_root: Node, network_manager: NetworkManager) -> void:
 ## registers a body that already exists in the scene (the local player) so it
 ## replicates like the spawned ones.
 func adopt_player(peer_id: int, player: CharacterBody3D) -> void:
+	# replication matches nodes by path, so a body has to be called the same
+	# thing on every peer: named after whoever owns it
+	player.name = "Player_%d" % peer_id
 	player.set_multiplayer_authority(peer_id)
 	add_synchronizer(player, peer_id)
 	_spawned_players[peer_id] = player
@@ -42,9 +46,9 @@ func spawn_for_peer(peer_id: int) -> CharacterBody3D:
 		instance.input = NullInput.new()
 
 	var index: int = _spawned_players.size()
-	_spawn_root.add_child(instance, true)
-	instance.global_position = Vector3(index * 2.5, 2.0, 0)
-	instance.sync_position = instance.global_position
+	instance.position = Vector3(index * 2.5, 2.0, 0)
+	instance.sync_position = instance.position
+	_spawn_root.add_child(instance)
 	_spawned_players[peer_id] = instance
 	add_synchronizer(instance, peer_id)
 
@@ -52,6 +56,18 @@ func spawn_for_peer(peer_id: int) -> CharacterBody3D:
 	if cam:
 		cam.current = is_local
 	return instance
+
+
+## turns state replication on or off for every body. it stays off until the
+## run starts, because until then some peers are still loading the scene and
+## have nothing to receive it.
+func set_replicating(on: bool) -> void:
+	_replicating = on
+	for player: Variant in _spawned_players.values():
+		if is_instance_valid(player):
+			var sync: MultiplayerSynchronizer = (player as Node).get_node_or_null("MultiplayerSync") as MultiplayerSynchronizer
+			if sync:
+				sync.public_visibility = on
 
 
 func despawn_all() -> void:
@@ -71,11 +87,12 @@ func add_synchronizer(player: CharacterBody3D, peer_id: int) -> void:
 	sync.name = "MultiplayerSync"
 	sync.set_multiplayer_authority(peer_id)
 	sync.replication_interval = SYNC_INTERVAL
+	sync.public_visibility = _replicating
 
+	# paths are relative to the synchronizer's root, which is the body itself
 	var config: SceneReplicationConfig = SceneReplicationConfig.new()
-	var base: NodePath = player.get_path()
 	for prop: String in ["sync_position", "sync_rotation_y", "sync_velocity", "sync_head_rotation_x", "sync_flags", "health", "is_dead"]:
-		config.add_property(NodePath("%s:%s" % [base, prop]))
+		config.add_property(NodePath(".:%s" % prop))
 	sync.replication_config = config
 	player.add_child(sync)
 
