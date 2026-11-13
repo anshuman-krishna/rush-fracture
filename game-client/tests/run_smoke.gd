@@ -15,6 +15,8 @@ extends SceneTree
 #   --loadout=a,b,c   weapon ids to equip (unlocks them in the scratch profile)
 #   --max-sim=SEC     abort after this many simulated seconds (default 3600)
 #   --verbose         log every reward pick
+#   --perf            print frame times per room (run in a window, without
+#                     --headless or --fixed-fps, for the numbers to mean anything)
 #
 # exits 0 when every requested run reached a summary screen, 1 otherwise.
 # point APPDATA at a scratch directory when running this so it never touches
@@ -52,6 +54,7 @@ func _initialize() -> void:
 	_driver.room_limit = int(opts.get("rooms", 0))
 	_driver.skill = clampf(float(opts.get("skill", 1.0)), 0.0, 1.0)
 	_driver.verbose = opts.has("verbose")
+	_driver.perf = opts.has("perf")
 	_driver.finished.connect(_on_finished)
 	root.add_child(_driver)
 

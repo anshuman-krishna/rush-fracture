@@ -54,9 +54,57 @@ var _pause_left: float = 0.0
 var _in_duel: bool = false
 var _recent_hits: Array[String] = []
 
+## print frame times for every room. only means something in a real window
+## at real speed (no --headless, no --fixed-fps).
+var perf: bool = false
+var _perf_clock: int = 0
+var _perf_frames: int = 0
+var _perf_total_msec: float = 0.0
+var _perf_worst_msec: float = 0.0
+var _perf_slow_frames: int = 0
+var _perf_peak_enemies: int = 0
+var _perf_peak_draws: int = 0
+var _perf_peak_nodes: int = 0
+var _perf_room: String = ""
+
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
+func _process(_delta: float) -> void:
+	if not perf or _done:
+		return
+	var now: int = Time.get_ticks_usec()
+	if _perf_clock > 0 and not get_tree().paused:
+		var msec: float = float(now - _perf_clock) / 1000.0
+		_perf_frames += 1
+		_perf_total_msec += msec
+		_perf_worst_msec = maxf(_perf_worst_msec, msec)
+		if msec > 20.0:
+			_perf_slow_frames += 1
+		_perf_peak_enemies = maxi(_perf_peak_enemies, get_tree().get_nodes_in_group("enemies").size())
+		_perf_peak_draws = maxi(_perf_peak_draws, int(Performance.get_monitor(Performance.RENDER_TOTAL_DRAW_CALLS_IN_FRAME)))
+		_perf_peak_nodes = maxi(_perf_peak_nodes, int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)))
+	_perf_clock = now
+
+
+## closes the measurements for the room just left and starts the next.
+func _perf_next_room(label: String) -> void:
+	if not perf:
+		return
+	if _perf_frames > 30:
+		print("[bot] perf %s: %d frames, avg %.1f ms (%.0f fps), worst %.1f ms, %d over 20 ms, peak enemies %d, draw calls %d, nodes %d" % [
+			_perf_room, _perf_frames, _perf_total_msec / float(_perf_frames), 1000.0 * float(_perf_frames) / maxf(_perf_total_msec, 0.001),
+			_perf_worst_msec, _perf_slow_frames, _perf_peak_enemies, _perf_peak_draws, _perf_peak_nodes])
+	_perf_room = label
+	_perf_frames = 0
+	_perf_total_msec = 0.0
+	_perf_worst_msec = 0.0
+	_perf_slow_frames = 0
+	_perf_peak_enemies = 0
+	_perf_peak_draws = 0
+	_perf_peak_nodes = 0
 
 
 func _physics_process(delta: float) -> void:
@@ -368,6 +416,7 @@ func _track_progress(delta: float, gm: Node) -> void:
 		_last_room_index = data.current_room_index
 		var room: Variant = data.current_room()
 		if room:
+			_perf_next_room("room %d %s" % [data.current_room_index + 1, room.title()])
 			print("[bot] room %d/%d %s act=%d biome=%s layout=%s diff=%.2f budget=%.1f reward=%s t=%.1fs" % [
 				data.current_room_index + 1, data.total_rooms(), room.title(), room.act + 1, room.biome,
 				gm.room_controller.builder.template if gm.room_controller.builder else "?",
@@ -405,6 +454,7 @@ func _finish(passed: bool, reason: String) -> void:
 	if _done:
 		return
 	_done = true
+	_perf_next_room("")
 	print("[bot] %s: %s (sim %.1fs)" % ["PASS" if passed else "FAIL", reason, _sim_time])
 	finished.emit(passed, reason)
 
