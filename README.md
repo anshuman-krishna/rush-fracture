@@ -218,6 +218,7 @@ everything runs headless from the command line. `--path game-client` is assumed 
 | unit tests | `godot --headless -s res://tests/run_unit.gd` |
 | bot playtest | `godot --headless --fixed-fps 60 -s res://tests/run_smoke.gd -- --mode=sprint --runs=3` |
 | two-player session | one copy with `-s res://tests/run_net.gd -- --role=host`, one with `--role=join` |
+| two-player session through the menu | `-s res://tests/run_lobby.gd -- --role=host`, then `--role=join --code=<the code it prints>` |
 | audio render check | `godot --headless -s res://tests/run_audio.gd -- --out=some/dir` |
 | screenshots | `godot -s res://tests/run_shots.gd -- --out=some/dir` |
 
