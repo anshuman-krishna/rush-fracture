@@ -2,12 +2,27 @@ package repositories
 
 import (
 	"database/sql"
+	"errors"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
+// ErrDuplicate is returned when an insert breaks a unique constraint.
+var ErrDuplicate = errors.New("duplicate value")
+
+// ErrMissingReference is returned when a row points at a parent that does
+// not exist (a run for an unknown user, an event for an unknown run).
+var ErrMissingReference = errors.New("referenced row does not exist")
+
 func OpenDatabase(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite3", path)
+	// sqlite leaves foreign keys off unless asked, and without a busy
+	// timeout a second writer fails at once instead of waiting its turn.
+	sep := "?"
+	if strings.Contains(path, "?") {
+		sep = "&"
+	}
+	db, err := sql.Open("sqlite3", path+sep+"_foreign_keys=on&_busy_timeout=5000")
 	if err != nil {
 		return nil, err
 	}
@@ -15,6 +30,7 @@ func OpenDatabase(path string) (*sql.DB, error) {
 	db.SetMaxOpenConns(1)
 
 	if err := db.Ping(); err != nil {
+		db.Close()
 		return nil, err
 	}
 
@@ -62,6 +78,26 @@ func Migrate(db *sql.DB) error {
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 			FOREIGN KEY (run_id) REFERENCES runs(id)
 		);
+
+		CREATE INDEX IF NOT EXISTS idx_runs_user ON runs(user_id);
+		CREATE INDEX IF NOT EXISTS idx_room_events_run ON room_events(run_id, created_at);
 	`)
+	return err
+}
+
+// translates the driver's constraint errors into ones the services can test
+// for. the driver's own error type only exists in cgo builds, so this goes
+// by the message, which sqlite keeps stable.
+func translate(err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	switch {
+	case strings.Contains(msg, "UNIQUE constraint failed"):
+		return ErrDuplicate
+	case strings.Contains(msg, "FOREIGN KEY constraint failed"):
+		return ErrMissingReference
+	}
 	return err
 }

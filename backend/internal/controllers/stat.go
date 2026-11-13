@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"rush-fracture/backend/internal/services"
@@ -16,14 +15,10 @@ func NewStatController(service *services.StatService) *StatController {
 }
 
 func (c *StatController) GetByUser(w http.ResponseWriter, r *http.Request) {
-	userID := r.PathValue("userId")
-
-	stat, err := c.service.GetByUserID(userID)
+	stat, err := c.service.GetByUserID(r.PathValue("userId"))
 	if err != nil {
-		http.Error(w, "stats not found", http.StatusNotFound)
+		writeError(w, r, err)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stat)
+	writeJSON(w, http.StatusOK, stat)
 }

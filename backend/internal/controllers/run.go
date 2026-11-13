@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"rush-fracture/backend/internal/services"
@@ -20,8 +19,7 @@ func (c *RunController) Start(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		UserID string `json:"user_id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !readJSON(w, r, &req) {
 		return
 	}
 
@@ -32,32 +30,26 @@ func (c *RunController) Start(w http.ResponseWriter, r *http.Request) {
 
 	run, err := c.service.Start(req.UserID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, r, err)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(run)
+	writeJSON(w, http.StatusCreated, run)
 }
 
 func (c *RunController) End(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
 	var req struct {
-		Score         int    `json:"score"`
-		Level         int    `json:"level"`
-		EnemiesKilled int    `json:"enemies_killed"`
-		Duration      int    `json:"duration"`
-		BestCombo     int    `json:"best_combo"`
-		WeaponUsed    string `json:"weapon_used"`
+		Score           int    `json:"score"`
+		Level           int    `json:"level"`
+		EnemiesKilled   int    `json:"enemies_killed"`
+		Duration        int    `json:"duration"`
+		BestCombo       int    `json:"best_combo"`
+		WeaponUsed      string `json:"weapon_used"`
 		Mutations       string `json:"mutations"`
 		RunTags         string `json:"run_tags"`
 		BossEncountered bool   `json:"boss_encountered"`
 		BossDefeated    bool   `json:"boss_defeated"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !readJSON(w, r, &req) {
 		return
 	}
 
@@ -66,14 +58,12 @@ func (c *RunController) End(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	run, err := c.service.End(id, req.Score, req.Level, req.EnemiesKilled, req.Duration, req.BestCombo, req.WeaponUsed, req.Mutations, req.RunTags, req.BossEncountered, req.BossDefeated)
+	run, err := c.service.End(r.PathValue("id"), req.Score, req.Level, req.EnemiesKilled, req.Duration, req.BestCombo, req.WeaponUsed, req.Mutations, req.RunTags, req.BossEncountered, req.BossDefeated)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, r, err)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(run)
+	writeJSON(w, http.StatusOK, run)
 }
 
 func validateRunEnd(score, level, enemiesKilled, duration, bestCombo int, weaponUsed, mutations, runTags string) error {
@@ -105,14 +95,10 @@ func validateRunEnd(score, level, enemiesKilled, duration, bestCombo int, weapon
 }
 
 func (c *RunController) Get(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	run, err := c.service.GetByID(id)
+	run, err := c.service.GetByID(r.PathValue("id"))
 	if err != nil {
-		http.Error(w, "run not found", http.StatusNotFound)
+		writeError(w, r, err)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(run)
+	writeJSON(w, http.StatusOK, run)
 }

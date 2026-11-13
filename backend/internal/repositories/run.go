@@ -19,7 +19,7 @@ func (r *RunRepository) Create(run *models.Run) error {
 		"INSERT INTO runs (id, user_id, player_id, status, score, level, enemies_killed, duration, best_combo, weapon_used, mutations, run_tags, boss_encountered, boss_defeated, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 		run.ID, run.UserID, run.PlayerID, run.Status, run.Score, run.Level, run.EnemiesKilled, run.Duration, run.BestCombo, run.WeaponUsed, run.Mutations, run.RunTags, run.BossEncountered, run.BossDefeated, run.CreatedAt,
 	)
-	return err
+	return translate(err)
 }
 
 func (r *RunRepository) GetByID(id string) (*models.Run, error) {
@@ -33,10 +33,17 @@ func (r *RunRepository) GetByID(id string) (*models.Run, error) {
 	return run, nil
 }
 
-func (r *RunRepository) Update(run *models.Run) error {
-	_, err := r.db.Exec(
-		"UPDATE runs SET status = ?, score = ?, level = ?, enemies_killed = ?, duration = ?, best_combo = ?, weapon_used = ?, mutations = ?, run_tags = ?, boss_encountered = ?, boss_defeated = ? WHERE id = ?",
-		run.Status, run.Score, run.Level, run.EnemiesKilled, run.Duration, run.BestCombo, run.WeaponUsed, run.Mutations, run.RunTags, run.BossEncountered, run.BossDefeated, run.ID,
+// Finish writes a run's results and marks it complete, but only if it is
+// still active. the check and the write are one statement, so two requests
+// ending the same run cannot both succeed. reports whether it changed a row.
+func (r *RunRepository) Finish(run *models.Run) (bool, error) {
+	res, err := r.db.Exec(
+		"UPDATE runs SET status = ?, score = ?, level = ?, enemies_killed = ?, duration = ?, best_combo = ?, weapon_used = ?, mutations = ?, run_tags = ?, boss_encountered = ?, boss_defeated = ? WHERE id = ? AND status = ?",
+		models.RunStatusComplete, run.Score, run.Level, run.EnemiesKilled, run.Duration, run.BestCombo, run.WeaponUsed, run.Mutations, run.RunTags, run.BossEncountered, run.BossDefeated, run.ID, models.RunStatusActive,
 	)
-	return err
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }

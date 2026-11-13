@@ -9,9 +9,9 @@ import (
 )
 
 const (
-	writeTimeout = 10 * time.Second
-	readTimeout  = 60 * time.Second
-	pingInterval = 30 * time.Second
+	writeTimeout   = 10 * time.Second
+	readTimeout    = 60 * time.Second
+	pingInterval   = 30 * time.Second
 	maxMessageSize = 4096
 )
 
@@ -89,8 +89,14 @@ func (c *Client) handleMessage(msg Message) {
 	switch msg.Type {
 	case TypePing:
 		resp, _ := json.Marshal(Message{Type: TypePong})
-		c.send <- resp
+		// never wait here: a client that sends pings but does not read the
+		// answers would otherwise stall its own read loop forever
+		select {
+		case c.send <- resp:
+		default:
+		}
 	default:
-		slog.Warn("unhandled websocket message type", "type", msg.Type)
+		// debug level: a client can send these as fast as it likes
+		slog.Debug("unhandled websocket message type", "type", msg.Type)
 	}
 }

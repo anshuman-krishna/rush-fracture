@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"crypto/subtle"
 	"log/slog"
 	"net"
 	"net/http"
@@ -78,7 +79,9 @@ func APIKeyAuth(apiKey string) Middleware {
 				next.ServeHTTP(w, r)
 				return
 			}
-			if r.Header.Get("X-API-Key") != apiKey {
+			// constant-time, so how long a wrong key takes to reject says
+			// nothing about how much of it was right
+			if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-API-Key")), []byte(apiKey)) != 1 {
 				http.Error(w, "unauthorized", http.StatusUnauthorized)
 				return
 			}

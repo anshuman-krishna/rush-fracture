@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"database/sql"
-	"encoding/json"
 	"net/http"
 )
 
@@ -15,17 +14,9 @@ func NewHealthController(db *sql.DB) *HealthController {
 }
 
 func (c *HealthController) Health(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
-	if err := c.db.Ping(); err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{
-			"status": "db unreachable",
-		})
+	if err := c.db.PingContext(r.Context()); err != nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"status": "db unreachable"})
 		return
 	}
-
-	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ok",
-	})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }

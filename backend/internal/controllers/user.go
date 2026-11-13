@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"rush-fracture/backend/internal/services"
@@ -20,8 +19,7 @@ func (c *UserController) Create(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Username string `json:"username"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !readJSON(w, r, &req) {
 		return
 	}
 
@@ -32,24 +30,17 @@ func (c *UserController) Create(w http.ResponseWriter, r *http.Request) {
 
 	user, err := c.service.Create(req.Username)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, r, err)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(user)
+	writeJSON(w, http.StatusCreated, user)
 }
 
 func (c *UserController) Get(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-
-	user, err := c.service.GetByID(id)
+	user, err := c.service.GetByID(r.PathValue("id"))
 	if err != nil {
-		http.Error(w, "user not found", http.StatusNotFound)
+		writeError(w, r, err)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(user)
+	writeJSON(w, http.StatusOK, user)
 }

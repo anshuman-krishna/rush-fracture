@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"rush-fracture/backend/internal/services"
@@ -17,15 +16,12 @@ func NewRoomEventController(service *services.RoomEventService) *RoomEventContro
 }
 
 func (c *RoomEventController) RoomEntered(w http.ResponseWriter, r *http.Request) {
-	runID := r.PathValue("id")
-
 	var req struct {
 		RoomIndex   int    `json:"room_index"`
 		RoomType    string `json:"room_type"`
 		ElapsedTime int    `json:"elapsed_time"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !readJSON(w, r, &req) {
 		return
 	}
 
@@ -34,28 +30,22 @@ func (c *RoomEventController) RoomEntered(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	event, err := c.service.RecordRoomEntered(runID, req.RoomIndex, req.RoomType, req.ElapsedTime)
+	event, err := c.service.RecordRoomEntered(r.PathValue("id"), req.RoomIndex, req.RoomType, req.ElapsedTime)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, r, err)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(event)
+	writeJSON(w, http.StatusCreated, event)
 }
 
 func (c *RoomEventController) RoomCleared(w http.ResponseWriter, r *http.Request) {
-	runID := r.PathValue("id")
-
 	var req struct {
 		RoomIndex     int    `json:"room_index"`
 		RoomType      string `json:"room_type"`
 		EnemiesKilled int    `json:"enemies_killed"`
 		ElapsedTime   int    `json:"elapsed_time"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !readJSON(w, r, &req) {
 		return
 	}
 
@@ -68,27 +58,21 @@ func (c *RoomEventController) RoomCleared(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	event, err := c.service.RecordRoomCleared(runID, req.RoomIndex, req.RoomType, req.EnemiesKilled, req.ElapsedTime)
+	event, err := c.service.RecordRoomCleared(r.PathValue("id"), req.RoomIndex, req.RoomType, req.EnemiesKilled, req.ElapsedTime)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, r, err)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(event)
+	writeJSON(w, http.StatusCreated, event)
 }
 
 func (c *RoomEventController) UpgradeChosen(w http.ResponseWriter, r *http.Request) {
-	runID := r.PathValue("id")
-
 	var req struct {
 		RoomIndex   int    `json:"room_index"`
 		UpgradeID   string `json:"upgrade_id"`
 		ElapsedTime int    `json:"elapsed_time"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if !readJSON(w, r, &req) {
 		return
 	}
 
@@ -105,28 +89,21 @@ func (c *RoomEventController) UpgradeChosen(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	event, err := c.service.RecordUpgrade(runID, req.RoomIndex, req.UpgradeID, req.ElapsedTime)
+	event, err := c.service.RecordUpgrade(r.PathValue("id"), req.RoomIndex, req.UpgradeID, req.ElapsedTime)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, r, err)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(event)
+	writeJSON(w, http.StatusCreated, event)
 }
 
 func (c *RoomEventController) GetByRun(w http.ResponseWriter, r *http.Request) {
-	runID := r.PathValue("id")
-
-	events, err := c.service.GetByRunID(runID)
+	events, err := c.service.GetByRunID(r.PathValue("id"))
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, r, err)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(events)
+	writeJSON(w, http.StatusOK, events)
 }
 
 func validateRoomFields(roomIndex int, roomType string, elapsedTime int) error {

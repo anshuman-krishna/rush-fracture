@@ -19,7 +19,7 @@ func (r *UserRepository) Create(user *models.User) error {
 		"INSERT INTO users (id, username, created_at) VALUES (?, ?, ?)",
 		user.ID, user.Username, user.CreatedAt,
 	)
-	return err
+	return translate(err)
 }
 
 func (r *UserRepository) GetByID(id string) (*models.User, error) {
@@ -31,4 +31,13 @@ func (r *UserRepository) GetByID(id string) (*models.User, error) {
 		return nil, err
 	}
 	return user, nil
+}
+
+func (r *UserRepository) Exists(id string) (bool, error) {
+	var one int
+	err := r.db.QueryRow("SELECT 1 FROM users WHERE id = ?", id).Scan(&one)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	return err == nil, err
 }
