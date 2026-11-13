@@ -275,6 +275,10 @@ func _step(s: Shot, delta: float, space: PhysicsDirectSpaceState3D, players: Arr
 	query.collide_with_areas = false
 	if s.team == TEAM_PLAYER:
 		query.collision_mask = Layers.WORLD | Layers.ENEMY
+		# in a duel the other players are targets too (the shooter is excluded below)
+		var combat: Combat = Game.combat()
+		if combat and combat.pvp_manager and combat.pvp_manager.is_active():
+			query.collision_mask |= Layers.PLAYER
 		var exclude: Array[RID] = []
 		if is_instance_valid(s.source) and s.source is CollisionObject3D:
 			exclude.append((s.source as CollisionObject3D).get_rid())

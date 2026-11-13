@@ -166,6 +166,15 @@ func blast(centre: Vector3, radius: float, base: float, opts: Dictionary = {}) -
 	o["can_proc"] = opts.get("can_proc", false)
 	if not o.has("knockback"):
 		o["knockback"] = 6.0
+	if pvp_manager and pvp_manager.is_active():
+		# a duel has no enemies: explosions hurt the other players instead
+		for other: Node in get_tree().get_nodes_in_group("player"):
+			if other == player or not other is CharacterBody3D:
+				continue
+			var gap: float = ((other as Node3D).global_position + Vector3(0, 0.9, 0)).distance_to(centre)
+			if gap <= radius:
+				_deal_pvp(other as CharacterBody3D, base * lerpf(1.0, min_ratio, clampf(gap / radius, 0.0, 1.0)))
+				hits += 1
 	for enemy: Node3D in enemies_in_radius(get_tree(), centre, radius):
 		var d: float = _centre_of(enemy).distance_to(centre)
 		var falloff: float = lerpf(1.0, min_ratio, clampf(d / radius, 0.0, 1.0))

@@ -64,7 +64,7 @@ func _initialize() -> void:
 	_net.player_disconnected.connect(func(id: int) -> void: print("[net] %s: peer %d left" % [_role, id]))
 	_net.connection_succeeded.connect(func() -> void: print("[net] %s: online as peer %d" % [_role, _net.local_peer_id]))
 	_net.connection_failed.connect(_on_connection_failed)
-	_net.server_disconnected.connect(func() -> void: print("[net] %s: the host went away" % _role))
+	_net.server_disconnected.connect(_on_host_gone)
 	_net.match_starting.connect(func(versus: int, mode: String, asc: int, seed_value: int) -> void:
 		print("[net] %s: match starting versus=%d mode=%s ascension=%d seed=%d" % [_role, versus, mode, asc, seed_value]))
 
@@ -102,6 +102,14 @@ func _join() -> void:
 		_rejoin_in = 1.0
 
 
+## a client has nothing left to test once the host is gone.
+func _on_host_gone() -> void:
+	print("[net] %s: the host went away" % _role)
+	if _quit_in < 0.0:
+		print("[net] %s: FAIL (host left before this side finished)" % _role)
+		_quit_in = 0.5
+
+
 func _on_connection_failed() -> void:
 	print("[net] join: connection failed, trying again")
 	_rejoin_in = 1.0
@@ -135,7 +143,11 @@ func _report() -> void:
 				print("[net] %s: sees %s (owner %d) at %s hp %d" % [_role, p.name, p.get_multiplayer_authority(), p.global_position.snappedf(0.1), p.health])
 	var modes: GameModeManager = root.get_node_or_null("GameModeManager") as GameModeManager
 	if modes:
-		print("[net] %s: scores %s" % [_role, modes.scores])
+		var summary: Dictionary = modes.get_score_summary()
+		for peer_id: int in summary:
+			var s: Dictionary = summary[peer_id]
+			print("[net] %s: score for %d: kills %d damage %d rooms %d duel kills %d duel wins %d total %d" % [
+				_role, peer_id, s.enemy_kills, s.damage_dealt, s.rooms_cleared, s.pvp_kills, s.pvp_wins, s.total])
 
 
 func _process(_delta: float) -> bool:

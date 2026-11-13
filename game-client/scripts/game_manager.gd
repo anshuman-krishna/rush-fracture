@@ -448,7 +448,8 @@ func _complete_run() -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_complete_run() -> void:
-	if is_host_or_solo() and run_manager.data and run_manager.data.is_final_room():
+	# a versus match ends with the duel, never because somebody asked
+	if is_host_or_solo() and run_manager.data and run_manager.data.is_final_room() and not game_mode.is_versus():
 		_complete_run()
 
 
@@ -537,15 +538,14 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 	if room.is_boss() and _room_flawless:
 		_flawless_boss = true
 
-	if game_mode.is_race():
+	if game_mode.is_versus():
 		game_mode.on_race_room_cleared(_local_peer_id())
-		if is_host_or_solo() and game_mode.should_start_encounter():
-			_transition_to_pvp()
+		_share_score.call_deferred()
+		if game_mode.should_start_encounter() or run_manager.data.is_final_room():
+			# the host opens the duel for everyone; a client just waits for it
+			if is_host_or_solo():
+				_transition_to_pvp()
 			return
-	elif game_mode.is_pvp_mode() and run_manager.data.is_final_room():
-		if is_host_or_solo():
-			_transition_to_pvp()
-		return
 
 	_reward_queue = _rewards_for(room)
 	_next_reward()
@@ -1117,10 +1117,30 @@ func _on_peer_disconnected(peer_id: int) -> void:
 
 # --- versus ----------------------------------------------------------------------
 
+## versus: each peer only counts its own kills, damage and rooms, so it tells
+## the others, and everyone ends up looking at the same scoreboard.
+func _share_score() -> void:
+	if not _is_online() or not game_mode.is_versus():
+		return
+	game_mode.ensure_score(_local_peer_id())
+	var mine: GameModeManager.MatchScore = game_mode.scores[_local_peer_id()]
+	_rpc_score.rpc(mine.enemy_kills, mine.damage_dealt, mine.rooms_cleared)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_score(kills: int, damage: int, rooms: int) -> void:
+	var sender: int = multiplayer.get_remote_sender_id()
+	game_mode.ensure_score(sender)
+	var theirs: GameModeManager.MatchScore = game_mode.scores[sender]
+	theirs.enemy_kills = clampi(kills, 0, 100000)
+	theirs.damage_dealt = clampi(damage, 0, 100000000)
+	theirs.rooms_cleared = clampi(rooms, 0, 1000)
+
+
 func _transition_to_pvp() -> void:
-	room_controller.clear_current_room()
 	fracture_manager.end_fracture()
 	if not _is_online():
+		room_controller.clear_current_room()
 		# nobody to fight: treat the gauntlet as won
 		room_announce.show_text("run complete", Color(0.4, 1.0, 0.5))
 		_complete_run()
@@ -1131,25 +1151,27 @@ func _transition_to_pvp() -> void:
 
 @rpc("authority", "call_remote", "reliable")
 func _rpc_start_pvp() -> void:
-	room_controller.clear_current_room()
+	fracture_manager.end_fracture()
 	_begin_pvp()
 
 
 func _begin_pvp() -> void:
 	_pvp_active = true
+	room_controller.clear_for_duel()
+	# deferred: the kill that ended the room is still being counted
+	_share_score.call_deferred()
 	_dismiss_reward_panels()
 	room_announce.show_fracture("pvp encounter", "last one standing")
 	audio.set_music_state(AudioManager.MusicState.BOSS)
 	Game.sfx(&"boss_warning", 0.0)
-	var players: Array[CharacterBody3D] = player_manager.get_all_players()
-	for i: int in players.size():
-		var p: CharacterBody3D = players[i]
-		if not is_instance_valid(p) or not p.is_multiplayer_authority():
-			continue
-		var angle: float = TAU * float(i) / float(maxi(players.size(), 1))
-		p.is_dead = false
-		p.health = p.max_health
-		p.teleport(Vector3(cos(angle) * 10.0, 2.0, sin(angle) * 10.0))
+	# everyone starts evenly spaced on a circle. the slot comes from the peer
+	# ids in order, which is the one list every peer agrees on.
+	var peers: Array[int] = network_manager.connected_peers.duplicate() if _is_online() else [1]
+	peers.sort()
+	var slot: int = maxi(0, peers.find(_local_peer_id()))
+	player.is_dead = false
+	player.health = player.max_health
+	player.teleport(room_controller.duel_spawn_point(slot, peers.size()))
 	pvp_manager.start_pvp()
 	game_mode.start_pvp()
 	_set_pvp_on_weapons(true)

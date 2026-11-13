@@ -51,6 +51,7 @@ var _done: bool = false
 var _aim_noise: Vector2 = Vector2.ZERO
 var _noise_timer: float = 0.0
 var _pause_left: float = 0.0
+var _in_duel: bool = false
 
 
 func _ready() -> void:
@@ -88,6 +89,7 @@ func _physics_process(delta: float) -> void:
 
 	_handle_panels(main, gm)
 	_handle_transition(gm)
+	_in_duel = gm.get("_pvp_active") == true
 	_drive_combat(delta, player)
 	_track_progress(delta, gm)
 
@@ -98,6 +100,8 @@ func _physics_process(delta: float) -> void:
 			and gm.run_manager.data.rooms_cleared >= room_limit:
 		_log("room limit reached, ending run")
 		gm.run_manager.fail_run()
+		if Game.is_online():
+			gm._rpc_fail_run.rpc()
 
 
 func _bind(player: CharacterBody3D) -> void:
@@ -282,6 +286,16 @@ func _drive_combat(delta: float, player: CharacterBody3D) -> void:
 func _nearest_enemy(player: CharacterBody3D) -> Node3D:
 	var best: Node3D = null
 	var best_d: float = INF
+	if _in_duel:
+		# player against player: the target is whoever else is standing
+		for other: Node in get_tree().get_nodes_in_group("player"):
+			if other == player or not other is Node3D or other.get("is_dead") == true:
+				continue
+			var gap: float = (other as Node3D).global_position.distance_squared_to(player.global_position)
+			if gap < best_d:
+				best_d = gap
+				best = other as Node3D
+		return best
 	for e: Node in get_tree().get_nodes_in_group("enemies"):
 		if not e is Node3D or not is_instance_valid(e) or e.get("is_dying") == true:
 			continue
@@ -327,6 +341,10 @@ func _track_progress(delta: float, gm: Node) -> void:
 		return
 	var alive: int = get_tree().get_nodes_in_group("enemies").size()
 	var key: String = "%d|%d|%d|%s|%d" % [data.current_room_index, data.total_enemies_killed, alive, data.status, data.rooms_cleared]
+	if _in_duel:
+		var duel: Node = gm.get("pvp_manager")
+		for other: Node in get_tree().get_nodes_in_group("player"):
+			key += "|%d" % duel.get_pvp_health(other.get_multiplayer_authority())
 	if data.current_room_index != _last_room_index:
 		_last_room_index = data.current_room_index
 		var room: Variant = data.current_room()

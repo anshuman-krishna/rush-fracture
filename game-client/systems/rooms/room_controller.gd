@@ -144,6 +144,43 @@ func clear_current_room() -> void:
 	_clear_room()
 
 
+## ends the fight but leaves the arena standing: the duel that closes a
+## versus match is fought in the last room of the gauntlet.
+func clear_for_duel() -> void:
+	for root: Node3D in [hazard_root, enemy_root, _pickup_root]:
+		if not root:
+			continue
+		for child: Node in root.get_children():
+			root.remove_child(child)
+			child.queue_free()
+	var pm: ProjectileManager = Game.projectiles()
+	if pm:
+		pm.clear_all()
+	_waves.clear()
+	_wave_index = 0
+	_wave_size = 0
+	_spawn_timer = -1.0
+	_next_wave_delay = -1.0
+	enemies_alive = 0
+	room_active = false
+	active_boss = null
+
+
+## where duellist number `slot` of `count` starts: spread evenly around the
+## arena, on open floor.
+func duel_spawn_point(slot: int, count: int) -> Vector3:
+	var angle: float = TAU * float(slot) / float(maxi(count, 1))
+	var dir: Vector3 = Vector3(cos(angle), 0.0, sin(angle))
+	for distance: float in [14.0, 11.0, 17.0, 8.0, 20.0, 5.0]:
+		var p: Vector3 = dir * distance
+		if arena and not arena.contains(p.x, p.z, 1.5):
+			continue
+		if builder and builder.is_blocked(p.x, p.z, 1.0):
+			continue
+		return p + Vector3(0, 2.0, 0)
+	return clamp_to_arena(dir * 10.0, 1.0) + Vector3(0, 2.0, 0)
+
+
 func player_spawn_point(index: int = 0) -> Vector3:
 	var base: Vector3 = builder.player_spawn if builder else Vector3(0, 2, 0)
 	if index <= 0:
