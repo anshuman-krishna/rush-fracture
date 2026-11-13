@@ -81,10 +81,10 @@ func apply_knockback(_dir: Vector3, _force: float) -> void:
 	pass
 
 
-func apply_status(id: StringName, seconds: float, power: float, source: Node = null) -> void:
+func apply_status(id: StringName, seconds: float, power: float, source: Node = null, from_peer: int = 0) -> void:
 	if id == &"slow":
 		power = minf(power, 0.15)
-	super.apply_status(id, seconds, power, source)
+	super.apply_status(id, seconds, power, source, from_peer)
 
 
 func is_weak_point(hit_pos: Vector3) -> bool:

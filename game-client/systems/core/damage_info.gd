@@ -21,6 +21,9 @@ var crit: bool = false
 var weak: bool = false
 ## the node responsible: a player for outgoing damage, an enemy for incoming
 var source: Node = null
+## network id of the player behind this damage, when it arrived from another
+## peer. 0 for anything local.
+var peer: int = 0
 var weapon: StringName = &""
 var position: Vector3 = Vector3.ZERO
 var direction: Vector3 = Vector3.ZERO

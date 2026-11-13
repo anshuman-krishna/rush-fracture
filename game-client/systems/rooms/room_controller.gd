@@ -352,7 +352,13 @@ func _on_enemy_died(info: DamageInfo, enemy: Node3D) -> void:
 	if not Game.is_host_or_solo():
 		return
 	if Game.is_online():
-		_rpc_enemy_died.rpc(String(enemy.name))
+		# 0 = nobody in particular (a hazard, a fall, another enemy)
+		var killer: int = 0
+		if info and info.peer != 0:
+			killer = info.peer
+		elif info and info.source != null and info.source == Game.local_player():
+			killer = multiplayer.get_unique_id()
+		_rpc_enemy_died.rpc(String(enemy.name), killer)
 	if not enemy.get("counts_for_room"):
 		return
 	enemies_alive = maxi(0, enemies_alive - 1)
@@ -687,15 +693,20 @@ func _clear_room() -> void:
 
 
 ## clients normally see a death through the replicated health value, but
-## those updates are allowed to get lost. this one is not.
+## those updates are allowed to get lost. this one is not, and it also says
+## who gets the credit.
 @rpc("authority", "call_remote", "reliable")
-func _rpc_enemy_died(node_name: String) -> void:
-	var enemy: Node = enemy_root.get_node_or_null(NodePath(node_name))
+func _rpc_enemy_died(node_name: String, killer_peer: int) -> void:
+	var enemy: Node3D = enemy_root.get_node_or_null(NodePath(node_name)) as Node3D
 	if not enemy:
 		return
 	var hc: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
 	if hc and hc.is_alive():
 		hc.kill()
+	if killer_peer == multiplayer.get_unique_id():
+		var combat: Combat = Game.combat()
+		if combat:
+			combat.credit_kill(enemy)
 
 
 func _setup_enemy_multiplayer(enemy: CharacterBody3D) -> void:
@@ -720,5 +731,6 @@ func _setup_enemy_multiplayer(enemy: CharacterBody3D) -> void:
 	if enemy.has_node("HealthComponent"):
 		config.add_property(NodePath("HealthComponent:current_health"))
 		config.add_property(NodePath("HealthComponent:shield"))
+		config.add_property(NodePath("HealthComponent:invulnerable"))
 	sync.replication_config = config
 	enemy.add_child(sync)

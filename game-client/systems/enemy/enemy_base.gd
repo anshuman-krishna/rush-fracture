@@ -198,7 +198,7 @@ func stun(seconds: float) -> void:
 
 ## timed effects: &"slow" (power = 0..1 speed loss), &"burn" (power = damage
 ## per second), &"mark" (power = extra damage taken, 0.25 = +25%).
-func apply_status(id: StringName, seconds: float, power: float, source: Node = null) -> void:
+func apply_status(id: StringName, seconds: float, power: float, source: Node = null, from_peer: int = 0) -> void:
 	if is_dying:
 		return
 	if not _is_local_authority():
@@ -209,6 +209,8 @@ func apply_status(id: StringName, seconds: float, power: float, source: Node = n
 		"time": maxf(seconds, existing.get("time", 0.0)),
 		"power": maxf(power, existing.get("power", 0.0)),
 		"source": source,
+		# which remote player applied it, so a kill it causes is theirs
+		"peer": from_peer,
 	}
 	_refresh_status_mods()
 
@@ -216,7 +218,7 @@ func apply_status(id: StringName, seconds: float, power: float, source: Node = n
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_status(id: String, seconds: float, power: float) -> void:
 	if _is_local_authority():
-		apply_status(StringName(id), clampf(seconds, 0.0, 10.0), clampf(power, 0.0, 200.0), null)
+		apply_status(StringName(id), clampf(seconds, 0.0, 10.0), clampf(power, 0.0, 200.0), null, multiplayer.get_remote_sender_id())
 
 
 ## temporary speed boost from an ally (power 0.25 = +25%). expires on this
@@ -594,7 +596,9 @@ func _tick_statuses(delta: float) -> void:
 			if combat and is_instance_valid(burn.source) and burn.source == combat.player:
 				combat.deal(self, amount, {"kind": DamageInfo.KIND_DOT, "can_crit": false, "can_proc": false, "position": aim_point()})
 			elif health:
-				health.take_damage(maxi(1, int(amount)), DamageInfo.make(int(amount), DamageInfo.KIND_DOT))
+				var dot: DamageInfo = DamageInfo.make(int(amount), DamageInfo.KIND_DOT)
+				dot.peer = int(burn.get("peer", 0))
+				health.take_damage(maxi(1, int(amount)), dot)
 			Vfx.sparks(aim_point(), Vector3.UP, Color(1.0, 0.5, 0.1), 2.5, 60.0)
 
 

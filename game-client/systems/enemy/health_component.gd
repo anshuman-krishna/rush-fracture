@@ -2,9 +2,10 @@ class_name HealthComponent
 extends Node
 
 # hit points for anything that can be damaged (enemies, bosses, destructible
-# props). in multiplayer the host owns the truth: a client applies its own
-# hits locally for instant feedback and forwards them to the host, which
-# clamps and rate-limits what it accepts.
+# props). in multiplayer the host owns the truth: a client only reports its
+# hits to the host, which clamps what it accepts, and every client takes the
+# resulting health (and death) from what the host sends back. a client never
+# decides on its own that something died.
 
 signal damaged(amount: int, current: int, info: DamageInfo)
 signal died(info: DamageInfo)
@@ -16,8 +17,10 @@ signal shield_broken
 # first line of defense against a modified client forging damage rpcs. this
 # can't validate against the attacker's real loadout, but it removes the
 # trivial one-shot-anything and unlimited-spam versions of the exploit.
-const MAX_DAMAGE_PER_HIT: int = 600
-const MIN_DAMAGE_RPC_INTERVAL_MS: int = 15
+const MAX_DAMAGE_PER_HIT: int = 5000
+## the most one peer may report against one target in a second. generous: a
+## shotgun lands ten pellets in one frame and every one of them is real.
+const MAX_DAMAGE_PER_SECOND: int = 40000
 
 var current_health: int
 ## incoming damage is multiplied by this (armour < 1, vulnerability > 1)
@@ -31,9 +34,9 @@ var max_shield: int = 0
 var last_damage_msec: int = 0
 
 var _died_triggered: bool = false
-# keyed by sending peer id — one shared timestamp would let one attacker's
-# rate limit silently eat a second attacker's simultaneous hit.
-var _last_rpc_damage_ms: Dictionary = {}
+# keyed by sending peer id, so one attacker's budget never eats another's
+# hits: peer -> [window start msec, damage accepted in the window]
+var _rpc_budget: Dictionary = {}
 
 
 func _ready() -> void:
@@ -69,9 +72,10 @@ func take_damage(amount: int, info: DamageInfo = null) -> bool:
 		return false
 
 	if Game.is_online() and not _is_authority():
-		var killed: bool = _apply_damage(amount, info)
+		# report it and show the hit, but leave the numbers to the host
 		_rpc_take_damage.rpc_id(1, amount, info.crit if info else false)
-		return killed
+		damaged.emit(amount, current_health, info)
+		return false
 	return _apply_damage(amount, info)
 
 
@@ -134,15 +138,20 @@ func _rpc_take_damage(amount: int, crit: bool) -> void:
 	if not _is_authority():
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
+	if invulnerable or amount <= 0:
+		return
+	amount = mini(amount, MAX_DAMAGE_PER_HIT)
 	var now: int = Time.get_ticks_msec()
-	var last: int = _last_rpc_damage_ms.get(sender, -MIN_DAMAGE_RPC_INTERVAL_MS)
-	if now - last < MIN_DAMAGE_RPC_INTERVAL_MS:
+	var budget: Array = _rpc_budget.get(sender, [now, 0])
+	if now - int(budget[0]) >= 1000:
+		budget = [now, 0]
+	if int(budget[1]) + amount > MAX_DAMAGE_PER_SECOND:
 		return
-	_last_rpc_damage_ms[sender] = now
-	if invulnerable:
-		return
-	var info: DamageInfo = DamageInfo.make(clampi(amount, 0, MAX_DAMAGE_PER_HIT))
+	budget[1] = int(budget[1]) + amount
+	_rpc_budget[sender] = budget
+	var info: DamageInfo = DamageInfo.make(amount)
 	info.crit = crit
+	info.peer = sender
 	_apply_damage(info.amount, info)
 
 

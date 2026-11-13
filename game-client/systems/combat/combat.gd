@@ -69,6 +69,9 @@ func deal(target: Node, base: float, opts: Dictionary = {}) -> DamageInfo:
 	var health: HealthComponent = target.get_node_or_null("HealthComponent") as HealthComponent
 	if not health or not health.is_alive():
 		return null
+	# spawning in or changing phase: the hit does nothing, so it shows nothing
+	if health.invulnerable:
+		return null
 
 	var stats: StatBlock = player.stats if is_instance_valid(player) and "stats" in player else null
 	var info: DamageInfo = DamageInfo.new()
@@ -140,6 +143,17 @@ func deal(target: Node, base: float, opts: Dictionary = {}) -> DamageInfo:
 	if killed:
 		enemy_killed.emit(target, info)
 	return info
+
+
+## multiplayer: the host says this peer landed the killing blow on `target`.
+## a client cannot see that for itself, since it never changes enemy health.
+func credit_kill(target: Node3D) -> void:
+	if not is_instance_valid(target):
+		return
+	var info: DamageInfo = DamageInfo.new()
+	info.source = player
+	info.position = _centre_of(target)
+	enemy_killed.emit(target, info)
 
 
 ## damages every enemy inside a sphere, with linear falloff to `min_ratio` at
