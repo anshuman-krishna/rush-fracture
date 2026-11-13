@@ -378,6 +378,9 @@ func _do_start_run(cfg: Dictionary) -> void:
 		run_manager.start_run_with_floors(RaceGenerator.generate(int(cfg.seed), int(cfg.players)), cfg)
 	else:
 		run_manager.start_run(cfg)
+	# the first room has already asked for its own track; line up the rest
+	for place: StringName in Biome.ACT_ORDER:
+		audio.prepare_music(place)
 
 
 @rpc("authority", "call_remote", "reliable")
@@ -485,6 +488,13 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 	player.teleport(room_controller.player_spawn_point(index))
 
 	hud.set_boss(null)
+	audio.play_music(room.biome)
+	if room.is_boss():
+		audio.set_music_state(AudioManager.MusicState.BOSS)
+	elif room.is_peaceful():
+		audio.set_music_state(AudioManager.MusicState.CALM)
+	else:
+		audio.set_music_state(AudioManager.MusicState.COMBAT)
 	if room.is_boss():
 		Game.sfx(&"boss_warning", 0.0)
 		room_announce.show_boss_intro(BossDefs.display_name(room.boss_id), BossDefs.intro(room.boss_id))
@@ -515,6 +525,7 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 	fracture_manager.end_fracture()
 	_fracture_delay = -1.0
 	difficulty_tracker.on_room_cleared()
+	audio.set_music_state(AudioManager.MusicState.CALM)
 	if not room.is_peaceful():
 		room_announce.show_room_clear()
 		Game.sfx(&"room_clear", -3.0)
@@ -1028,6 +1039,7 @@ func _on_run_ended(data: RunData) -> void:
 
 
 func _show_summary(data: RunData, combo_best: int, pvp_won: bool) -> void:
+	audio.set_music_state(AudioManager.MusicState.CALM)
 	var extras: Dictionary = {
 		"prev_best_kills": _profile.best_kills_single_run,
 		"prev_best_combo": _profile.best_combo,
@@ -1122,6 +1134,7 @@ func _begin_pvp() -> void:
 	_pvp_active = true
 	_dismiss_reward_panels()
 	room_announce.show_fracture("pvp encounter", "last one standing")
+	audio.set_music_state(AudioManager.MusicState.BOSS)
 	Game.sfx(&"boss_warning", 0.0)
 	var players: Array[CharacterBody3D] = player_manager.get_all_players()
 	for i: int in players.size():

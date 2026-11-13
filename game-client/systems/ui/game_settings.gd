@@ -186,6 +186,7 @@ func reset_all_key_bindings() -> void:
 
 
 func _apply_volume() -> void:
+	AudioManager.ensure_buses()
 	_set_bus("Master", master_volume)
 	_set_bus("SFX", sfx_volume)
 	_set_bus("Music", music_volume)

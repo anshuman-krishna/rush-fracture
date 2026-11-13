@@ -56,6 +56,8 @@ func _ready() -> void:
 	_audio.name = "MenuAudio"
 	add_child(_audio)
 	Game.set_audio(_audio)
+	_audio.play_music(&"menu")
+	_audio.set_music_state(AudioManager.MusicState.MENU)
 
 	_backdrop = MenuBackdrop.new()
 	add_child(_backdrop)
