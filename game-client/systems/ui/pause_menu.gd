@@ -7,8 +7,11 @@ extends UiModal
 signal resume_requested
 signal restart_requested
 signal main_menu_requested
+## the player changed something in settings while paused
+signal settings_changed
 
 var _buttons: VBoxContainer
+var _settings_panel: SettingsPanel
 
 
 func _ready() -> void:
@@ -19,6 +22,8 @@ func _ready() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not event.is_action_pressed("ui_cancel"):
+		return
+	if _settings_panel and _settings_panel.visible:
 		return
 	if _active:
 		_resume()
@@ -60,6 +65,7 @@ func _show() -> void:
 	_buttons.add_theme_constant_override("separation", 10)
 	_content.add_child(_buttons)
 	_add("resume", _resume)
+	_add("settings", _open_settings)
 	if Game.is_host_or_solo():
 		_add("restart run", func() -> void:
 			_close_quietly()
@@ -81,11 +87,31 @@ func _add(text: String, callback: Callable) -> void:
 	_buttons.add_child(b)
 
 
+## shows the same settings screen as the main menu, over the paused game.
+func _open_settings() -> void:
+	if not _settings_panel:
+		_settings_panel = SettingsPanel.new()
+		add_child(_settings_panel)
+		_settings_panel.closed.connect(_on_settings_closed)
+	_panel.visible = false
+	_settings_panel.open()
+
+
+func _on_settings_closed() -> void:
+	_panel.visible = true
+	settings_changed.emit()
+	if _active:
+		_focus_first(_buttons)
+
+
 func _resume() -> void:
 	_close_quietly()
 	resume_requested.emit()
 
 
 func _close_quietly() -> void:
+	if _settings_panel:
+		_settings_panel.visible = false
+	_panel.visible = true
 	get_tree().paused = false
 	hide_panel()

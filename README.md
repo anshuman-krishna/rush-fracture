@@ -185,7 +185,7 @@ there is no game icon, custom font or marketing art yet.
 | hide hud | F2 |
 | pause | escape |
 
-gamepad works too. keys can be rebound in settings, along with sensitivity, field of view, screen shake, hit-stop, damage numbers and hud scale.
+gamepad works too. settings open from the main menu or the pause menu: keys can be rebound, along with sensitivity, field of view, screen shake, hit-stop, damage numbers and hud scale.
 
 ---
 

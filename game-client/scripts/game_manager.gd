@@ -168,6 +168,9 @@ func _ready() -> void:
 	summary_ui.menu_requested.connect(_on_main_menu)
 	pause_menu.restart_requested.connect(_on_restart)
 	pause_menu.main_menu_requested.connect(_on_main_menu)
+	pause_menu.settings_changed.connect(func() -> void:
+		_settings = GameSettings.load_settings()
+		_apply_settings())
 
 	upgrade_manager.bind(player, weapon_manager)
 	mutation_manager.bind(player, weapon_manager)
