@@ -52,6 +52,7 @@ var _aim_noise: Vector2 = Vector2.ZERO
 var _noise_timer: float = 0.0
 var _pause_left: float = 0.0
 var _in_duel: bool = false
+var _recent_hits: Array[String] = []
 
 
 func _ready() -> void:
@@ -110,7 +111,25 @@ func _bind(player: CharacterBody3D) -> void:
 	_bound_player = player
 	_input = BotInput.new()
 	player.input = _input
+	player.damaged.connect(_on_player_damaged.bind(player))
+	player.died.connect(_on_player_died.bind(player))
 	_log("bound to player %s" % player.name)
+
+
+## keeps the last few hits, so a death can say what caused it.
+func _on_player_damaged(amount: int, info: DamageInfo, player: CharacterBody3D) -> void:
+	var from: String = "?"
+	if info and is_instance_valid(info.source):
+		from = String(info.source.get("type_id")) if info.source.get("type_id") != null else String(info.source.name)
+	_recent_hits.append("%d %s from %s at %.1fs (left %d/%d)" % [
+		amount, info.kind if info else &"?", from, _sim_time, player.health, player.max_health])
+	if _recent_hits.size() > 4:
+		_recent_hits.pop_front()
+
+
+func _on_player_died(player: CharacterBody3D) -> void:
+	print("[bot] died at %.1fs pos=%s max_health=%d, last hits: %s" % [
+		_sim_time, player.global_position.snappedf(0.1), player.max_health, " | ".join(_recent_hits)])
 
 
 func _handle_onboarding(gm: Node) -> bool:
