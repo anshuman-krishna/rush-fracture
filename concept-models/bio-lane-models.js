@@ -10,7 +10,7 @@ export const ENTITIES = [
   'titan', 'warden', 'obstacles',
 ];
 
-function ctx(THREE) {
+export function ctx(THREE) {
   const M = {
     chitin: new THREE.MeshStandardMaterial({ color: 0x584451, roughness: 0.48, metalness: 0.2, name: 'chitin' }),
     bone: new THREE.MeshStandardMaterial({ color: 0xc9b9a2, roughness: 0.56, metalness: 0.05, name: 'bone_carapace' }),
@@ -611,7 +611,7 @@ function obstacles(THREE, c, root) {
   add(trimBar, new THREE.BoxGeometry(4.5, 0.06, 0.35), M.glow, 'trim_band', [0, 0, 0]);
 }
 
-const BUILDERS = { pulse_rifle: pulseRifle, scatter_cannon: scatterCannon, beam_emitter: beamEmitter, chaser, tank, sniper, shooter, dasher, exploder, support, displacer, titan, warden, obstacles };
+export const BUILDERS = { pulse_rifle: pulseRifle, scatter_cannon: scatterCannon, beam_emitter: beamEmitter, chaser, tank, sniper, shooter, dasher, exploder, support, displacer, titan, warden, obstacles };
 
 export function buildEntity(THREE, key = 'pulse_rifle') {
   const c = ctx(THREE);

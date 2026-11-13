@@ -1,0 +1,13 @@
+{
+  "name": "rush-fracture-models",
+  "private": true,
+  "type": "module",
+  "description": "Builds the Grafted Brood models to GLB without a browser.",
+  "scripts": {
+    "build": "node build-models.mjs",
+    "build:all": "node build-models.mjs --all"
+  },
+  "dependencies": {
+    "three": "0.184.0"
+  }
+}

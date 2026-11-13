@@ -51,3 +51,5 @@ testing/
 concept-models/*.md
 concept-models/*.html
 concept-models/.thumbnail
+# node
+node_modules/
