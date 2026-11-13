@@ -64,6 +64,7 @@ var _shots: Array[Shot] = []
 var _free_meshes: Dictionary = {"orb": [], "needle": [], "disc": []}
 var _material: ShaderMaterial
 var _meshes: Dictionary = {}
+var _stepping: bool = false
 
 
 func _ready() -> void:
@@ -99,6 +100,12 @@ func active_count() -> int:
 
 
 func clear_all() -> void:
+	if _stepping:
+		# a projectile just ended the room from inside the step loop: mark
+		# everything dead and let the loop release them as it passes
+		for s: Shot in _shots:
+			s.alive = false
+		return
 	for s: Shot in _shots:
 		_release(s)
 	_shots.clear()
@@ -235,6 +242,7 @@ func _physics_process(delta: float) -> void:
 	if pm:
 		players = pm.get_all_players()
 
+	_stepping = true
 	var i: int = 0
 	while i < _shots.size():
 		var s: Shot = _shots[i]
@@ -245,6 +253,7 @@ func _physics_process(delta: float) -> void:
 			_shots.remove_at(i)
 		else:
 			i += 1
+	_stepping = false
 
 
 func _step(s: Shot, delta: float, space: PhysicsDirectSpaceState3D, players: Array[CharacterBody3D]) -> void:

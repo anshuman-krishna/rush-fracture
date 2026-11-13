@@ -11,6 +11,7 @@ extends SceneTree
 #   --ascension=N     difficulty tier (default 0)
 #   --seed=N          fixed run seed (default random)
 #   --rooms=N         end each run after N cleared rooms (for endless)
+#   --skill=0..1      1 = perfect aim and movement (default), lower = more human
 #   --loadout=a,b,c   weapon ids to equip (unlocks them in the scratch profile)
 #   --max-sim=SEC     abort after this many simulated seconds (default 3600)
 #   --verbose         log every reward pick
@@ -49,6 +50,7 @@ func _initialize() -> void:
 	_driver.god_mode = int(opts.get("god", 1)) != 0
 	_driver.max_sim_seconds = float(opts.get("max-sim", 3600.0))
 	_driver.room_limit = int(opts.get("rooms", 0))
+	_driver.skill = clampf(float(opts.get("skill", 1.0)), 0.0, 1.0)
 	_driver.verbose = opts.has("verbose")
 	_driver.finished.connect(_on_finished)
 	root.add_child(_driver)

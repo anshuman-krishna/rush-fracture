@@ -23,6 +23,9 @@ var max_sim_seconds: float = 3600.0
 var verbose: bool = false
 ## stop a run after this many rooms (0 = play to the end). for endless.
 var room_limit: int = 0
+## 1.0 aims perfectly and never stops moving. lower values add aim error,
+## slower tracking, fewer dashes and the odd pause, to stand in for a person.
+var skill: float = 1.0
 
 var results: Array[Dictionary] = []
 
@@ -45,6 +48,9 @@ var _continue_cooldown: float = 0.0
 var _panel_delay: float = 0.0
 var _last_room_index: int = -1
 var _done: bool = false
+var _aim_noise: Vector2 = Vector2.ZERO
+var _noise_timer: float = 0.0
+var _pause_left: float = 0.0
 
 
 func _ready() -> void:
@@ -218,23 +224,33 @@ func _drive_combat(delta: float, player: CharacterBody3D) -> void:
 	var enemy: Node3D = _nearest_enemy(player)
 	_input.shoot = enemy != null and not player.is_dead
 
+	_noise_timer -= delta
+	if _noise_timer <= 0.0:
+		_noise_timer = 0.35
+		var spread: float = (1.0 - skill) * 0.14
+		_aim_noise = Vector2(randf_range(-spread, spread), randf_range(-spread, spread) * 0.6)
 	if enemy:
-		_aim_at(player, _aim_point(enemy))
+		_aim_at(player, _aim_point(enemy), delta)
 
 	# keep moving: circle-strafe, flip direction now and then
 	_strafe_timer -= delta
 	if _strafe_timer <= 0.0:
 		_strafe_timer = randf_range(2.0, 5.0)
 		_strafe_dir = -_strafe_dir
+		if randf() < (1.0 - skill) * 0.45:
+			_pause_left = randf_range(0.5, 1.2)
 	var forward: float = 0.0
 	if enemy:
 		var dist: float = player.global_position.distance_to(enemy.global_position)
 		forward = -0.7 if dist > 16.0 else (0.8 if dist < 8.0 else 0.0)
 	_input.move = Vector2(_strafe_dir, forward).normalized()
+	if _pause_left > 0.0:
+		_pause_left -= delta
+		_input.move = Vector2.ZERO
 
 	_dash_timer -= delta
 	if _dash_timer <= 0.0:
-		_dash_timer = randf_range(1.2, 3.5)
+		_dash_timer = randf_range(1.2, 3.5) * lerpf(3.0, 1.0, skill)
 		_input.queue_dash()
 	_jump_timer -= delta
 	if _jump_timer <= 0.0:
@@ -285,7 +301,7 @@ func _aim_point(enemy: Node3D) -> Vector3:
 	return enemy.global_position + Vector3(0, 0.8, 0)
 
 
-func _aim_at(player: CharacterBody3D, point: Vector3) -> void:
+func _aim_at(player: CharacterBody3D, point: Vector3, delta: float) -> void:
 	var head: Node3D = player.get_node_or_null("Head") as Node3D
 	if not head:
 		return
@@ -293,8 +309,16 @@ func _aim_at(player: CharacterBody3D, point: Vector3) -> void:
 	if dir.length() < 0.05:
 		return
 	dir = dir.normalized()
-	player.rotation.y = atan2(-dir.x, -dir.z)
-	head.rotation.x = clampf(asin(clampf(dir.y, -1.0, 1.0)), -PI / 2.0 + 0.05, PI / 2.0 - 0.05)
+	var want_yaw: float = atan2(-dir.x, -dir.z) + _aim_noise.x
+	var want_pitch: float = clampf(asin(clampf(dir.y, -1.0, 1.0)) + _aim_noise.y, -PI / 2.0 + 0.05, PI / 2.0 - 0.05)
+	if skill >= 0.999:
+		player.rotation.y = want_yaw
+		head.rotation.x = want_pitch
+		return
+	# a person tracks a target, they don't snap to it
+	var rate: float = clampf(lerpf(5.0, 26.0, skill) * delta, 0.0, 1.0)
+	player.rotation.y = lerp_angle(player.rotation.y, want_yaw, rate)
+	head.rotation.x = lerpf(head.rotation.x, want_pitch, rate)
 
 
 func _track_progress(delta: float, gm: Node) -> void:
