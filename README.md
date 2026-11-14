@@ -9,10 +9,11 @@ a fast first-person roguelike built in godot 4.6. you fight through a living hiv
 
 playable end to end, solo and multiplayer:
 
-- 5 run modes plus 10 difficulty tiers, co-op and two versus modes
-- 8 weapons, 14 enemy types with 5 elite variants, 5 bosses
-- 93 upgrades, 12 mutations, 9 fracture events
-- 3 acts with their own look and music, 11 arena layouts with decks, ramps, jump pads, cover and hazards
+- 10 run modes, 4 difficulty levels and 10 ascension tiers, co-op and two versus modes
+- 8 weapons, 14 enemy types with 5 elite variants, 7 bosses
+- 105 upgrades, 12 mutations, 9 fracture events
+- 6 biomes with their own look, enemy strain and music key; 16 arena layouts with decks, ramps, jump pads, cover and hazards
+- 9 room conditions and 7 kinds of field that change the fight for you and the enemy alike
 - persistent progression: shards, 12 meta upgrades, weapon and perk unlocks, 7 skins, 12 achievements
 - every sound and the soundtrack are generated at runtime; the game ships no audio files
 
@@ -48,8 +49,15 @@ between rooms you usually choose where to go next: a harder room with a better r
 | endless | acts keep coming and keep getting harder |
 | boss rush | every boss back to back, with an armory stop between |
 | daily | one seed per day, the same run for everyone |
+| onslaught | eight fights in a row with no choices and no rest, then a boss |
+| tempest | two acts where every room has a condition, the ground is thick with fields, and every reward is paid twice |
+| the hunt | every fight is an elite: five of them, then a boss |
+| draft | pick your whole build before the first fight, then survive one hard act that pays only essence |
+| deadline | one act against a clock. kills and cleared rooms buy time; run out and the run is over |
 
-**ascension** (tiers 1 to 10) makes enemies tougher and pays more shards. from tier 2 the fracture core waits after the titan; from tier 4 more enemies are elites.
+**difficulty** is a dial on the title screen: gentle, standard, brutal or nightmare. it changes how much damage you take, how much health and speed enemies have, and how many shards the run pays.
+
+**ascension** (tiers 1 to 10) is a ladder climbed by winning. it makes enemies tougher and pays more shards. from tier 2 the fracture core waits after the last act's boss; from tier 4 more enemies are elites.
 
 ---
 
@@ -78,7 +86,7 @@ you carry three. three are free, five are unlocked with shards.
 
 ### build
 
-- **upgrades** (93): common, rare, epic and cursed. some are plain stats, some change how a weapon works (every weapon has at least three of its own), some trigger on hits, kills, dashes, slams or when you take damage. cursed ones are strong and cost you something. each run comes with three rerolls of the cards on offer, and the codex tab under progression lists everything that can turn up.
+- **upgrades** (105): common, rare, epic and cursed. some are plain stats, some change how a weapon works (every weapon has at least three of its own), some trigger on hits, kills, dashes, slams or when you take damage, and a few play off the fields on the floor. cursed ones are strong and cost you something. each run comes with three rerolls of the cards on offer, and the codex tab under progression lists everything that can turn up.
 - **mutations** (12): run-long rule changes with a real downside, such as glass cannon, blood pact, hollow bones or predator.
 - **the tithe altar**: a shop room where essence dropped by enemies buys healing, max health and upgrades.
 
@@ -109,19 +117,29 @@ elites carry one of five traits: volatile, regenerating, swift, shielded or vamp
 
 ### bosses
 
-| boss | where |
-|------|-------|
-| brood warden | act one |
-| rift stalker | act two |
-| hive matriarch | act two |
-| fracture titan | final act |
-| fracture core | after the titan, ascension 2 and up |
+| boss | where | how it fights |
+|------|-------|---------------|
+| brood warden | act one | pulses you have to jump, summons, drops onto you |
+| the harrower | act one | charges, rakes three lanes at once, shakes the floor |
+| rift stalker | act two | blinks and strikes down lanes |
+| hive matriarch | act two | scythes and a nest of broodlings |
+| fracture titan | final act | slams, boulders, ruin across the floor |
+| the choir | final act | rings of shots, blasts that walk toward you, spokes |
+| fracture core | after the last act, ascension 2 and up | does not move; fills the room |
 
-each has phases, a set of telegraphed attack patterns, and its own arena.
+each act draws its boss from a pool of two. each has phases, a set of telegraphed attack patterns, and its own arena. boss rush and endless meet all seven.
 
 ### rooms and events
 
-room types: combat, swarm, elite, elite chamber, gauntlet, hazard, sanctuary, tithe altar and boss. the three acts (hatchery, marrow, fracture) each have their own palette, enemy strain and music key.
+room types: combat, swarm, elite, elite chamber, gauntlet, hazard, sanctuary, tithe altar and boss.
+
+**biomes.** each act draws one of two: the hatchery or the bloom, marrow works or the drowned vault, the fracture or ashfall. each has its own palette, fog, enemy strain and music key.
+
+**layouts.** sixteen arenas, eleven for ordinary fights (open, tiers, hall, junction, orbit, lanes, grove, bridges, colosseum, warren, spires) and one for each boss.
+
+**room conditions.** about four fights in ten have something true of the whole room, shown on the path card before you choose it: thin air, tailwind, frenzy spores, brittle shells, spore haze, overgrowth, volatile brood, static storm, barren ground. most cut both ways.
+
+**fields.** marked patches of floor that change whoever stands in them, enemies as much as you: surge field, dampening field, slipstream, mire, ward, frail ground, mending pool. somewhere to fight from, somewhere to keep them out of, or somewhere to drag them into.
 
 **fracture events** can break out mid-fight for a few seconds: velocity surge, unstable gravity, fracture echo, void drift, adrenaline leak, unstable field, perception fracture, blood frenzy, essence storm.
 
@@ -164,7 +182,9 @@ saved locally, written atomically so a crash cannot corrupt it:
 
 one art direction, "grafted brood": a bio-mechanical organism grown over tech and architecture. every weapon, enemy, boss, prop and obstacle is a 3D model in `game-client/assets/models/`, generated from code in `concept-models/` (three.js builders exported to GLB).
 
-sound is synthesised, not recorded. `sound_synth.gd` renders about sixty layered effects from small recipes at startup, and `music_synth.gd` renders an eight-bar loop per act as three layers (pad, drums and bass, lead) that fade in and out with the fight.
+sound is synthesised, not recorded. `sound_synth.gd` renders about sixty layered effects from small recipes at startup, and `music_synth.gd` renders an eight-bar loop per biome as three layers (pad, drums and bass, lead) that fade in and out with the fight.
+
+the interface is drawn in code as well. choices (upgrades, mutations, the path, the altar) are cards with a cut plate, a frame that grows with rarity and an icon; the icons are drawn from lines and polygons by `ui_glyphs.gd`, one per stat, effect, weapon, room type and mode. there are no image files in the ui.
 
 there is no game icon, custom font or marketing art yet.
 
@@ -182,6 +202,8 @@ there is no game icon, custom font or marketing art yet.
 | slide, or slam in the air | ctrl or C |
 | weapons | 1 / 2 / 3 or mouse wheel |
 | interact | E |
+| pick a card | 1 / 2 / 3 or click |
+| deal the upgrade cards again (three per run) | R |
 | hide hud | F2 |
 | pause | escape |
 
@@ -222,7 +244,7 @@ everything runs headless from the command line. `--path game-client` is assumed 
 | audio render check | `godot --headless -s res://tests/run_audio.gd -- --out=some/dir` |
 | screenshots | `godot -s res://tests/run_shots.gd -- --out=some/dir` |
 
-the bot plays real runs through the same input and menus a player uses: it aims, moves, dashes, slides, picks rewards, shops, chooses paths and restarts. options cover mode, seed, ascension, loadout, skill level and whether it can die. each script documents its own options at the top.
+the bot plays real runs through the same input and menus a player uses: it aims, moves, dashes, slides, picks rewards, rerolls, shops, chooses paths and restarts. options cover mode, difficulty, seed, ascension, loadout, skill level and whether it can die. it can also be told to start with chosen upgrades (`--upgrades=all`), to put a room condition on every fight (`--condition=all`) or to build every room in one layout (`--layout=spires`), so one run can exercise a whole system. each script documents its own options at the top.
 
 point `APPDATA` (or the platform equivalent) at a scratch directory when running these so they never touch a real save.
 
@@ -270,14 +292,14 @@ rush-fracture/
       core/            stats, damage, layers, shared registry, effects
       player/          movement, camera, input
       combat/          weapons, projectiles, damage, combo, game feel
-      enemy/           base classes, 14 enemy types, 5 bosses
-      rooms/           arena builder, layouts, biomes, waves, hazards, pickups
+      enemy/           base classes, 14 enemy types, 7 bosses
+      rooms/           arena builder, layouts, biomes, conditions, fields, waves, hazards, pickups
       run/             run structure, modes, difficulty
       upgrades/ mutations/ fracture/
       progression/     profile, shards, unlocks, achievements
       network/ modes/  sessions, spawning, versus rules
       audio/           effect and music synthesis
-      ui/              hud, menus, panels
+      ui/              hud, menus, cards, icons
     tests/             bot, unit tests, network and audio checks
     assets/models/     generated GLB models
   concept-models/      the code that builds the models
@@ -290,6 +312,7 @@ a few rules the code follows:
 - every number that an upgrade can change is a `StatBlock` value with named modifiers, so effects stack and are removed exactly.
 - all player damage goes through one function (`Combat.deal`), which is where crits, weak points, on-hit effects and kill credit are decided.
 - enemies are built from a table of definitions, bosses from timed attack sequences.
+- in multiplayer the host believes very little: a client's hits are budgeted, the statuses it may apply are listed with a ceiling each, and messages about an enemy go through the room so one that has just died is ignored.
 - strict typing throughout, and signals between systems instead of polling.
 
 ---
