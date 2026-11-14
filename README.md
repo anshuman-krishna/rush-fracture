@@ -11,7 +11,7 @@ playable end to end, solo and multiplayer:
 
 - 5 run modes plus 10 difficulty tiers, co-op and two versus modes
 - 8 weapons, 14 enemy types with 5 elite variants, 5 bosses
-- 57 upgrades, 12 mutations, 9 fracture events
+- 93 upgrades, 12 mutations, 9 fracture events
 - 3 acts with their own look and music, 11 arena layouts with decks, ramps, jump pads, cover and hazards
 - persistent progression: shards, 12 meta upgrades, weapon and perk unlocks, 7 skins, 12 achievements
 - every sound and the soundtrack are generated at runtime; the game ships no audio files
@@ -78,7 +78,7 @@ you carry three. three are free, five are unlocked with shards.
 
 ### build
 
-- **upgrades** (57): common, rare, epic and cursed. some are plain stats, some change how a weapon works, some trigger on kills, dashes or slams. cursed ones are strong and cost you something.
+- **upgrades** (93): common, rare, epic and cursed. some are plain stats, some change how a weapon works (every weapon has at least three of its own), some trigger on hits, kills, dashes, slams or when you take damage. cursed ones are strong and cost you something. each run comes with three rerolls of the cards on offer, and the codex tab under progression lists everything that can turn up.
 - **mutations** (12): run-long rule changes with a real downside, such as glass cannon, blood pact, hollow bones or predator.
 - **the tithe altar**: a shop room where essence dropped by enemies buys healing, max health and upgrades.
 
