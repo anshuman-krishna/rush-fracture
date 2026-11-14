@@ -22,6 +22,8 @@ const THORN_REACH: float = 6.0
 const FAMILIAR_INTERVAL: float = 1.1
 const FAMILIAR_RANGE: float = 24.0
 const FAMILIAR_DAMAGE: float = 16.0
+const AFTERBURN_TIME: float = 2.0
+const DRUM_EVERY: int = 10
 
 const BURN_COLOR: Color = Color(1.0, 0.5, 0.15)
 const STORM_COLOR: Color = Color(0.7, 0.85, 1.0)
@@ -52,6 +54,12 @@ var _familiars: Array[MeshInstance3D] = []
 var _familiar_timer: float = 0.0
 var _familiar_phase: float = 0.0
 var _familiar_turn: int = 0
+var _burn_timer: float = 0.0
+var _regen: float = 0.0
+var _drain: float = 0.0
+var _kill_counter: int = 0
+var _cascade_armed: bool = false
+var _last_word_used: bool = false
 
 
 func bind(player: CharacterBody3D, weapon_manager: WeaponManager) -> void:
@@ -95,6 +103,12 @@ func reset() -> void:
 	_lust_timer = 0.0
 	_pulse_cooldown = 0.0
 	_hit_counter = 0
+	_burn_timer = 0.0
+	_regen = 0.0
+	_drain = 0.0
+	_kill_counter = 0
+	_cascade_armed = false
+	_last_word_used = false
 	for f: MeshInstance3D in _familiars:
 		if is_instance_valid(f):
 			f.free()
@@ -146,6 +160,8 @@ func _on_special_gained(special: StringName) -> void:
 			_player.heal(25)
 		&"heal_40":
 			_player.heal(40)
+		&"heal_10":
+			_player.heal(10)
 		&"heal_full":
 			_player.heal(_player.max_health)
 		&"second_wind":
@@ -231,6 +247,25 @@ func _tick_timers(delta: float) -> void:
 			_lust_stacks = 0
 			_player.stats.set_mul(&"fire_rate", &"up:bloodlust", 1.0)
 
+	if _burn_timer > 0.0:
+		_burn_timer -= delta
+		if _burn_timer <= 0.0:
+			_player.stats.set_mul(&"move_speed", &"up:afterburner", 1.0)
+
+	# health that trickles in or out, a whole point at a time
+	var regrowth: int = int(_specials.get(&"regrowth", 0))
+	if regrowth > 0 and not _player.is_dead:
+		_regen += delta * float(regrowth)
+		if _regen >= 1.0:
+			_player.heal(int(_regen))
+			_regen -= floorf(_regen)
+	if has(&"hunger") and not _player.is_dead:
+		_drain += delta
+		if _drain >= 1.0:
+			_drain -= 1.0
+			if _player.health > 1:
+				_player.health -= 1
+
 	if _plates < plates_max():
 		_plate_timer += delta
 		if _plate_timer >= PLATE_REGROW:
@@ -287,6 +322,19 @@ func on_enemy_killed(enemy: Node3D, info: DamageInfo) -> void:
 	if has(&"predator_reflex"):
 		_player.refund_dash(0.5)
 
+	if has(&"combo_feast") and _combo_multiplier >= 3:
+		_player.heal(2)
+
+	if has(&"war_drum"):
+		_kill_counter += 1
+		if _kill_counter >= DRUM_EVERY:
+			_kill_counter = 0
+			_player.refund_dash(10.0)
+			_player.grant_invulnerability(1.5)
+			if _player.is_inside_tree():
+				Vfx.ring(_player.global_position, 5.0, STORM_COLOR, 0.35)
+				Game.sfx(&"shield_block", -6.0, 0.1)
+
 	# the kill that empties a room can take the body out of the scene before
 	# this runs, and then it has no position to explode or throw shards from
 	var combat: Combat = Game.combat()
@@ -326,6 +374,15 @@ func on_enemy_hit(enemy: Node3D, info: DamageInfo) -> void:
 		var leech: int = int(_specials.get(&"leech", 0))
 		if leech > 0:
 			_player.heal(2 * leech)
+
+	# cascade: a crit arms one guaranteed crit; that one does not arm another
+	if has(&"crit_cascade") and info.kind != DamageInfo.KIND_DOT:
+		if _cascade_armed:
+			_cascade_armed = false
+			_player.stats.set_add(&"crit_chance", &"up:cascade", 0.0)
+		elif info.crit:
+			_cascade_armed = true
+			_player.stats.set_add(&"crit_chance", &"up:cascade", 1.0)
 
 	var afflict: bool = is_instance_valid(enemy) and enemy.has_method("apply_status")
 	if afflict:
@@ -380,6 +437,9 @@ func on_player_dashed() -> void:
 		return
 	if has(&"phase_dash"):
 		_player.grant_invulnerability(0.45)
+	if has(&"afterburner"):
+		_burn_timer = AFTERBURN_TIME
+		_player.stats.set_mul(&"move_speed", &"up:afterburner", 1.25)
 	if has(&"explosive_dash"):
 		var combat: Combat = Game.combat()
 		if combat:
@@ -417,6 +477,16 @@ func on_player_damaged(amount: int, info: DamageInfo) -> void:
 		_player.stats.set_mul(&"fire_rate", &"up:rush", 1.3)
 
 	var combat: Combat = Game.combat()
+
+	if has(&"last_word") and not _last_word_used and _player.health > 0 \
+			and float(_player.health) / float(maxi(1, _player.max_health)) <= 0.3:
+		_last_word_used = true
+		_player.grant_invulnerability(2.0)
+		if combat and _player.is_inside_tree():
+			Vfx.blast(_player.global_position + Vector3(0, 0.6, 0), 8.0, BURN_COLOR)
+			Game.sfx(&"explosion", -3.0, 0.1)
+			combat.blast(_player.global_position, 8.0, 80.0, {"can_proc": false, "knockback": 14.0})
+
 	if not combat or (info and info.kind == DamageInfo.KIND_SELF):
 		return
 
@@ -450,6 +520,11 @@ func _attacker_of(info: DamageInfo) -> Node3D:
 	if _in_scene(source) and source.is_in_group("enemies") and source.global_position.distance_to(from) <= THORN_REACH:
 		return source
 	return null
+
+
+## a new room: the once-per-room effects are ready again.
+func on_room_entered() -> void:
+	_last_word_used = false
 
 
 func on_combo_changed(multiplier: int) -> void:

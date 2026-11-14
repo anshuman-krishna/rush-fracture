@@ -546,6 +546,7 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 	room_controller.enter_room(room)
 	var condition: StringName = RoomConditions.of(room)
 	RoomConditions.apply_to_player(condition, player.stats)
+	upgrade_manager.on_room_entered()
 
 	if player.is_dead:
 		# a downed co-op player gets back up for the next room

@@ -172,10 +172,22 @@ func _physics_process(delta: float) -> void:
 
 
 func _affect_player(p: CharacterBody3D, def: Dictionary) -> void:
-	if def.has("stat") and "stats" in p:
-		p.stats.set_mul(def.stat, _key, float(def.factor))
+	if not "stats" in p:
+		return
+	if def.has("stat"):
+		p.stats.set_mul(def.stat, _key, player_factor(def, p.stats))
 	if def.has("heal") and p.has_method("heal"):
-		p.heal(int(def.heal))
+		p.heal(maxi(1, int(round(float(def.heal) * p.stats.value(&"field_boon")))))
+
+
+## the field's multiplier as this player feels it: their own stats can make
+## a helpful field stronger and a harmful one weaker.
+static func player_factor(def: Dictionary, stats: StatBlock) -> float:
+	var factor: float = float(def.factor)
+	# taking less damage is good; everything else is good when it goes up
+	var helps: bool = factor < 1.0 if def.stat == &"damage_taken" else factor > 1.0
+	var strength: float = stats.value(&"field_boon") if helps else stats.value(&"field_bane")
+	return maxf(0.1, 1.0 + (factor - 1.0) * strength)
 
 
 func _release(p: CharacterBody3D) -> void:

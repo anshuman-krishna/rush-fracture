@@ -22,7 +22,7 @@ const STAT_GLYPHS: Dictionary = {
 	&"blast_damage": &"burst", &"blast_radius": &"burst", &"pickup_radius": &"gem",
 	&"essence_gain": &"gem", &"swap_speed": &"blade", &"recoil": &"blade",
 	&"dot_damage": &"flame", &"orb_heal": &"drop", &"combo_time": &"hourglass",
-	&"slide_friction": &"blade", &"fov_bias": &"eye",
+	&"slide_friction": &"blade", &"fov_bias": &"eye", &"field_boon": &"pulse", &"field_bane": &"pulse",
 }
 
 ## and for an upgrade whose effect is scripted
@@ -39,7 +39,9 @@ const SPECIAL_GLYPHS: Dictionary = {
 	&"full_bloom": &"heart", &"gilded_marrow": &"gem", &"bone_plating": &"shield",
 	&"thorns": &"shards", &"adrenal_rush": &"bolt", &"recoil_pulse": &"pulse",
 	&"storm_caller": &"bolt", &"brood_familiar": &"orbit", &"power_surge": &"bolt",
-	&"berserker_pact": &"skull", &"borrowed_time": &"hourglass",
+	&"berserker_pact": &"skull", &"borrowed_time": &"hourglass", &"heal_10": &"shield",
+	&"crit_cascade": &"crosshair", &"regrowth": &"heart", &"combo_feast": &"drop",
+	&"afterburner": &"dash", &"last_word": &"burst", &"war_drum": &"pulse", &"hunger": &"skull",
 }
 
 const ROOM_GLYPHS: Dictionary = {

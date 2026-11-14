@@ -169,6 +169,8 @@ func _init_stats() -> void:
 		&"pickup_radius": 3.5,
 		&"essence_gain": 1.0,
 		&"orb_heal": 1.0,
+		&"field_boon": 1.0,
+		&"field_bane": 1.0,
 		&"combo_time": 1.0,
 		&"ability_charge": 1.0,
 		&"fov_bias": 0.0,

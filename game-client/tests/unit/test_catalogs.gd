@@ -33,7 +33,7 @@ func test_upgrade_ids_are_unique_and_complete() -> void:
 		check(UpgradeDefinitions.max_stacks(u) >= 1, "%s can be taken at least once" % id)
 		var does_something: bool = not (u.get("mods", []) as Array).is_empty() or u.has("special") or u.has("flag")
 		check(does_something, "%s has at least one effect" % id)
-	check(seen.size() >= 90, "catalogue has the expected breadth (%d)" % seen.size())
+	check(seen.size() >= 100, "catalogue has the expected breadth (%d)" % seen.size())
 
 
 func test_upgrade_mods_target_real_stats() -> void:
@@ -274,7 +274,7 @@ func test_every_upgrade_applies_and_resets() -> void:
 	eq(manager.get_child_count(), 2, "two brood familiars exist")
 
 	manager.reset()
-	for stat: StringName in [&"damage", &"fire_rate", &"damage_taken", &"orb_heal", &"combo_time", &"dash_charges", &"essence_gain"]:
+	for stat: StringName in [&"damage", &"fire_rate", &"damage_taken", &"orb_heal", &"combo_time", &"dash_charges", &"essence_gain", &"field_boon", &"field_bane"]:
 		near(player.stats.value(stat), 1.0, "reset restores %s" % stat)
 	near(player.stats.value(&"max_health"), 100.0, "reset restores max health")
 	near(player.stats.value(&"air_jumps"), 0.0, "reset removes air jumps")
@@ -382,4 +382,59 @@ func test_dash_refund_and_combo_window() -> void:
 	near(combo.get_time_remaining(), ComboTracker.COMBO_WINDOW * 1.3, "a longer window with the upgrade")
 	near(combo.time_ratio(), 1.0, "and the hud bar is full at the start of it")
 	combo.free()
+	player.free()
+
+
+func test_trickle_and_cascade_effects() -> void:
+	var player: Node = (load(PLAYER_SCRIPT) as Script).new()
+	var manager: UpgradeManager = UpgradeManager.new()
+	manager.bind(player, null)
+
+	manager.apply(UpgradeDefinitions.find(&"regrowth"))
+	player.health = 50
+	manager._tick_timers(0.6)
+	eq(player.health, 50, "less than a second: no whole point yet")
+	manager._tick_timers(0.6)
+	eq(player.health, 51, "regrowth heals a point a second")
+
+	manager.apply(UpgradeDefinitions.find(&"hunger"))
+	manager.reset()
+	manager.apply(UpgradeDefinitions.find(&"hunger"))
+	player.health = 3
+	for i: int in 6:
+		manager._tick_timers(1.0)
+	eq(player.health, 1, "the hunger stops at the last point")
+
+	manager.reset()
+	manager.apply(UpgradeDefinitions.find(&"crit_cascade"))
+	var crit: DamageInfo = DamageInfo.make(10)
+	crit.crit = true
+	var base_chance: float = player.stats.value(&"crit_chance")
+	manager.on_enemy_hit(null, crit)
+	near(player.stats.value(&"crit_chance"), base_chance + 1.0, "a crit arms a guaranteed one")
+	manager.on_enemy_hit(null, crit)
+	near(player.stats.value(&"crit_chance"), base_chance, "and that one does not arm another")
+
+	manager.reset()
+	manager.apply(UpgradeDefinitions.find(&"afterburner"))
+	manager.on_player_dashed()
+	near(player.stats.value(&"move_speed"), 12.0 * 1.25, "afterburner after a dash")
+	manager._tick_timers(UpgradeManager.AFTERBURN_TIME + 0.1)
+	near(player.stats.value(&"move_speed"), 12.0, "and it runs out")
+	manager.free()
+	player.free()
+
+
+func test_rootbound_bends_fields_the_right_way() -> void:
+	var player: Node = (load(PLAYER_SCRIPT) as Script).new()
+	var manager: UpgradeManager = UpgradeManager.new()
+	manager.bind(player, null)
+	near(FieldZone.player_factor(FieldZone.KINDS[&"surge"], player.stats), 1.3, "a surge field as written")
+	near(FieldZone.player_factor(FieldZone.KINDS[&"mire"], player.stats), 0.65, "a mire as written")
+	manager.apply(UpgradeDefinitions.find(&"rootbound"))
+	near(FieldZone.player_factor(FieldZone.KINDS[&"surge"], player.stats), 1.45, "a helpful field is half again as strong")
+	near(FieldZone.player_factor(FieldZone.KINDS[&"ward"], player.stats), 0.55, "so is one that cuts damage taken")
+	near(FieldZone.player_factor(FieldZone.KINDS[&"mire"], player.stats), 0.825, "a harmful field is half as strong")
+	near(FieldZone.player_factor(FieldZone.KINDS[&"frail"], player.stats), 1.15, "so is one that raises damage taken")
+	manager.free()
 	player.free()
