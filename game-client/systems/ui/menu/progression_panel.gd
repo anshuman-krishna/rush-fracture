@@ -2,12 +2,17 @@ class_name ProgressionPanel
 extends Control
 
 # the shard shop and record book: permanent upgrades, unlocks (weapon
-# variants, perks, cosmetics), achievements, and lifetime stats.
+# variants, perks, cosmetics), achievements, lifetime stats, and a codex of
+# everything a run can offer.
 
 signal closed
 signal profile_changed
 
-const TABS: Array[String] = ["upgrades", "unlocks", "achievements", "stats"]
+const TABS: Array[String] = ["upgrades", "unlocks", "achievements", "stats", "codex"]
+const CODEX_ORDER: Array[StringName] = [
+	UpgradeDefinitions.RARITY_COMMON, UpgradeDefinitions.RARITY_RARE,
+	UpgradeDefinitions.RARITY_EPIC, UpgradeDefinitions.RARITY_CURSED,
+]
 
 var _profile: PlayerProfile
 var _tab: String = "upgrades"
@@ -90,7 +95,7 @@ func _rebuild() -> void:
 		child.queue_free()
 
 	for name: String in TABS:
-		var b: Button = UiKit.button(name, 17, Vector2(170, 42))
+		var b: Button = UiKit.button(name, 17, Vector2(150, 42))
 		if name == _tab:
 			b.add_theme_stylebox_override("normal", UiKit.box(Color(0.14, 0.2, 0.15), UiKit.ACCENT, 2, 6))
 		var tab_name: String = name
@@ -104,6 +109,7 @@ func _rebuild() -> void:
 		"unlocks": _build_unlocks()
 		"achievements": _build_achievements()
 		"stats": _build_stats()
+		"codex": _build_codex()
 
 
 func _build_upgrades() -> void:
@@ -177,3 +183,36 @@ func _build_stats() -> void:
 	lines.append("best daily kills: %d" % _profile.daily_best_kills)
 	for line: String in lines:
 		_list.add_child(UiKit.label(line, 19, UiKit.TEXT))
+
+
+## every upgrade and mutation a run can offer, to read before meeting them.
+func _build_codex() -> void:
+	_list.add_child(UiKit.label("%d upgrades can turn up in a run. a weapon's own upgrades only appear while you carry it." % UpgradeDefinitions.CATALOG.size(), 16, UiKit.TEXT_DIM))
+	for rarity: StringName in CODEX_ORDER:
+		var color: Color = UpgradeDefinitions.RARITY_COLOR[rarity]
+		var entries: Array[Dictionary] = []
+		for u: Dictionary in UpgradeDefinitions.CATALOG:
+			if u.get("rarity", UpgradeDefinitions.RARITY_COMMON) == rarity:
+				entries.append(u)
+		_list.add_child(UiKit.label("%s  ·  %d" % [rarity, entries.size()], 18, color, true))
+		for u: Dictionary in entries:
+			var notes: PackedStringArray = PackedStringArray()
+			var weapon: StringName = u.get("weapon", &"")
+			if weapon != &"":
+				notes.append(WeaponDefs.display_name(weapon))
+			var most: int = UpgradeDefinitions.max_stacks(u)
+			if most > 1:
+				notes.append("stacks up to %d" % most)
+			_list.add_child(_codex_card(u.name, u.description, color, "  ·  ".join(notes)))
+
+	_list.add_child(UiKit.label("mutations  ·  %d" % MutationDefinitions.CATALOG.size(), 18, UiKit.WARN, true))
+	for m: Dictionary in MutationDefinitions.CATALOG:
+		_list.add_child(_codex_card(m.name, "%s, but %s" % [m.upside, m.downside], UiKit.WARN, ""))
+
+
+## a card that is only there to be read.
+func _codex_card(title: String, body: String, edge: Color, footer: String) -> Button:
+	var card: Button = UiKit.card(title, body, edge, footer)
+	card.custom_minimum_size = Vector2(0, 74 if footer.is_empty() else 92)
+	card.focus_mode = Control.FOCUS_NONE
+	return card
