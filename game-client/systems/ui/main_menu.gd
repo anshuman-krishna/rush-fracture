@@ -5,6 +5,7 @@ extends Control
 
 const RUN_MODES: Array[StringName] = [
 	RunData.MODE_STANDARD, RunData.MODE_SPRINT, RunData.MODE_ENDLESS, RunData.MODE_BOSS_RUSH, RunData.MODE_DAILY,
+	RunData.MODE_ONSLAUGHT, RunData.MODE_TEMPEST, RunData.MODE_HUNT, RunData.MODE_DRAFT, RunData.MODE_DEADLINE,
 ]
 const COOP_MODE_NAMES: Array[String] = ["co-op", "race", "pvp encounter"]
 
@@ -17,8 +18,15 @@ var _audio: AudioManager
 var _run_mode_index: int = 0
 var _coop_mode: int = 0
 var _ascension: int = 0
+var _difficulty: StringName = Difficulty.DEFAULT
 
 var _root_panel: Control
+var _mode_tabs: Array[IconTab] = []
+var _mode_name: Label
+var _difficulty_buttons: Dictionary = {}
+var _difficulty_blurb: Label
+var _ascension_box: HBoxContainer
+var _ascension_value: Label
 var _mode_button: Button
 var _mode_blurb: Label
 var _ascension_button: Button
@@ -51,6 +59,7 @@ func _ready() -> void:
 	GameSettings.load_settings().apply()
 	_profile = PlayerProfile.load_profile()
 	_ascension = _profile.ascension_selected
+	_difficulty = Difficulty.valid(_profile.difficulty_selected)
 
 	_audio = AudioManager.new()
 	_audio.name = "MenuAudio"
@@ -113,55 +122,117 @@ func _build() -> void:
 
 	var col: VBoxContainer = VBoxContainer.new()
 	col.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
-	col.custom_minimum_size = Vector2(520, 0)
-	col.add_theme_constant_override("separation", 10)
+	col.custom_minimum_size = Vector2(560, 0)
+	col.add_theme_constant_override("separation", 8)
 	margin.add_child(col)
 
-	col.add_child(UiKit.label("RUSH FRACTURE", 76, Color(0.95, 0.98, 0.95), true))
-	col.add_child(UiKit.label("break speed. survive chaos.", 22, UiKit.ACCENT))
-	_shards_label = UiKit.label("", 19, UiKit.ACCENT, true)
-	col.add_child(_shards_label)
-	_stats_label = UiKit.label("", 15, UiKit.TEXT_DIM)
-	_stats_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_stats_label)
-	col.add_child(_spacer(8))
+	var name_label: Label = UiKit.label("RUSH FRACTURE", 84, Color(0.97, 0.94, 0.88))
+	name_label.add_theme_font_override("font", UiKit.font_title())
+	col.add_child(name_label)
+	var motto: Label = UiKit.label("break speed. survive chaos.", 17, UiKit.ACCENT)
+	motto.add_theme_font_override("font", UiKit.font_tag())
+	col.add_child(motto)
+	var purse: HBoxContainer = HBoxContainer.new()
+	purse.add_theme_constant_override("separation", 18)
+	col.add_child(purse)
+	_shards_label = UiKit.label("", 19, UiKit.GOLD, true)
+	purse.add_child(_shards_label)
+	_stats_label = UiKit.label("", 14, UiKit.TEXT_DIM)
+	_stats_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_stats_label.clip_text = true
+	purse.add_child(_stats_label)
 
-	_start_button = UiKit.button("start run", 26, Vector2(520, 66))
+	_start_button = UiKit.button("start run", 26, Vector2(560, 62))
 	_start_button.add_theme_color_override("font_color", UiKit.ACCENT)
+	_start_button.add_theme_font_override("font", UiKit.font_title())
 	_start_button.pressed.connect(_on_start)
 	col.add_child(_start_button)
 
-	_mode_button = UiKit.button("", 19, Vector2(520, 46))
+	# --- the run: which mode, how hard, which seed
+	col.add_child(_tag("the run"))
+	var grid: GridContainer = GridContainer.new()
+	grid.columns = 5
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 8)
+	col.add_child(grid)
+	for i: int in RUN_MODES.size():
+		var tab: IconTab = IconTab.new()
+		tab.glyph = GameModeManager.run_mode_glyph(RUN_MODES[i])
+		tab.caption = GameModeManager.run_mode_name(RUN_MODES[i]).trim_suffix(" run").trim_prefix("the ")
+		var index: int = i
+		tab.pressed.connect(func() -> void:
+			_run_mode_index = index
+			Game.sfx(&"ui_select", -8.0)
+			_refresh())
+		grid.add_child(tab)
+		_mode_tabs.append(tab)
+
+	var mode_row: HBoxContainer = HBoxContainer.new()
+	col.add_child(mode_row)
+	_mode_name = UiKit.label("", 24, UiKit.BONE)
+	_mode_name.add_theme_font_override("font", UiKit.font_title())
+	_mode_name.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	mode_row.add_child(_mode_name)
+	# steps to the next mode: for a pad, and for the menu test, which presses it
+	_mode_button = UiKit.button("next", 14, Vector2(70, 30))
 	_mode_button.pressed.connect(func() -> void:
 		_run_mode_index = (_run_mode_index + 1) % RUN_MODES.size()
 		Game.sfx(&"ui_select", -8.0)
 		_refresh())
-	col.add_child(_mode_button)
+	mode_row.add_child(_mode_button)
 	_mode_blurb = UiKit.label("", 15, UiKit.TEXT_DIM)
 	_mode_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_mode_blurb.custom_minimum_size = Vector2(0, 40)
 	col.add_child(_mode_blurb)
 
-	_ascension_button = UiKit.button("", 19, Vector2(520, 46))
-	_ascension_button.pressed.connect(func() -> void:
-		_ascension = (_ascension + 1) % (_profile.ascension_unlocked + 1)
-		_profile.ascension_selected = _ascension
-		_profile.save()
-		Game.sfx(&"ui_select", -8.0)
-		_refresh())
-	col.add_child(_ascension_button)
-	_ascension_blurb = UiKit.label("", 15, UiKit.TEXT_DIM)
-	_ascension_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_ascension_blurb)
+	var diff_row: HBoxContainer = HBoxContainer.new()
+	diff_row.add_theme_constant_override("separation", 8)
+	col.add_child(diff_row)
+	for id: StringName in Difficulty.ORDER:
+		var b: Button = UiKit.button(Difficulty.display_name(id), 16, Vector2(0, 36))
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var chosen: StringName = id
+		b.pressed.connect(func() -> void:
+			_difficulty = chosen
+			_profile.difficulty_selected = String(chosen)
+			_profile.save()
+			Game.sfx(&"ui_select", -8.0)
+			_refresh())
+		diff_row.add_child(b)
+		_difficulty_buttons[id] = b
+	_difficulty_blurb = UiKit.label("", 14, UiKit.TEXT_DIM)
+	_difficulty_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(_difficulty_blurb)
 
-	var seed_row: HBoxContainer = HBoxContainer.new()
-	seed_row.add_child(UiKit.label("seed", 16, UiKit.TEXT_DIM))
+	var tune_row: HBoxContainer = HBoxContainer.new()
+	tune_row.add_theme_constant_override("separation", 8)
+	col.add_child(tune_row)
+	_ascension_box = HBoxContainer.new()
+	_ascension_box.add_theme_constant_override("separation", 6)
+	tune_row.add_child(_ascension_box)
+	_ascension_box.add_child(UiKit.label("ascension", 15, UiKit.TEXT_DIM))
+	var down: Button = UiKit.button("-", 16, Vector2(34, 34))
+	down.pressed.connect(func() -> void: _step_ascension(-1))
+	_ascension_box.add_child(down)
+	_ascension_value = UiKit.label("0", 20, UiKit.BONE, true)
+	_ascension_value.custom_minimum_size = Vector2(30, 0)
+	_ascension_value.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_ascension_box.add_child(_ascension_value)
+	_ascension_button = UiKit.button("+", 16, Vector2(34, 34))
+	_ascension_button.pressed.connect(func() -> void: _step_ascension(1))
+	_ascension_box.add_child(_ascension_button)
+	var gap: Control = Control.new()
+	gap.custom_minimum_size = Vector2(16, 0)
+	_ascension_box.add_child(gap)
+	tune_row.add_child(UiKit.label("seed", 15, UiKit.TEXT_DIM))
 	_seed_input = LineEdit.new()
 	_seed_input.placeholder_text = "random"
 	_seed_input.max_length = 9
-	_seed_input.custom_minimum_size = Vector2(180, 36)
-	seed_row.add_child(_seed_input)
-	col.add_child(seed_row)
-	col.add_child(_spacer(6))
+	_seed_input.custom_minimum_size = Vector2(150, 34)
+	tune_row.add_child(_seed_input)
+	_ascension_blurb = UiKit.label("", 14, UiKit.TEXT_DIM)
+	_ascension_blurb.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(_ascension_blurb)
 
 	var row: HBoxContainer = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
@@ -169,14 +240,17 @@ func _build() -> void:
 	_small_button(row, "armory", _open_armory)
 	_small_button(row, "progression", _open_progression)
 	_small_button(row, "settings", _open_settings)
+	_small_button(row, "quit", func() -> void:
+		_network.disconnect_game()
+		get_tree().quit())
 
 	col.add_child(_spacer(6))
-	col.add_child(UiKit.label("multiplayer", 16, UiKit.WARN, true))
+	col.add_child(_tag("multiplayer"))
 	_net_box = VBoxContainer.new()
 	_net_box.add_theme_constant_override("separation", 8)
 	col.add_child(_net_box)
 
-	_coop_button = UiKit.button("", 17, Vector2(520, 40))
+	_coop_button = UiKit.button("", 17, Vector2(560, 38))
 	_coop_button.pressed.connect(func() -> void:
 		_coop_mode = (_coop_mode + 1) % COOP_MODE_NAMES.size()
 		_refresh())
@@ -211,12 +285,6 @@ func _build() -> void:
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_net_box.add_child(_status)
 
-	col.add_child(_spacer(6))
-	var quit: Button = UiKit.button("quit", 17, Vector2(160, 40))
-	quit.pressed.connect(func() -> void:
-		_network.disconnect_game()
-		get_tree().quit())
-	col.add_child(quit)
 
 	_armory = ArmoryPanel.new()
 	add_child(_armory)
@@ -236,6 +304,30 @@ func _build() -> void:
 	_start_button.grab_focus.call_deferred()
 
 
+## a small spaced heading over a group of controls, with a rule after it.
+func _tag(text: String) -> Control:
+	var row: HBoxContainer = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var l: Label = UiKit.label(text, 13, UiKit.BONE)
+	l.add_theme_font_override("font", UiKit.font_tag())
+	row.add_child(l)
+	var line: ColorRect = ColorRect.new()
+	line.color = Color(UiKit.BONE.r, UiKit.BONE.g, UiKit.BONE.b, 0.3)
+	line.custom_minimum_size = Vector2(0, 1)
+	line.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	line.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	row.add_child(line)
+	return row
+
+
+func _step_ascension(by: int) -> void:
+	_ascension = posmod(_ascension + by, _profile.ascension_unlocked + 1)
+	_profile.ascension_selected = _ascension
+	_profile.save()
+	Game.sfx(&"ui_select", -8.0)
+	_refresh()
+
+
 func _spacer(height: float) -> Control:
 	var c: Control = Control.new()
 	c.custom_minimum_size = Vector2(0, height)
@@ -243,7 +335,7 @@ func _spacer(height: float) -> Control:
 
 
 func _small_button(row: HBoxContainer, text: String, callback: Callable) -> void:
-	var b: Button = UiKit.button(text, 18, Vector2(166, 46))
+	var b: Button = UiKit.button(text, 17, Vector2(132, 42))
 	b.pressed.connect(callback)
 	row.add_child(b)
 
@@ -261,16 +353,32 @@ func _refresh() -> void:
 	_shards_label.text = "%d shards" % _profile.fracture_shards
 	_stats_label.text = "   ·   ".join(_profile.get_stat_summary())
 
-	_mode_button.text = "mode:  %s" % GameModeManager.run_mode_name(mode)
+	_mode_name.text = GameModeManager.run_mode_name(mode)
 	_mode_blurb.text = GameModeManager.run_mode_description(mode)
+	var locked: bool = versus or (online and not hosting)
+	for i: int in _mode_tabs.size():
+		_mode_tabs[i].selected = i == _run_mode_index
+		_mode_tabs[i].disabled = locked
+		_mode_tabs[i].queue_redraw()
+	for id: StringName in _difficulty_buttons:
+		var b: Button = _difficulty_buttons[id]
+		var tint: Color = Difficulty.color(id)
+		b.disabled = locked
+		if id == _difficulty:
+			b.add_theme_stylebox_override("normal", UiKit.box(UiKit.CARD.lerp(tint, 0.18), tint, 2))
+			b.add_theme_color_override("font_color", tint)
+		else:
+			b.remove_theme_stylebox_override("normal")
+			b.remove_theme_color_override("font_color")
+	_difficulty_blurb.text = Difficulty.text(_difficulty)
 	if mode == RunData.MODE_DAILY and _profile.daily_last_played == GameModeManager.daily_key():
 		_mode_blurb.text += " (already played today: best %d kills)" % _profile.daily_best_kills
 	_mode_button.disabled = versus or (online and not hosting)
 
 	_ascension = clampi(_ascension, 0, _profile.ascension_unlocked)
-	_ascension_button.visible = _profile.ascension_unlocked > 0
+	_ascension_box.visible = _profile.ascension_unlocked > 0
 	_ascension_blurb.visible = _profile.ascension_unlocked > 0
-	_ascension_button.text = "ascension:  %d" % _ascension
+	_ascension_value.text = str(_ascension)
 	_ascension_blurb.text = MetaProgression.ascension_description(_ascension)
 	_ascension_button.disabled = online and not hosting
 
@@ -311,11 +419,12 @@ func _on_start() -> void:
 	if _network.is_online():
 		if not _network.is_host():
 			return
-		_network.start_match(_coop_mode, String(mode), _ascension, _selected_seed())
+		_network.start_match(_coop_mode, String(mode), _ascension, _selected_seed(), String(_difficulty))
 		return
 	_modes.set_mode(GameModeManager.GameMode.COOP)
 	_modes.run_mode = mode
 	_modes.ascension = _ascension
+	_modes.difficulty = _difficulty
 	_modes.custom_seed = _selected_seed()
 	Game.sfx(&"run_start", -6.0)
 	var tween: Tween = create_tween()
