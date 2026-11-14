@@ -20,6 +20,8 @@ const REROLLS_PER_RUN: int = 3
 const DEADLINE_START: float = 80.0
 const DEADLINE_PER_KILL: float = 1.5
 const DEADLINE_PER_ROOM: float = 12.0
+## how long the host waits for slower players to finish choosing before moving on
+const ADVANCE_PATIENCE: float = 20.0
 
 const SHOP_PRICES: Dictionary = {
 	UpgradeDefinitions.RARITY_COMMON: 35,
@@ -74,6 +76,11 @@ var _rerolls_left: int = 0
 ## deadline mode: seconds left, or -1 when the run has no clock
 var _deadline: float = -1.0
 var _deadline_sync: float = 0.0
+## host: which peers have finished taking this room's rewards
+var _rewards_done: Dictionary = {}
+## host: the way forward it has picked, held until everyone is done choosing (-1 = none)
+var _pending_advance: int = -1
+var _advance_patience: float = 0.0
 var _shop_items: Array[Dictionary] = []
 var _shared_enemy_speed_bonus: float = 0.0
 var _pvp_active: bool = false
@@ -319,6 +326,13 @@ func _process(delta: float) -> void:
 
 	_tick_deadline(delta)
 
+	if _pending_advance >= 0:
+		_advance_patience -= delta
+		if _advance_patience <= 0.0:
+			var option: int = _pending_advance
+			hud.hide_prompt()
+			_advance_room(option)
+
 
 ## deadline mode: the clock only runs while there is something to fight. the
 ## host keeps it and tells everyone else what it reads.
@@ -354,7 +368,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		awaiting_transition = false
 		hud.hide_prompt()
 		if is_host_or_solo():
-			_advance_room(0)
+			_request_advance(0)
 		else:
 			_rpc_request_advance_room.rpc_id(1)
 
@@ -472,7 +486,54 @@ func _check_all_ready() -> void:
 	_start_run()
 
 
+## host: move on to the next room, once nobody is still choosing a reward.
+## leaving a room closes everyone's panels, so going early would cost the
+## slower players their pick. it does not wait forever.
+func _request_advance(option_index: int) -> void:
+	if not _is_online() or _everyone_done_choosing():
+		_advance_room(option_index)
+		return
+	if _pending_advance < 0:
+		_advance_patience = ADVANCE_PATIENCE
+	_pending_advance = option_index
+	hud.show_prompt("waiting for the others to choose")
+
+
+func _everyone_done_choosing() -> bool:
+	for id: int in network_manager.connected_peers:
+		if not _rewards_done.has(id):
+			return false
+	return true
+
+
+func _try_pending_advance() -> void:
+	if _pending_advance >= 0 and is_host_or_solo() and _everyone_done_choosing():
+		var option: int = _pending_advance
+		_pending_advance = -1
+		hud.hide_prompt()
+		_advance_room(option)
+
+
+## this peer has taken (or been given) everything the room pays.
+func _report_rewards_done() -> void:
+	if not _is_online():
+		return
+	if is_host_or_solo():
+		_rewards_done[_local_peer_id()] = true
+		_try_pending_advance()
+	else:
+		_rpc_rewards_done.rpc_id(1)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_rewards_done() -> void:
+	if is_host_or_solo():
+		_rewards_done[multiplayer.get_remote_sender_id()] = true
+		_try_pending_advance()
+
+
 func _advance_room(option_index: int) -> void:
+	_pending_advance = -1
 	run_manager.advance_to_next_room(option_index)
 	if _is_online():
 		_rpc_advance_room.rpc(option_index)
@@ -493,7 +554,7 @@ func _rpc_request_advance_room() -> void:
 	if is_host_or_solo() and run_manager.data and run_manager.data.next_options().size() <= 1:
 		var room: RunData.RoomData = run_manager.data.current_room()
 		if room and room.status == RoomDefinitions.RoomStatus.CLEARED:
-			_advance_room(0)
+			_request_advance(0)
 
 
 func _complete_run() -> void:
@@ -534,6 +595,8 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 	_room_flawless = true
 	_fracture_delay = -1.0
 	_down_peers.clear()
+	_rewards_done.clear()
+	_pending_advance = -1
 
 	# solo only: nudge the room toward how the run has been going. in co-op
 	# every peer must build the same room, so the budget is left alone.
@@ -697,6 +760,7 @@ func _after_rewards() -> void:
 	var data: RunData = run_manager.data
 	if not data or not run_manager.is_active:
 		return
+	_report_rewards_done()
 	if data.is_final_room():
 		_complete_run()
 		return
@@ -716,7 +780,7 @@ func _on_path_chosen(index: int) -> void:
 		return
 	awaiting_path = false
 	Game.sfx(&"ui_select", -6.0)
-	_advance_room(index)
+	_request_advance(index)
 
 
 func _loadout_ids() -> Array:
@@ -1217,6 +1281,9 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	_down_peers.erase(peer_id)
 	_ready_peers.erase(peer_id)
 	_peer_speed_bonus.erase(peer_id)
+	_rewards_done.erase(peer_id)
+	# they may have been the one everybody was waiting on to finish choosing
+	_try_pending_advance.call_deferred()
 	if _pvp_active:
 		pvp_manager.forfeit(peer_id)
 		return

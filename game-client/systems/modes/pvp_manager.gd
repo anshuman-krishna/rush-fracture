@@ -171,6 +171,14 @@ func _rpc_request_pvp_damage(target_peer: int, damage: int, attacker_peer: int) 
 		return
 	if not _active or target_peer in _eliminated:
 		return
+	# the sender can only speak for itself, only about someone else in the
+	# duel, and no single hit is worth more than a whole health bar
+	var sender: int = multiplayer.get_remote_sender_id()
+	if attacker_peer != sender or target_peer == sender or not _pvp_health.has(target_peer) or sender in _eliminated:
+		return
+	damage = clampi(damage, 0, _pvp_max_health)
+	if damage <= 0:
+		return
 	_apply_pvp_damage(target_peer, damage, attacker_peer)
 	_rpc_pvp_damage.rpc(target_peer, damage, attacker_peer)
 

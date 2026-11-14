@@ -641,7 +641,9 @@ func take_damage(amount: int, info: DamageInfo = null) -> void:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_request_damage(amount: int) -> void:
-	if not _is_local_authority():
+	# enemies and the room live on the host, so only the host has any business
+	# sending this. every other peer hurts its own player directly.
+	if not _is_local_authority() or multiplayer.get_remote_sender_id() != 1:
 		return
 	_apply_damage_local(clampi(amount, 0, 500), null)
 

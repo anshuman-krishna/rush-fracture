@@ -927,7 +927,9 @@ func _delayed_area_hit(at: Vector3, radius: float, delay: float, player_damage: 
 # a node that no longer exists is an engine error, while one addressed to the
 # room with a name the room no longer knows is simply dropped.
 
-const CLIENT_STATUSES: Array[StringName] = [&"slow", &"burn", &"mark"]
+## the statuses a client's weapons and upgrades can apply, and the most each
+## may be worth. anything else, or anything stronger, did not come from the game.
+const CLIENT_STATUSES: Dictionary = {&"slow": 0.6, &"burn": 80.0, &"mark": 0.5}
 
 
 func send_enemy_hit(enemy: Node, amount: int, crit: bool) -> void:
@@ -966,7 +968,7 @@ func _rpc_enemy_status(node_name: String, id: String, seconds: float, power: flo
 	var enemy: EnemyBase = _reported_enemy(node_name)
 	if not enemy or not CLIENT_STATUSES.has(StringName(id)) or not is_finite(seconds) or not is_finite(power):
 		return
-	enemy.apply_status(StringName(id), clampf(seconds, 0.0, 10.0), clampf(power, 0.0, 200.0), null, multiplayer.get_remote_sender_id())
+	enemy.apply_status(StringName(id), clampf(seconds, 0.0, 10.0), clampf(power, 0.0, float(CLIENT_STATUSES[StringName(id)])), null, multiplayer.get_remote_sender_id())
 
 
 @rpc("any_peer", "call_remote", "unreliable")
