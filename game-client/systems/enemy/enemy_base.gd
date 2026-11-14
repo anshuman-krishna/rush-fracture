@@ -58,6 +58,8 @@ var _spawn_timer: float = 0.0
 var _stun: float = 0.0
 var _knock: Vector3 = Vector3.ZERO
 var _statuses: Dictionary = {}
+## client only: status id -> the tick (msec) at which this peer's own copy runs out
+var _remote_statuses: Dictionary = {}
 var _dot_timer: float = 0.0
 var _flash_timer: float = 0.0
 var _retarget_timer: float = 0.0
@@ -185,7 +187,13 @@ func begin_spawn(duration: float = SPAWN_TIME) -> void:
 
 
 func apply_knockback(dir: Vector3, force: float) -> void:
-	if is_dying or not _is_local_authority():
+	if is_dying:
+		return
+	if not _is_local_authority():
+		# only the host moves enemies, so a client asks it to
+		var rooms: RoomController = Game.rooms()
+		if rooms:
+			rooms.send_enemy_shove(self, dir, force)
 		return
 	var d: Vector3 = Vector3(dir.x, 0.0 if not flying else dir.y, dir.z)
 	if d.length() < 0.01:
@@ -197,6 +205,10 @@ func stun(seconds: float) -> void:
 	if _is_local_authority():
 		_stun = maxf(_stun, seconds / maxf(1.0, mass * 0.6))
 		_melee.clear()
+	elif not is_dying:
+		var rooms: RoomController = Game.rooms()
+		if rooms:
+			rooms.send_enemy_stun(self, seconds)
 
 
 ## timed effects: &"slow" (power = 0..1 speed loss), &"burn" (power = damage
@@ -205,7 +217,12 @@ func apply_status(id: StringName, seconds: float, power: float, source: Node = n
 	if is_dying:
 		return
 	if not _is_local_authority():
-		_rpc_status.rpc_id(1, String(id), seconds, power)
+		# the host runs the effect. keep a note of it here, so this player's own
+		# upgrades can still tell that the enemy is burning or marked
+		_remote_statuses[id] = Time.get_ticks_msec() + int(seconds * 1000.0)
+		var rooms: RoomController = Game.rooms()
+		if rooms:
+			rooms.send_enemy_status(self, id, seconds, power)
 		return
 	var existing: Dictionary = _statuses.get(id, {})
 	_statuses[id] = {
@@ -218,12 +235,6 @@ func apply_status(id: StringName, seconds: float, power: float, source: Node = n
 	_refresh_status_mods()
 
 
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_status(id: String, seconds: float, power: float) -> void:
-	if is_inside_tree() and _is_local_authority():
-		apply_status(StringName(id), clampf(seconds, 0.0, 10.0), clampf(power, 0.0, 200.0), null, multiplayer.get_remote_sender_id())
-
-
 ## temporary speed boost from an ally (power 0.25 = +25%). expires on this
 ## enemy's own clock.
 func apply_haste(bonus: float, seconds: float) -> void:
@@ -231,7 +242,7 @@ func apply_haste(bonus: float, seconds: float) -> void:
 
 
 func has_status(id: StringName) -> bool:
-	return _statuses.has(id)
+	return _statuses.has(id) or int(_remote_statuses.get(id, 0)) > Time.get_ticks_msec()
 
 
 func is_attacking() -> bool:

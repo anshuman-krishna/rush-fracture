@@ -806,6 +806,69 @@ func _rpc_enemy_died(node_name: String, killer_peer: int) -> void:
 			combat.credit_kill(enemy)
 
 
+# --- what a client does to an enemy ----------------------------------------------
+#
+# these go through the room, not to the enemy's own node. the host may have
+# removed that enemy a moment before the message lands; a message addressed to
+# a node that no longer exists is an engine error, while one addressed to the
+# room with a name the room no longer knows is simply dropped.
+
+const CLIENT_STATUSES: Array[StringName] = [&"slow", &"burn", &"mark"]
+
+
+func send_enemy_hit(enemy: Node, amount: int, crit: bool) -> void:
+	_rpc_enemy_hit.rpc_id(1, String(enemy.name), amount, crit)
+
+
+func send_enemy_status(enemy: Node, id: StringName, seconds: float, power: float) -> void:
+	_rpc_enemy_status.rpc_id(1, String(enemy.name), String(id), seconds, power)
+
+
+func send_enemy_shove(enemy: Node, dir: Vector3, force: float) -> void:
+	_rpc_enemy_shove.rpc_id(1, String(enemy.name), dir, force)
+
+
+func send_enemy_stun(enemy: Node, seconds: float) -> void:
+	_rpc_enemy_stun.rpc_id(1, String(enemy.name), seconds)
+
+
+## the living enemy a client's message is about, or null.
+func _reported_enemy(node_name: String) -> EnemyBase:
+	if not multiplayer.is_server() or node_name.contains("/") or node_name.contains(":"):
+		return null
+	var enemy: EnemyBase = enemy_root.get_node_or_null(NodePath(node_name)) as EnemyBase
+	return enemy if enemy and not enemy.is_dying else null
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_enemy_hit(node_name: String, amount: int, crit: bool) -> void:
+	var enemy: EnemyBase = _reported_enemy(node_name)
+	if enemy and enemy.health:
+		enemy.health.apply_reported_damage(multiplayer.get_remote_sender_id(), amount, crit)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_enemy_status(node_name: String, id: String, seconds: float, power: float) -> void:
+	var enemy: EnemyBase = _reported_enemy(node_name)
+	if not enemy or not CLIENT_STATUSES.has(StringName(id)) or not is_finite(seconds) or not is_finite(power):
+		return
+	enemy.apply_status(StringName(id), clampf(seconds, 0.0, 10.0), clampf(power, 0.0, 200.0), null, multiplayer.get_remote_sender_id())
+
+
+@rpc("any_peer", "call_remote", "unreliable")
+func _rpc_enemy_shove(node_name: String, dir: Vector3, force: float) -> void:
+	var enemy: EnemyBase = _reported_enemy(node_name)
+	if enemy and dir.is_finite() and is_finite(force):
+		enemy.apply_knockback(dir, clampf(force, 0.0, 20.0))
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func _rpc_enemy_stun(node_name: String, seconds: float) -> void:
+	var enemy: EnemyBase = _reported_enemy(node_name)
+	if enemy and is_finite(seconds):
+		enemy.stun(clampf(seconds, 0.0, 3.0))
+
+
 func _setup_enemy_multiplayer(enemy: CharacterBody3D) -> void:
 	# the host owns every enemy; clients get its transform and health
 	if not Game.is_online():

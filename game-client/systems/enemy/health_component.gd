@@ -73,7 +73,9 @@ func take_damage(amount: int, info: DamageInfo = null) -> bool:
 
 	if Game.is_online() and not _is_authority():
 		# report it and show the hit, but leave the numbers to the host
-		_rpc_take_damage.rpc_id(1, amount, info.crit if info else false)
+		var rooms: RoomController = Game.rooms()
+		if rooms:
+			rooms.send_enemy_hit(get_parent(), amount, info.crit if info else false)
 		damaged.emit(amount, current_health, info)
 		return false
 	return _apply_damage(amount, info)
@@ -133,12 +135,11 @@ func _apply_damage(amount: int, info: DamageInfo) -> bool:
 	return false
 
 
-@rpc("any_peer", "call_remote", "reliable")
-func _rpc_take_damage(amount: int, crit: bool) -> void:
-	# a report can arrive for a target the room removed a moment ago
+## host: a client says it hit this target. the room hands these over, so a
+## report for a target that is already gone never reaches here.
+func apply_reported_damage(sender: int, amount: int, crit: bool) -> void:
 	if not is_inside_tree() or not _is_authority():
 		return
-	var sender: int = multiplayer.get_remote_sender_id()
 	if invulnerable or amount <= 0:
 		return
 	amount = mini(amount, MAX_DAMAGE_PER_HIT)
