@@ -7,6 +7,9 @@ extends SceneTree
 #   godot --fixed-fps 60 --disable-vsync --resolution 1280x720 --path game-client \
 #       -s res://tests/run_shots.gd -- --out=C:/some/dir [--every=4] [--max-shots=40] [--scene=res://...]
 #
+# also: --upgrades=a,b|all (start the run with these), and for the menu scene
+# --menu-tab=NAME to open the progression panel on that tab before the shots.
+#
 # needs a real renderer (do not pass --headless).
 
 const BotDriver := preload("res://tests/bot/bot_driver.gd")
@@ -23,6 +26,7 @@ var _room_shot_delay: float = -1.0
 var _seen: Dictionary = {}
 var _quit_after: float = -1.0
 var _hide_ui: bool = false
+var _menu_tab: String = ""
 
 
 func _initialize() -> void:
@@ -38,6 +42,8 @@ func _initialize() -> void:
 	_driver.god_mode = int(opts.get("god", 1)) != 0
 	_driver.max_sim_seconds = float(opts.get("max-sim", 600.0))
 	_driver.room_limit = int(opts.get("rooms", 0))
+	_driver.grant_upgrades = String(opts.get("upgrades", "")).split(",", false)
+	_menu_tab = String(opts.get("menu-tab", ""))
 	_driver.finished.connect(_on_finished)
 	root.add_child(_driver)
 
@@ -74,7 +80,17 @@ func _process(delta: float) -> bool:
 		_timer -= delta
 		if _timer <= 0.0:
 			_timer = _every
+			if not _menu_tab.is_empty() and current_scene and current_scene.has_method("_open_progression"):
+				current_scene._open_progression()
+				var panel: Node = current_scene.get("_progression")
+				panel.set("_tab", _menu_tab)
+				panel.call("_rebuild")
+				_menu_tab = ""
+				_timer = 1.0
+				return false
 			_request("menu")
+			if _max_shots <= _shot_count + 1:
+				_quit_after = 0.5
 		return false
 
 	var gm: Node = main.get_node_or_null("GameManager")

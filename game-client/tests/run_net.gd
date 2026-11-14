@@ -15,6 +15,7 @@ extends SceneTree
 #   --seed=N          fixed run seed (default 4242)
 #   --god=0|1         keep this side's bot at full health (default 1)
 #   --rooms=N         host only: end the run after N cleared rooms
+#   --upgrades=a,b|all  upgrade ids both bots start the run with
 #   --max-sim=SEC     give up after this long (default 600)
 #   --leave-after=SEC drop out this long after the run starts (join side),
 #                     to test what the others do about it
@@ -80,6 +81,7 @@ func _initialize() -> void:
 	_driver.max_sim_seconds = float(_opts.get("max-sim", 600.0))
 	_driver.room_limit = int(_opts.get("rooms", 0)) if _role == "host" else 0
 	_driver.verbose = _opts.has("verbose")
+	_driver.grant_upgrades = String(_opts.get("upgrades", "")).split(",", false)
 	_driver.finished.connect(_on_finished)
 	root.add_child(_driver)
 

@@ -13,6 +13,7 @@ extends SceneTree
 #   --rooms=N         end each run after N cleared rooms (for endless)
 #   --skill=0..1      1 = perfect aim and movement (default), lower = more human
 #   --loadout=a,b,c   weapon ids to equip (unlocks them in the scratch profile)
+#   --upgrades=a,b|all  upgrade ids to start every run with, each at its maximum
 #   --max-sim=SEC     abort after this many simulated seconds (default 3600)
 #   --verbose         log every reward pick
 #   --perf            print frame times per room (run in a window, without
@@ -55,6 +56,7 @@ func _initialize() -> void:
 	_driver.skill = clampf(float(opts.get("skill", 1.0)), 0.0, 1.0)
 	_driver.verbose = opts.has("verbose")
 	_driver.perf = opts.has("perf")
+	_driver.grant_upgrades = String(opts.get("upgrades", "")).split(",", false)
 	_driver.finished.connect(_on_finished)
 	root.add_child(_driver)
 

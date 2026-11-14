@@ -57,6 +57,10 @@ var _recent_hits: Array[String] = []
 ## print frame times for every room. only means something in a real window
 ## at real speed (no --headless, no --fixed-fps).
 var perf: bool = false
+## upgrade ids handed to the bot at the start of every run ("all" for the
+## whole catalogue, each at its maximum), so one run exercises every effect.
+var grant_upgrades: PackedStringArray = PackedStringArray()
+var _granted: bool = false
 var _perf_clock: int = 0
 var _perf_frames: int = 0
 var _perf_total_msec: float = 0.0
@@ -135,6 +139,10 @@ func _physics_process(delta: float) -> void:
 
 	if get_tree().paused:
 		return
+
+	if not grant_upgrades.is_empty() and not _granted and gm.run_manager.is_active:
+		_granted = true
+		_grant(gm)
 
 	_handle_panels(main, gm)
 	_handle_transition(gm)
@@ -225,6 +233,7 @@ func _handle_summary(main: Node, gm: Node) -> bool:
 	# restart through the summary's own button so that path is exercised too
 	_stall_time = 0.0
 	_last_room_index = -1
+	_granted = false
 	var btn: Variant = summary.get("restart_button")
 	if btn is BaseButton:
 		(btn as BaseButton).pressed.emit()
@@ -233,12 +242,28 @@ func _handle_summary(main: Node, gm: Node) -> bool:
 	return true
 
 
+func _grant(gm: Node) -> void:
+	var count: int = 0
+	for u: Dictionary in UpgradeDefinitions.CATALOG:
+		if grant_upgrades.has("all") or grant_upgrades.has(String(u.id)):
+			for i: int in UpgradeDefinitions.max_stacks(u):
+				gm.upgrade_manager.apply(u)
+				gm.run_manager.apply_upgrade(u)
+			count += 1
+	print("[bot] granted %d upgrades" % count)
+
+
 func _handle_panels(main: Node, gm: Node) -> void:
 	if _panel_delay > 0.0:
 		return
 	if gm.get("awaiting_upgrade"):
 		var ui: Control = main.get_node_or_null("UI/UpgradeSelection") as Control
 		if ui and ui.get("_active") and ui.choices.size() > 0:
+			if int(ui.get("_rerolls")) > 0 and randf() < 0.25:
+				_log("upgrade: reroll")
+				_panel_delay = 0.2
+				ui._on_reroll()
+				return
 			var pick: Dictionary = ui.choices[randi() % ui.choices.size()]
 			_log("upgrade: %s" % pick.get("name", "?"))
 			_panel_delay = 0.2
