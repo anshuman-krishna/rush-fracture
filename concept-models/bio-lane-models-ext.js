@@ -173,9 +173,13 @@ function spitter(THREE, c, root) {
   add(throat, new THREE.SphereGeometry(0.15, 20, 16), M.glow, 'bile_core', [0, 0, 0]);
 
   const snout = grp(root, 'mortar_snout', [0, 0.88, -0.34], [-0.75, 0, 0]);
-  add(snout, new THREE.CylinderGeometry(0.1, 0.15, 0.46, 18, 1, true), M.chitin, 'snout_tube', [0, 0.2, 0]);
-  band(THREE, c, snout, 'snout_lip', M.bone, 0.1, 0.022, [0, 0.43, 0], 'y');
-  add(snout, new THREE.SphereGeometry(0.06, 14, 10), M.glow, 'snout_gland', [0, 0.36, 0]);
+  add(snout, new THREE.CylinderGeometry(0.2, 0.11, 0.3, 18, 1, true), M.chitin, 'snout_funnel', [0, 0.15, 0]);
+  band(THREE, c, snout, 'snout_lip', M.bone, 0.2, 0.026, [0, 0.3, 0], 'y');
+  add(snout, new THREE.SphereGeometry(0.1, 14, 10), M.glow, 'snout_gland', [0, 0.2, 0], [0, 0, 0], [1, 0.5, 1]);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    spur(snout, `snout_tooth_${i + 1}`, M.bone, [Math.cos(a) * 0.2, 0.36, Math.sin(a) * 0.2], [Math.sin(a) * -0.35, 0, Math.cos(a) * 0.35], 0.03, 0.14);
+  }
   [-1, 1].forEach((s) => add(root, new THREE.SphereGeometry(0.05, 14, 10), M.glow, `eye_${side(s)}`, [s * 0.22, 0.86, -0.2]));
 
   limb(root, 'foreleg_l', M.chitin, { at: [-0.34, 0.56, -0.2], upper: 0.22, lower: 0.24, r: 0.08, a1: 0.4, a2: -0.8, claw: 0.1, spread: 0.3 });
@@ -325,7 +329,15 @@ function matriarch(THREE, c, root) {
       [0, 1.5 - i * 0.07 - Math.abs(i - 2) * 0.06, -1.5 + i * 0.6], [0.35 - i * 0.14, 0, 0]);
     spur(abdomen, `dorsal_spine_${i + 1}`, M.bone, [0, 1.75 - Math.abs(i - 2) * 0.1, -1.5 + i * 0.6], [-0.3, 0, 0], 0.09, 0.6);
   }
-  spur(abdomen, 'ovipositor', M.bone, [0, -0.4, 2.5], [HALF_PI * 1.2, 0, 0], 0.22, 1.1);
+  // a fan of flat blades closes off the back of the nest
+  for (let i = -2; i <= 2; i++) {
+    const yaw = i * 0.32;
+    const tilt = HALF_PI + 0.2;
+    const len = 0.95 - Math.abs(i) * 0.14;
+    const dir = [-Math.sin(-yaw), Math.cos(yaw) * Math.cos(tilt), Math.cos(yaw) * Math.sin(tilt)];
+    add(abdomen, new THREE.ConeGeometry(0.2, len, 4), M.bone, `tail_fan_${i + 3}`,
+      [dir[0] * len * 0.5, -0.4 + dir[1] * len * 0.5, 2.12 + dir[2] * len * 0.5], [tilt, 0, -yaw], [1, 1, 0.25]);
+  }
 
   const thorax = grp(root, 'thorax', [0, 2.9, -0.35], [0.3, 0, 0]);
   add(thorax, new THREE.SphereGeometry(0.95, 28, 22), M.chitin, 'thorax_shell', [0, 0, 0], [0, 0, 0], [1.05, 1.25, 0.9]);
@@ -361,7 +373,7 @@ function matriarch(THREE, c, root) {
 }
 
 function stalker(THREE, c, root) {
-  const { M, add, grp, spur, limb } = c;
+  const { M, add, grp, spur, limb, segTail } = c;
   // "Rift Stalker" — 3.4 m, almost no width. It is never where the last hit landed.
   const torso = grp(root, 'torso', [0, 2.25, 0.05], [0.28, 0, 0]);
   add(torso, new THREE.CapsuleGeometry(0.3, 0.95, 6, 20), M.chitin, 'torso_shell', [0, 0, 0]);
@@ -390,9 +402,8 @@ function stalker(THREE, c, root) {
   });
   limb(root, 'leg_l', M.chitin, { at: [-0.2, 1.72, 0.12], upper: 0.85, lower: 0.9, r: 0.1, a1: 0.55, a2: -1.1, claw: 0.22, spread: 0.1 });
   limb(root, 'leg_r', M.chitin, { at: [0.2, 1.72, 0.12], upper: 0.85, lower: 0.9, r: 0.1, a1: 0.35, a2: -0.8, claw: 0.22, spread: -0.1 });
-  const tail = grp(root, 'tail', [0, 1.8, 0.35], [1.0, 0, 0]);
-  add(tail, new THREE.CapsuleGeometry(0.08, 0.9, 4, 12), M.chitin, 'tail_base', [0, 0.5, 0]);
-  add(tail, new THREE.ConeGeometry(0.07, 0.6, 6), M.bone, 'tail_barb', [0, 1.25, 0]);
+  // a thin whip that arcs up off the hips and over
+  segTail(root, 'tail', { at: [0, 1.85, 0.3], pitch: -0.35, curl: 0.2, count: 7, len: 0.3, shrink: 0.92, w0: 0.17, w1: 0.07, h0: 0.12, h1: 0.05, fin: 0.36 });
   grp(root, 'anchor_muzzle', [0, 2.35, -0.6]);
 }
 

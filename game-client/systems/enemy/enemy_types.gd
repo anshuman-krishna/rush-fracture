@@ -46,7 +46,7 @@ const DEFS: Dictionary = {
 		"essence": 3, "mass": 0.9, "weak": 0.75,
 	},
 	&"sniper": {
-		"name": "ovipositor stalk", "script": "sniper", "radius": 0.35, "height": 2.2,
+		"name": "watcher stalk", "script": "sniper", "radius": 0.35, "height": 2.2,
 		"health": 40, "speed": 2.6, "damage": 26, "cost": 2.0, "min_diff": 1.5,
 		"essence": 4, "mass": 0.8, "weak": 0.8,
 	},

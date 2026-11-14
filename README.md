@@ -97,7 +97,7 @@ you carry three. three are free, five are unlocked with shards.
 | bile spitter | lobs pools of acid |
 | tendon leaper | jumps onto your position |
 | blink fang | dashes in a line |
-| ovipositor stalk | long range, locks on before it fires |
+| watcher stalk | long range, locks on before it fires |
 | sting drone | flies and strafes |
 | choir spore | heals and hastens its allies |
 | carapace bulwark | blocks shots from the front |

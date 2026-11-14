@@ -1,6 +1,6 @@
 extends EnemyBase
 
-# "ovipositor stalk" — fragile, far away, and hits hard. it tracks you with a
+# "watcher stalk" — fragile, far away, and hits hard. it tracks you with a
 # laser, then the laser locks and brightens for a beat before it fires down
 # that fixed line. move during the lock and it misses.
 

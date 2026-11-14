@@ -59,7 +59,27 @@ export function ctx(THREE) {
     add(lo, new THREE.ConeGeometry(r * 0.9, claw, 6), M.bone, `${name}_claw`, [0, -lower - claw * 0.35, 0.01], [Math.PI, 0, 0]);
     return g;
   };
-  return { M, add, grp, ribStack, spur, limb };
+  // a tail built as vertebrae: flat plates that shrink and bend joint by joint, a spur on each,
+  // ending in a forked fin. it leaves the body pointing back (+z); `pitch` tips the whole chain
+  // down from there and `curl` bends every joint after it (negative lifts the end).
+  const segTail = (parent, name, { at, pitch = 0, curl = 0, count = 5, len = 0.4, shrink = 0.9, w0, w1, h0, h1, fin = 0.4 }) => {
+    let g = grp(parent, name, at, [pitch, 0, 0]);
+    let l = len;
+    for (let i = 0; i < count; i++) {
+      const t = count === 1 ? 0 : i / (count - 1);
+      const w = w0 + (w1 - w0) * t;
+      const h = h0 + (h1 - h0) * t;
+      add(g, new THREE.BoxGeometry(w, h, l * 0.86), M.chitin, `${name}_plate_${i + 1}`, [0, 0, l * 0.5]);
+      add(g, new THREE.BoxGeometry(w * 1.14, h * 0.32, l * 0.16), M.bone, `${name}_joint_${i + 1}`, [0, 0, l * 0.97]);
+      spur(g, `${name}_spur_${i + 1}`, M.bone, [0, h * 0.85, l * 0.5], [0.5, 0, 0], w * 0.15, h * 0.95);
+      g = grp(g, `${name}_seg_${i + 2}`, [0, 0, l], [curl, 0, 0]);
+      l *= shrink;
+    }
+    [-1, 1].forEach((s) => add(g, new THREE.ConeGeometry(w1 * 0.6, fin, 4), M.bone, `${name}_fin_${s > 0 ? 'r' : 'l'}`,
+      [s * Math.sin(0.5) * fin * 0.5, 0, Math.cos(0.5) * fin * 0.5], [Math.PI / 2, 0, -s * 0.5], [1, 1, 0.3]));
+    return g;
+  };
+  return { M, add, grp, ribStack, spur, limb, segTail };
 }
 
 /* ============================ weapons ============================ */
@@ -175,7 +195,7 @@ function beamEmitter(THREE, c, root) {
 /* ============================ enemies ============================ */
 
 function chaser(THREE, c, root) {
-  const { M, add, grp, ribStack, spur, limb } = c;
+  const { M, add, grp, ribStack, spur, limb, segTail } = c;
   // "Ripper Hound" — blind, quadrupedal, all forward mass. 1.7 m long, 1.0 m at the shoulder.
   const torso = grp(root, 'torso', [0, 0.72, 0]);
   add(torso, new THREE.CapsuleGeometry(0.24, 0.6, 6, 22), M.chitin, 'torso_shell', [0, 0, 0], [Math.PI / 2, 0, 0]);
@@ -200,9 +220,7 @@ function chaser(THREE, c, root) {
   limb(root, 'hindleg_l', M.chitin, { at: [-0.2, 0.7, 0.3], upper: 0.36, lower: 0.32, r: 0.085, a1: -0.45, a2: 0.9, spread: 0.1 });
   limb(root, 'hindleg_r', M.chitin, { at: [0.2, 0.7, 0.3], upper: 0.36, lower: 0.32, r: 0.085, a1: -0.25, a2: 0.7, spread: -0.1 });
 
-  const tail = grp(root, 'tail', [0, 0.78, 0.34], [0.5, 0, 0]);
-  add(tail, new THREE.CapsuleGeometry(0.05, 0.3, 4, 14), M.chitin, 'tail_base', [0, 0.16, 0]);
-  add(tail, new THREE.ConeGeometry(0.045, 0.28, 7), M.bone, 'tail_blade', [0, 0.42, 0.06], [-0.35, 0, 0]);
+  segTail(root, 'tail', { at: [0, 0.8, 0.4], pitch: -0.3, curl: 0.25, count: 3, len: 0.2, shrink: 0.85, w0: 0.12, w1: 0.07, h0: 0.09, h1: 0.05, fin: 0.17 });
 }
 
 function tank(THREE, c, root) {
@@ -211,12 +229,14 @@ function tank(THREE, c, root) {
   const torso = grp(root, 'torso', [0, 1.5, 0]);
   add(torso, new THREE.SphereGeometry(0.55, 30, 22), M.chitin, 'torso_shell', [0, 0, 0], [0, 0, 0], [1.15, 1, 0.8]);
   ribStack(torso, 'chest_band', M.bone, { count: 4, from: -0.4, to: 0.3, r0: 0.5, r1: 0.42, tube: 0.05, axis: 'y' });
-  add(torso, new THREE.SphereGeometry(0.46, 28, 20), M.membrane, 'brood_abdomen', [0, -0.42, 0.16], [0, 0, 0], [1, 0.9, 1]);
-  add(torso, new THREE.SphereGeometry(0.24, 24, 18), M.glow, 'brood_core', [0, -0.42, 0.16]);
+  add(torso, new THREE.SphereGeometry(0.44, 28, 20), M.membrane, 'brood_abdomen', [0, -0.2, 0.2], [0, 0, 0], [1, 0.78, 1]);
+  add(torso, new THREE.SphereGeometry(0.22, 24, 18), M.glow, 'brood_core', [0, -0.2, 0.2]);
+  add(torso, new THREE.SphereGeometry(0.46, 24, 16), M.chitin, 'hip_plate', [0, -0.56, 0], [0, 0, 0], [1.1, 0.5, 0.8]);
+  add(torso, new THREE.BoxGeometry(0.34, 0.26, 0.1), M.bone, 'hip_guard', [0, -0.62, -0.32], [0.25, 0, 0]);
   for (let i = 0; i < 6; i++) {
     const a = (i / 6) * Math.PI * 2;
     add(torso, new THREE.BoxGeometry(0.05, 0.34, 0.05), M.bone, `abdomen_seam_${i + 1}`,
-      [Math.cos(a) * 0.4, -0.42, 0.16 + Math.sin(a) * 0.32], [0, -a, 0]);
+      [Math.cos(a) * 0.4, -0.2, 0.2 + Math.sin(a) * 0.32], [0, -a, 0]);
   }
   [-1, 1].forEach((s) => {
     add(torso, new THREE.SphereGeometry(0.3, 24, 18), M.chitin, `pauldron_${s > 0 ? 'r' : 'l'}`, [s * 0.55, 0.3, 0], [0, 0, 0], [1, 0.7, 1.1]);
@@ -249,7 +269,7 @@ function tank(THREE, c, root) {
 
 function sniper(THREE, c, root) {
   const { M, add, grp, ribStack, spur, limb } = c;
-  // "Ovipositor Stalk" — 2.4 m, almost no mass. The barrel-limb unfolds only during the telegraph.
+  // "Watcher Stalk" — 2.4 m, almost no mass. The barrel-limb unfolds only during the telegraph.
   const thorax = grp(root, 'thorax', [0, 1.62, 0.04], [0.35, 0, 0]);
   add(thorax, new THREE.CapsuleGeometry(0.15, 0.34, 5, 20), M.chitin, 'thorax_shell', [0, 0, 0], [Math.PI / 2, 0, 0]);
   ribStack(thorax, 'thorax_rib', M.bone, { count: 4, from: -0.2, to: 0.2, r0: 0.155, r1: 0.14, tube: 0.02 });
@@ -262,7 +282,7 @@ function sniper(THREE, c, root) {
   add(head, new THREE.TorusGeometry(0.082, 0.016, 12, 24), M.bone, 'eye_hood', [0, 0.01, -0.09], [0, 0, 0]);
 
   // the long barrel-limb: three telescoping segments, held forward at eye height
-  const bar = grp(root, 'ovipositor_limb', [0.16, 1.6, -0.16], [0.06, -0.05, 0]);
+  const bar = grp(root, 'barrel_limb', [0.16, 1.6, -0.16], [0.06, -0.05, 0]);
   add(bar, new THREE.CapsuleGeometry(0.075, 0.3, 4, 16), M.chitin, 'limb_root', [0, 0, 0.02], [Math.PI / 2, 0, 0]);
   add(bar, new THREE.CylinderGeometry(0.05, 0.062, 0.5, 18), M.chitin, 'limb_mid', [0, -0.01, -0.36], [Math.PI / 2, 0, 0]);
   add(bar, new THREE.CylinderGeometry(0.03, 0.048, 0.52, 16), M.bone, 'limb_tip', [0, -0.02, -0.86], [Math.PI / 2, 0, 0]);
@@ -298,11 +318,13 @@ function shooter(THREE, c, root) {
   add(antenna, new THREE.CylinderGeometry(0.012, 0.018, 0.24, 8), M.bone, 'antenna_stalk', [0, 0.12, 0]);
   add(antenna, new THREE.SphereGeometry(0.026, 14, 10), M.glow, 'antenna_gland', [0, 0.25, 0]);
 
-  const gunArm = grp(root, 'gun_arm', [0.24, 1.2, -0.05], [0.25, 0, -0.1]);
-  add(gunArm, new THREE.CapsuleGeometry(0.075, 0.32, 4, 14), M.chitin, 'gun_upper', [0, -0.16, 0]);
-  add(gunArm, new THREE.CylinderGeometry(0.045, 0.06, 0.4, 16), M.chitin, 'gun_barrel', [0, -0.36, -0.18], [Math.PI / 2 - 0.2, 0, 0]);
-  ribStack(gunArm, 'gun_rib', M.bone, { count: 4, from: -0.28, to: -0.44, r0: 0.05, r1: 0.062, tube: 0.009 });
-  add(gunArm, new THREE.SphereGeometry(0.032, 16, 12), M.glow, 'muzzle_gland', [0, -0.4, -0.4]);
+  // the rifle arm is carried level at the chest, pointing where the visor looks
+  const gunArm = grp(root, 'gun_arm', [0.24, 1.34, -0.05], [1.3, 0, -0.06]);
+  add(gunArm, new THREE.CapsuleGeometry(0.075, 0.2, 4, 14), M.chitin, 'gun_upper', [0, -0.12, 0]);
+  add(gunArm, new THREE.BoxGeometry(0.13, 0.3, 0.12), M.chitin, 'gun_breech', [0, -0.34, 0]);
+  add(gunArm, new THREE.BoxGeometry(0.04, 0.26, 0.07), M.bone, 'gun_fin', [0, -0.36, -0.09]);
+  add(gunArm, new THREE.CylinderGeometry(0.05, 0.05, 0.2, 14, 1, true), M.bone, 'gun_barrel', [0, -0.58, 0]);
+  add(gunArm, new THREE.SphereGeometry(0.036, 16, 12), M.glow, 'muzzle_gland', [0, -0.64, 0]);
 
   limb(root, 'off_arm', M.chitin, { at: [-0.24, 1.2, 0], upper: 0.3, lower: 0.28, r: 0.06, a1: 0.15, a2: -0.3, claw: 0.08 });
   limb(root, 'leg_l', M.chitin, { at: [-0.12, 0.68, 0], upper: 0.34, lower: 0.34, r: 0.075, a1: 0.05, a2: -0.1, claw: 0.1 });
@@ -405,7 +427,7 @@ function displacer(THREE, c, root) {
 /* ============================ bosses ============================ */
 
 function titan(THREE, c, root) {
-  const { M, add, grp, ribStack, spur, limb } = c;
+  const { M, add, grp, ribStack, spur, limb, segTail } = c;
   // "Hive-Colossus" — 6.4 m. Phase 2 is written into the model: the ribcage plates peel open.
   const torso = grp(root, 'torso', [0, 3.9, 0]);
   add(torso, new THREE.SphereGeometry(1.15, 32, 24), M.chitin, 'torso_shell', [0, 0, 0], [0, 0, 0], [1.15, 1.1, 0.85]);
@@ -453,9 +475,8 @@ function titan(THREE, c, root) {
 
   limb(root, 'leg_l', M.chitin, { at: [-0.6, 2.95, 0.05], upper: 1.1, lower: 1.05, r: 0.36, a1: 0.14, a2: -0.3, claw: 0.44, spread: 0.1 });
   limb(root, 'leg_r', M.chitin, { at: [0.6, 2.95, 0.05], upper: 1.1, lower: 1.05, r: 0.36, a1: 0.14, a2: -0.3, claw: 0.44, spread: -0.1 });
-  const tail = grp(root, 'anchor_tail', [0, 3.6, 0.85], [0.85, 0, 0]);
-  add(tail, new THREE.CapsuleGeometry(0.24, 1.1, 5, 18), M.chitin, 'tail_base', [0, 0.6, 0]);
-  add(tail, new THREE.ConeGeometry(0.2, 1.0, 7), M.bone, 'tail_anchor', [0, 1.5, 0.2], [-0.3, 0, 0]);
+  // a heavy counterweight that hangs off the hips and levels out toward the end
+  segTail(root, 'tail', { at: [0, 3.55, 0.8], pitch: 0.4, curl: -0.1, count: 5, len: 0.42, shrink: 0.9, w0: 0.62, w1: 0.24, h0: 0.44, h1: 0.17, fin: 0.5 });
 }
 
 function warden(THREE, c, root) {
