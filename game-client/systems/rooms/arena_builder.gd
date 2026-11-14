@@ -526,6 +526,53 @@ func _ramp(edge: Vector3, dir_out: Vector3, width: float, height: float) -> void
 		rail.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		body.add_child(rail)
 	_arena_root.add_child(body)
+	_ramp_fill(edge, dir_out, width, height, run)
+
+
+## closes the space under a ramp. the slope itself is a thin slab; left open,
+## the wedge of air beneath it is a pocket that enemies walk into and cannot
+## leave, and that a sliding player fits under but cannot stand up in.
+func _ramp_fill(edge: Vector3, dir_out: Vector3, width: float, height: float, run: float) -> void:
+	var half: float = width * 0.5
+	var fill: StaticBody3D = StaticBody3D.new()
+	fill.collision_layer = Layers.WORLD
+	fill.collision_mask = 0
+	fill.position = edge
+	# local +z points away from the deck, like the slab above it
+	fill.rotation.y = atan2(dir_out.x, dir_out.z)
+
+	# a hair below the slab, so feet still land on the slab's surface
+	var top: float = height - 0.06
+	var col: CollisionShape3D = CollisionShape3D.new()
+	var wedge: ConvexPolygonShape3D = ConvexPolygonShape3D.new()
+	wedge.points = PackedVector3Array([
+		Vector3(-half, 0, 0), Vector3(half, 0, 0), Vector3(-half, top, 0), Vector3(half, top, 0),
+		Vector3(-half, 0, run), Vector3(half, 0, run),
+	])
+	col.shape = wedge
+	fill.add_child(col)
+
+	# the two triangular sides are the only faces anyone can see
+	var st: SurfaceTool = SurfaceTool.new()
+	st.begin(Mesh.PRIMITIVE_TRIANGLES)
+	for s: float in [-1.0, 1.0]:
+		var a: Vector3 = Vector3(s * half, 0, 0)
+		var b: Vector3 = Vector3(s * half, top, 0)
+		var c: Vector3 = Vector3(s * half, 0, run)
+		st.set_normal(Vector3(s, 0, 0))
+		for v: Vector3 in ([a, b, c] if s > 0.0 else [a, c, b]):
+			st.add_vertex(v)
+	var side: MeshInstance3D = MeshInstance3D.new()
+	side.mesh = st.commit()
+	var mat: StandardMaterial3D = (_deck_material as StandardMaterial3D).duplicate() as StandardMaterial3D if _deck_material is StandardMaterial3D else null
+	if mat:
+		# seen from either side whichever way the triangle winds
+		mat.cull_mode = BaseMaterial3D.CULL_DISABLED
+		side.material_override = mat
+	else:
+		side.material_override = _deck_material
+	fill.add_child(side)
+	_arena_root.add_child(fill)
 
 
 func _jump_pad(at: Vector3, launch: Vector3) -> void:

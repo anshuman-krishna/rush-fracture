@@ -58,6 +58,13 @@ var room_active: bool = false
 ## for later remembers the value and does nothing if it has changed, so an
 ## explosion set off in one room can never land in the next.
 var room_token: int = 0
+
+## an enemy that no player has been able to see for this long is somewhere
+## it should not be (wedged in geometry, fallen behind a wall). it gets moved
+## to open ground, because a room with an enemy nobody can reach never ends.
+const UNSEEN_LIMIT: float = 12.0
+const SIGHT_CHECK_INTERVAL: float = 0.5
+var _sight_timer: float = 0.0
 var active_boss: BossBase
 var arena: ArenaShape
 var builder: ArenaBuilder
@@ -110,6 +117,11 @@ func _process(delta: float) -> void:
 		return
 	if not room_active or not Game.is_host_or_solo():
 		return
+
+	_sight_timer -= delta
+	if _sight_timer <= 0.0:
+		_sight_timer = SIGHT_CHECK_INTERVAL
+		_rescue_unreachable_enemies()
 
 	if _next_wave_delay >= 0.0:
 		_next_wave_delay -= delta
@@ -361,6 +373,49 @@ func _create_boss(boss_id: StringName, at: Vector3, health_scale: float, damage_
 	Vfx.ring(at, 12.0, Biome.glow(active_room.biome), 0.9, 1.0, 0.2)
 	Game.shake(6.0)
 	boss_spawned.emit(boss)
+
+
+func _rescue_unreachable_enemies() -> void:
+	var pm: PlayerManager = Game.players()
+	if not pm or not arena_root.is_inside_tree():
+		return
+	var living: Array[CharacterBody3D] = pm.get_living_players()
+	if living.is_empty():
+		return
+	var space: PhysicsDirectSpaceState3D = arena_root.get_world_3d().direct_space_state
+	for node: Node in enemy_root.get_children():
+		var enemy: EnemyBase = node as EnemyBase
+		if not enemy or enemy is BossBase or enemy.is_dying or not enemy.health or not enemy.health.is_alive():
+			continue
+		if _any_player_sees(space, enemy.aim_point(), living):
+			enemy.unseen_time = 0.0
+			continue
+		enemy.unseen_time += SIGHT_CHECK_INTERVAL
+		if enemy.unseen_time < UNSEEN_LIMIT:
+			continue
+		enemy.unseen_time = 0.0
+		# somewhere open, and in view of a player if one can be found
+		var to: Vector3 = _spawn_point(enemy.type_id)
+		for attempt: int in 8:
+			if _any_player_sees(space, to + Vector3(0, 1.0, 0), living):
+				break
+			to = _spawn_point(enemy.type_id)
+		enemy.global_position = to
+		enemy.velocity = Vector3.ZERO
+		net_fx(&"ring", to, Vector3.ZERO, 2.6, 0.45, Color(0.8, 0.5, 1.0))
+		Game.sfx_at(&"warp", to, -6.0, 0.08)
+
+
+func _any_player_sees(space: PhysicsDirectSpaceState3D, point: Vector3, players: Array[CharacterBody3D]) -> bool:
+	for p: CharacterBody3D in players:
+		if not is_instance_valid(p):
+			continue
+		var query: PhysicsRayQueryParameters3D = PhysicsRayQueryParameters3D.create(point, p.global_position + Vector3(0, 0.5, 0))
+		query.collision_mask = Layers.WORLD
+		query.collide_with_areas = false
+		if space.intersect_ray(query).is_empty():
+			return true
+	return false
 
 
 func _spawn_point(type_id: StringName = &"") -> Vector3:

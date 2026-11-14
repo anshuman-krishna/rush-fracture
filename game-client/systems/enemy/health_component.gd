@@ -135,7 +135,8 @@ func _apply_damage(amount: int, info: DamageInfo) -> bool:
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_take_damage(amount: int, crit: bool) -> void:
-	if not _is_authority():
+	# a report can arrive for a target the room removed a moment ago
+	if not is_inside_tree() or not _is_authority():
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
 	if invulnerable or amount <= 0:

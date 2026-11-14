@@ -49,6 +49,9 @@ var model: Node3D
 var skin_id: StringName = &"default"
 ## counts toward clearing the room (summoned adds can opt out)
 var counts_for_room: bool = true
+## seconds since any living player last had a clear line to this enemy.
+## kept by the room, which moves an enemy nobody can reach.
+var unseen_time: float = 0.0
 
 var _gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var _spawn_timer: float = 0.0
@@ -217,7 +220,7 @@ func apply_status(id: StringName, seconds: float, power: float, source: Node = n
 
 @rpc("any_peer", "call_remote", "reliable")
 func _rpc_status(id: String, seconds: float, power: float) -> void:
-	if _is_local_authority():
+	if is_inside_tree() and _is_local_authority():
 		apply_status(StringName(id), clampf(seconds, 0.0, 10.0), clampf(power, 0.0, 200.0), null, multiplayer.get_remote_sender_id())
 
 

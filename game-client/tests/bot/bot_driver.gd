@@ -441,13 +441,16 @@ func _dump_state(gm: Node) -> void:
 		print("[bot] room_active=%s enemies_alive=%s waves=%s/%s" % [
 			rc.get("room_active"), rc.get("enemies_alive"), rc.get("_wave_index"), (rc.get("_waves") as Array).size()])
 	if is_instance_valid(_bound_player):
-		print("[bot] player pos=%s hp=%s dead=%s" % [_bound_player.global_position, _bound_player.get("health"), _bound_player.get("is_dead")])
+		print("[bot] player pos=%s hp=%s dead=%s sliding=%s on_floor=%s velocity=%s" % [
+			_bound_player.global_position, _bound_player.get("health"), _bound_player.get("is_dead"),
+			_bound_player.get("is_sliding"), (_bound_player as CharacterBody3D).is_on_floor(), (_bound_player as CharacterBody3D).velocity.snappedf(0.1)])
 	for e: Node in get_tree().get_nodes_in_group("enemies"):
 		if e is Node3D:
 			var hc: Node = e.get_node_or_null("HealthComponent")
-			print("[bot]   enemy %s (%s) pos=%s hp=%s dying=%s counts=%s" % [
+			print("[bot]   enemy %s (%s) pos=%s hp=%s dying=%s counts=%s invulnerable=%s unseen=%s velocity=%s" % [
 				e.name, e.get("type_id"), (e as Node3D).global_position,
-				hc.get("current_health") if hc else "?", e.get("is_dying"), e.get("counts_for_room")])
+				hc.get("current_health") if hc else "?", e.get("is_dying"), e.get("counts_for_room"),
+				hc.get("invulnerable") if hc else "?", e.get("unseen_time"), e.get("velocity")])
 
 
 func _finish(passed: bool, reason: String) -> void:
