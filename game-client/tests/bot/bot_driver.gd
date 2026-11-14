@@ -66,6 +66,8 @@ var force_condition: String = ""
 ## how long a choice panel must have been open before the bot answers it.
 ## the screenshot runner raises this so a panel is fully drawn when captured.
 var panel_think: float = 0.0
+## a layout to build every open-choice fight room in (see ArenaBuilder).
+var force_layout: String = ""
 var _panel_seen: float = 0.0
 var _panel_which: String = ""
 var _granted: bool = false
@@ -154,6 +156,10 @@ func _physics_process(delta: float) -> void:
 			_grant(gm)
 		if not force_condition.is_empty():
 			_force_conditions(gm)
+		if not force_layout.is_empty():
+			for options: Array in gm.run_manager.data.floors:
+				for room: RunData.RoomData in options:
+					room.metadata["layout"] = force_layout
 
 	_handle_panels(main, gm)
 	_handle_transition(gm)

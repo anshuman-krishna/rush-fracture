@@ -330,3 +330,21 @@ func test_fields_use_real_stats_and_statuses() -> void:
 	enemy.apply_status(&"ward", 1.0, 0.3)
 	near(hc.damage_scale, 1.55 * 0.7, "a ward cuts it")
 	enemy.free()
+
+
+func test_layout_table_names_real_layouts() -> void:
+	var src: String = (load("res://systems/rooms/arena_builder.gd") as Script).source_code
+	var seen: Dictionary = {}
+	for i: int in 400:
+		var combat: StringName = ArenaBuilder._weighted(float(i) / 400.0, [
+			[&"open", 0.16], [&"tiers", 0.12], [&"hall", 0.12], [&"junction", 0.1], [&"orbit", 0.1],
+			[&"grove", 0.1], [&"bridges", 0.08], [&"colosseum", 0.08], [&"warren", 0.08], [&"spires", 0.06],
+		])
+		seen[combat] = true
+	eq(seen.size(), 10, "every one of the ten fight layouts can be rolled")
+	for layout: StringName in seen:
+		check(src.contains("func _layout_%s()" % layout), "layout '%s' has a builder" % layout)
+	eq(ArenaBuilder._side_toward(Vector3(1, 0, 0.2)), 0, "+x is side 0")
+	eq(ArenaBuilder._side_toward(Vector3(-1, 0, 0.2)), 1, "-x is side 1")
+	eq(ArenaBuilder._side_toward(Vector3(0.2, 0, 1)), 2, "+z is side 2")
+	eq(ArenaBuilder._side_toward(Vector3(0.2, 0, -1)), 3, "-z is side 3")

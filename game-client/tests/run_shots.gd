@@ -45,6 +45,7 @@ func _initialize() -> void:
 	_driver.room_limit = int(opts.get("rooms", 0))
 	_driver.grant_upgrades = String(opts.get("upgrades", "")).split(",", false)
 	_driver.force_condition = String(opts.get("condition", ""))
+	_driver.force_layout = String(opts.get("layout", ""))
 	_driver.panel_think = 1.3
 	_menu_tab = String(opts.get("menu-tab", ""))
 	_driver.finished.connect(_on_finished)

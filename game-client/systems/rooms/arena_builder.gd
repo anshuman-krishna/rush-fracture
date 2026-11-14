@@ -75,6 +75,11 @@ func build(p_room: RunData.RoomData, p_rng: RandomNumberGenerator, arena_root: N
 		&"junction": _layout_junction()
 		&"orbit": _layout_orbit()
 		&"lanes": _layout_lanes()
+		&"grove": _layout_grove()
+		&"bridges": _layout_bridges()
+		&"colosseum": _layout_colosseum()
+		&"warren": _layout_warren()
+		&"spires": _layout_spires()
 		&"boss_warden": _layout_boss_warden()
 		&"boss_matriarch": _layout_boss_matriarch()
 		&"boss_stalker": _layout_boss_stalker()
@@ -104,21 +109,41 @@ func _choose_template() -> StringName:
 		RoomDefinitions.RoomType.RECOVERY, RoomDefinitions.RoomType.SHOP, RoomDefinitions.RoomType.TRANSITION:
 			return &"sanctum"
 		RoomDefinitions.RoomType.GAUNTLET:
-			return &"lanes"
+			return &"lanes" if rng.randf() < 0.6 else &"warren"
 		RoomDefinitions.RoomType.ELITE_CHAMBER:
-			return &"tiers"
+			return &"tiers" if rng.randf() < 0.6 else &"colosseum"
 	var roll: float = rng.randf()
+	# a room can name its own layout (tests do, to see a particular one)
+	var named: String = String(room.metadata.get("layout", ""))
+	if not named.is_empty() and has_method("_layout_%s" % named):
+		return StringName(named)
 	if room.type == RoomDefinitions.RoomType.SWARM:
-		return &"open" if roll < 0.55 else (&"hall" if roll < 0.8 else &"junction")
-	if roll < 0.28:
-		return &"open"
-	if roll < 0.48:
-		return &"tiers"
-	if roll < 0.68:
-		return &"hall"
-	if roll < 0.84:
-		return &"junction"
-	return &"orbit"
+		# swarms want floor: nothing that splits the room in two
+		return _weighted(roll, [[&"open", 0.4], [&"hall", 0.2], [&"junction", 0.15], [&"colosseum", 0.15], [&"grove", 0.1]])
+	return _weighted(roll, [
+		[&"open", 0.16], [&"tiers", 0.12], [&"hall", 0.12], [&"junction", 0.1], [&"orbit", 0.1],
+		[&"grove", 0.1], [&"bridges", 0.08], [&"colosseum", 0.08], [&"warren", 0.08], [&"spires", 0.06],
+	])
+
+
+## the entry of `table` ([[name, weight], ...]) that `roll` (0..1) lands in.
+static func _weighted(roll: float, table: Array) -> StringName:
+	var total: float = 0.0
+	for entry: Array in table:
+		total += float(entry[1])
+	var at: float = roll * total
+	for entry: Array in table:
+		at -= float(entry[1])
+		if at <= 0.0:
+			return entry[0]
+	return table[0][0]
+
+
+## which side of a deck (as _deck numbers them) faces along `v`.
+static func _side_toward(v: Vector3) -> int:
+	if absf(v.x) >= absf(v.z):
+		return 0 if v.x > 0.0 else 1
+	return 2 if v.z > 0.0 else 3
 
 
 # --- layouts -------------------------------------------------------------------
@@ -173,8 +198,7 @@ func _layout_junction() -> void:
 	for i: int in 4:
 		var dir: Vector3 = Vector3(1, 0, 0).rotated(Vector3.UP, PI * 0.5 * float(i))
 		# a deck at the end of each arm, ramp facing the hub
-		var side: int = [3, 2, 1, 0][i]
-		_deck(dir * 25.0, Vector3(9.0, DECK_HEIGHT * 0.8, 9.0), [side])
+		_deck(dir * 25.0, Vector3(9.0, DECK_HEIGHT * 0.8, 9.0), [_side_toward(-dir)])
 		_low_wall(dir * 12.0 + dir.cross(Vector3.UP) * rng.randf_range(-3.0, 3.0), atan2(dir.x, dir.z) + PI * 0.5)
 		_jump_pad(dir * 16.5 + dir.cross(Vector3.UP) * 6.0, dir * 10.0 + Vector3(0, 17, 0))
 	_scatter_cover(_cover_count(4, 8))
@@ -211,6 +235,99 @@ func _layout_lanes() -> void:
 		_tall_pillar(Vector3(-12.0 + float(i) * 12.0, 0, 0))
 	_jump_pad(Vector3(0, 0, -10.5), Vector3(0, 17, 7.0))
 	_jump_pad(Vector3(0, 0, 10.5), Vector3(0, 17, -7.0))
+
+
+func _layout_grove() -> void:
+	# a forest of trunks and spires: nothing has a long sightline, and everything is cover
+	shape = ArenaShape.disc(33.0)
+	player_spawn = Vector3(0, 2, 0)
+	_claim(Vector3.ZERO, 4.0, 4.0)
+	for ring: Array in [[9.5, 5], [17.0, 8], [25.5, 11]]:
+		var turn: float = rng.randf() * TAU
+		var count: int = ring[1]
+		for i: int in count:
+			var a: float = turn + TAU * float(i) / float(count) + rng.randf_range(-0.12, 0.12)
+			var at: Vector3 = Vector3(cos(a), 0, sin(a)) * (float(ring[0]) + rng.randf_range(-1.2, 1.2))
+			if i % 3 == 0:
+				_trunk(at, rng.randf_range(1.0, 1.4))
+			else:
+				_tall_pillar(at)
+	for i: int in 2:
+		var a: float = PI * float(i) + rng.randf() * 0.8
+		_jump_pad(Vector3(cos(a), 0, sin(a)) * 29.5, Vector3(-cos(a), 0, -sin(a)) * 12.0 + Vector3(0, 19, 0))
+	_scatter_cover(_cover_count(2, 5))
+
+
+func _layout_bridges() -> void:
+	# two galleries and a crossing between them: the floor is two pits with high ground on three sides
+	shape = ArenaShape.rect(31.0, 21.0)
+	player_spawn = Vector3(-25.0, 2, 0)
+	_claim(player_spawn, 4.0, 4.0)
+	for s: float in [-1.0, 1.0]:
+		_deck(Vector3(0, 0, s * 16.5), Vector3(38.0, DECK_HEIGHT, 6.0), [0, 1])
+		_jump_pad(Vector3(s * 14.0, 0, s * 9.0), Vector3(0, 17, s * 6.5))
+	_deck(Vector3(4.0, 0, 0), Vector3(9.0, DECK_HEIGHT, 11.0), [0, 1])
+	for sx: float in [-1.0, 1.0]:
+		for sz: float in [-1.0, 1.0]:
+			_tall_pillar(Vector3(4.0 + sx * 13.0, 0, sz * 6.0))
+	_scatter_cover(_cover_count(4, 8))
+
+
+func _layout_colosseum() -> void:
+	# a pit ringed with stands: fight in the open, or take a stand and hold its ramp
+	shape = ArenaShape.disc(35.0)
+	player_spawn = Vector3(0, 2, 0)
+	_claim(Vector3.ZERO, 4.0, 4.0)
+	var stands: int = 6
+	var turn: float = rng.randf() * TAU
+	for i: int in stands:
+		var a: float = turn + TAU * float(i) / float(stands)
+		var dir: Vector3 = Vector3(cos(a), 0, sin(a))
+		_deck(dir * 25.5, Vector3(7.0, DECK_HEIGHT * (0.8 if i % 2 == 0 else 1.2), 7.0), [_side_toward(-dir)])
+		var b: float = a + PI / float(stands)
+		if i % 2 == 0:
+			_jump_pad(Vector3(cos(b), 0, sin(b)) * 12.0, Vector3(cos(b), 0, sin(b)) * 12.0 + Vector3(0, 18, 0))
+		else:
+			_low_wall(Vector3(cos(b), 0, sin(b)) * 14.0, -b)
+	_scatter_cover(_cover_count(3, 6))
+
+
+func _layout_warren() -> void:
+	# a grid of low walls: lanes to run, corners to break line of sight, nothing tall
+	shape = ArenaShape.rect(31.0, 21.0)
+	player_spawn = Vector3(-26.0, 2, 0)
+	_claim(player_spawn, 4.0, 4.0)
+	for gx: int in range(-2, 3):
+		for gz: int in range(-1, 2):
+			var at: Vector3 = Vector3(float(gx) * 10.5 + rng.randf_range(-1.5, 1.5), 0, float(gz) * 12.0 + rng.randf_range(-1.5, 1.5))
+			var yaw: float = PI * 0.5 if (gx + gz) % 2 == 0 else 0.0
+			match rng.randi() % 5:
+				0: _breakable_wall(at, yaw)
+				1: _half_cover(at, yaw)
+				2: _barrier_arc(at, yaw)
+				_: _low_wall(at, yaw)
+	_jump_pad(Vector3(0, 0, -16.5), Vector3(0, 17, 8.0))
+	_jump_pad(Vector3(0, 0, 16.5), Vector3(0, 17, -8.0))
+	_scatter_cover(_cover_count(2, 4))
+
+
+func _layout_spires() -> void:
+	# five platforms climbing in a circle, each a step higher than the last
+	shape = ArenaShape.disc(34.0)
+	player_spawn = Vector3(0, 2, 0)
+	_claim(Vector3.ZERO, 4.0, 4.0)
+	var steps: int = 5
+	var turn: float = rng.randf() * TAU
+	for i: int in steps:
+		var a: float = turn + TAU * float(i) / float(steps)
+		var dir: Vector3 = Vector3(cos(a), 0, sin(a))
+		var tangent: Vector3 = Vector3(-sin(a), 0, cos(a))
+		var height: float = DECK_HEIGHT * (0.6 + 0.3 * float(i))
+		# one ramp back toward the lower step, one toward the middle
+		_deck(dir * 17.0, Vector3(7.0, height, 7.0), [_side_toward(-tangent), _side_toward(-dir)])
+		var b: float = a + PI / float(steps)
+		_jump_pad(Vector3(cos(b), 0, sin(b)) * 28.0, Vector3(-cos(b), 0, -sin(b)) * 11.0 + Vector3(0, 20, 0))
+	_scatter_cover(_cover_count(3, 6))
 
 
 func _layout_sanctum() -> void:
