@@ -69,6 +69,8 @@ var active_boss: BossBase
 var arena: ArenaShape
 var builder: ArenaBuilder
 var player_count: int = 1
+## health multiplier for everything that spawns, from the run's difficulty
+var enemy_health_scale: float = 1.0
 ## what is true of the whole room while you are in it (see RoomConditions)
 var condition: StringName = &""
 var _storm_timer: float = 0.0
@@ -339,6 +341,10 @@ func _create_enemy(type_id: StringName, node_name: String, at: Vector3, affix: V
 	var enemy: EnemyBase = EnemyTypes.create(type_id, difficulty, affix, Biome.strain(active_room.biome))
 	if not enemy:
 		return null
+	if not is_equal_approx(enemy_health_scale, 1.0):
+		var hc: HealthComponent = enemy.get_node_or_null("HealthComponent") as HealthComponent
+		if hc:
+			hc.set_max(maxi(1, int(round(hc.max_health * enemy_health_scale))))
 	enemy.name = node_name
 	enemy.counts_for_room = counts
 	for key: Variant in _enemy_speed_mods:
@@ -356,7 +362,7 @@ func _create_enemy(type_id: StringName, node_name: String, at: Vector3, affix: V
 
 func _spawn_boss(room: RunData.RoomData) -> void:
 	var boss_id: StringName = room.boss_id if room.boss_id != &"" else &"titan"
-	var health_scale: float = (1.0 + maxf(0.0, room.difficulty - 1.0) * 0.5) * (1.0 + 0.7 * float(maxi(0, player_count - 1)))
+	var health_scale: float = (1.0 + maxf(0.0, room.difficulty - 1.0) * 0.5) * (1.0 + 0.7 * float(maxi(0, player_count - 1))) * enemy_health_scale
 	var damage_scale: float = 1.0 + maxf(0.0, room.difficulty - 1.0) * 0.2
 	var at: Vector3 = builder.boss_spawn
 	_create_boss(boss_id, at, health_scale, damage_scale)

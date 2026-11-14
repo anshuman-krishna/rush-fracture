@@ -25,6 +25,9 @@ const KEYS: Dictionary = {
 	&"hatchery": 50,
 	&"marrow": 53,
 	&"fracture": 48,
+	&"bloom": 52,
+	&"deep": 46,
+	&"ashfall": 51,
 }
 
 

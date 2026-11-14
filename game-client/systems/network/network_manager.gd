@@ -275,29 +275,30 @@ const GAME_SCENE: String = "res://scenes/main.tscn"
 
 ## host only: tells every client which mode was picked and to load the run
 ## scene, then loads it here too.
-func start_match(coop_mode: int, run_mode: String, ascension: int, seed_value: int) -> void:
+func start_match(coop_mode: int, run_mode: String, ascension: int, seed_value: int, difficulty: String = "standard") -> void:
 	if not is_host():
 		return
 	# nobody can join a match that is already under way
 	var mp: MultiplayerAPI = _get_mp()
 	if mp and mp.multiplayer_peer:
 		mp.multiplayer_peer.refuse_new_connections = true
-	_rpc_start_match.rpc(coop_mode, run_mode, ascension, seed_value)
-	_load_match(coop_mode, run_mode, ascension, seed_value)
+	_rpc_start_match.rpc(coop_mode, run_mode, ascension, seed_value, difficulty)
+	_load_match(coop_mode, run_mode, ascension, seed_value, difficulty)
 
 
 @rpc("authority", "call_remote", "reliable")
-func _rpc_start_match(coop_mode: int, run_mode: String, ascension: int, seed_value: int) -> void:
-	_load_match(coop_mode, run_mode, ascension, seed_value)
+func _rpc_start_match(coop_mode: int, run_mode: String, ascension: int, seed_value: int, difficulty: String) -> void:
+	_load_match(coop_mode, run_mode, ascension, seed_value, difficulty)
 
 
-func _load_match(coop_mode: int, run_mode: String, ascension: int, seed_value: int) -> void:
+func _load_match(coop_mode: int, run_mode: String, ascension: int, seed_value: int, difficulty: String) -> void:
 	var modes: GameModeManager = get_node_or_null("/root/GameModeManager") as GameModeManager
 	if modes:
 		modes.set_mode(clampi(coop_mode, 0, GameModeManager.GameMode.size() - 1) as GameModeManager.GameMode)
 		modes.run_mode = StringName(run_mode)
 		modes.ascension = clampi(ascension, 0, MetaProgression.MAX_ASCENSION)
 		modes.custom_seed = seed_value
+		modes.difficulty = Difficulty.valid(difficulty)
 	match_starting.emit(coop_mode, run_mode, ascension, seed_value)
 	var err: Error = get_tree().change_scene_to_file(GAME_SCENE)
 	if err != OK:

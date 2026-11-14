@@ -170,7 +170,8 @@ func _process(_delta: float) -> bool:
 		_start_in -= delta
 		if _start_in < 0.0:
 			var versus: int = VERSUS.get(String(_opts.get("versus", "coop")), GameModeManager.GameMode.COOP)
-			_net.start_match(versus, String(_opts.get("mode", "sprint")), int(_opts.get("ascension", 0)), int(_opts.get("seed", 4242)))
+			_net.start_match(versus, String(_opts.get("mode", "sprint")), int(_opts.get("ascension", 0)), int(_opts.get("seed", 4242)),
+					String(_opts.get("difficulty", "standard")))
 	if _rejoin_in >= 0.0:
 		_rejoin_in -= delta
 		if _rejoin_in < 0.0:

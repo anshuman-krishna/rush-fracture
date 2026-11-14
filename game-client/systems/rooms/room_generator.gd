@@ -6,7 +6,8 @@ extends RefCounted
 # daily runs all get the same map.
 #
 # a standard run is three acts. each act is a few choice floors, a rest stop
-# (sanctuary or altar), then that act's boss.
+# (sanctuary or altar), then that act's boss. the other modes are built from
+# the same pieces in a different order.
 
 const BASE_DIFFICULTY: float = 1.0
 const FLOOR_STEP: float = 0.13
@@ -14,10 +15,18 @@ const ACT_STEP: float = 0.1
 const ASCENSION_STEP: float = 0.12
 const CHOICE_FLOORS_PER_ACT: int = 3
 const ENDLESS_ACTS: int = 12
+const ONSLAUGHT_ROOMS: int = 8
+const HUNT_FLOORS: int = 5
+const DRAFT_PICKS: int = 6
 
-const ACT_BOSSES: Array = [[&"warden"], [&"matriarch", &"stalker"], [&"titan"]]
-const ENDLESS_BOSSES: Array[StringName] = [&"warden", &"stalker", &"matriarch", &"titan", &"core"]
-const RUSH_BOSSES: Array[StringName] = [&"warden", &"stalker", &"matriarch", &"titan", &"core"]
+const ACT_BOSSES: Array = [[&"warden", &"harrower"], [&"matriarch", &"stalker"], [&"titan", &"choir"]]
+const ENDLESS_BOSSES: Array[StringName] = [&"warden", &"stalker", &"harrower", &"matriarch", &"choir", &"titan", &"core"]
+const RUSH_BOSSES: Array[StringName] = [&"warden", &"harrower", &"stalker", &"matriarch", &"choir", &"titan", &"core"]
+const ONSLAUGHT_TYPES: Array = [
+	RoomDefinitions.RoomType.SWARM, RoomDefinitions.RoomType.GAUNTLET, RoomDefinitions.RoomType.COMBAT,
+	RoomDefinitions.RoomType.GAUNTLET, RoomDefinitions.RoomType.ELITE, RoomDefinitions.RoomType.GAUNTLET,
+	RoomDefinitions.RoomType.SWARM, RoomDefinitions.RoomType.GAUNTLET,
+]
 
 
 ## cfg: mode, seed, ascension, players. returns floors (Array of Array[RoomData]).
@@ -29,12 +38,20 @@ static func generate(cfg: Dictionary) -> Array:
 	var players: int = maxi(1, int(cfg.get("players", 1)))
 
 	match mode:
-		RunData.MODE_SPRINT:
+		RunData.MODE_SPRINT, RunData.MODE_DEADLINE:
 			return _build_acts(rng, 1, ascension, players, true, false)
 		RunData.MODE_ENDLESS:
 			return _build_acts(rng, ENDLESS_ACTS, ascension, players, false, true)
 		RunData.MODE_BOSS_RUSH:
 			return _build_boss_rush(rng, ascension, players)
+		RunData.MODE_ONSLAUGHT:
+			return _build_onslaught(rng, ascension, players)
+		RunData.MODE_TEMPEST:
+			return _build_tempest(rng, ascension, players)
+		RunData.MODE_HUNT:
+			return _build_hunt(rng, ascension, players)
+		RunData.MODE_DRAFT:
+			return _build_draft(rng, ascension, players)
 	return _build_acts(rng, 3, ascension, players, false, false)
 
 
@@ -42,10 +59,10 @@ static func _build_acts(rng: RandomNumberGenerator, act_count: int, ascension: i
 		sprint: bool, endless: bool) -> Array:
 	var floors: Array = []
 	var floor_index: int = 0
-	var biome_offset: int = rng.randi() % Biome.ACT_ORDER.size() if sprint else 0
+	var biome_offset: int = rng.randi() % Biome.ACT_POOLS.size() if sprint else 0
 
 	for act: int in act_count:
-		var biome: StringName = Biome.for_act(act + biome_offset)
+		var biome: StringName = Biome.pick(rng, act + biome_offset)
 		var mutation_given: bool = false
 
 		for step: int in CHOICE_FLOORS_PER_ACT + (1 if sprint else 0):
@@ -93,7 +110,7 @@ static func _build_acts(rng: RandomNumberGenerator, act_count: int, ascension: i
 		floors.append([boss_room])
 		floor_index += 1
 
-	# high ascension: the titan is not the end
+	# high ascension: the last act's boss is not the end
 	if not sprint and not endless and ascension >= 2:
 		var last_act: int = act_count - 1
 		var core_room: RunData.RoomData = _room(rng, floor_index, last_act, &"fracture", RoomDefinitions.RoomType.BOSS,
@@ -107,8 +124,8 @@ static func _build_boss_rush(rng: RandomNumberGenerator, ascension: int, players
 	var floors: Array = []
 	var floor_index: int = 0
 	for i: int in RUSH_BOSSES.size():
-		var biome: StringName = Biome.for_act(i)
-		var diff: float = 1.3 + 0.32 * float(i) + ASCENSION_STEP * float(ascension)
+		var biome: StringName = Biome.pick(rng, i)
+		var diff: float = 1.3 + 0.24 * float(i) + ASCENSION_STEP * float(ascension)
 		# an armory stop before each boss: a rare upgrade, no fight
 		var prep: RunData.RoomData = _room(rng, floor_index, i, biome, RoomDefinitions.RoomType.RECOVERY, diff, players)
 		prep.reward = RoomDefinitions.REWARD_RARE
@@ -119,6 +136,92 @@ static func _build_boss_rush(rng: RandomNumberGenerator, ascension: int, players
 		boss_room.boss_id = RUSH_BOSSES[i]
 		floors.append([boss_room])
 		floor_index += 1
+	return floors
+
+
+## onslaught: eight fights in a row with no choice and no rest, then a boss.
+static func _build_onslaught(rng: RandomNumberGenerator, ascension: int, players: int) -> Array:
+	var floors: Array = []
+	var biome: StringName = Biome.pick(rng, 0)
+	for i: int in ONSLAUGHT_ROOMS:
+		var act: int = i / 3
+		if i % 3 == 0:
+			biome = Biome.pick(rng, act)
+		var diff: float = BASE_DIFFICULTY + 0.2 * float(i) + ASCENSION_STEP * float(ascension)
+		var room: RunData.RoomData = _room(rng, i, act, biome, ONSLAUGHT_TYPES[i % ONSLAUGHT_TYPES.size()], diff, players)
+		# always something to build with: an upgrade every room, a mutation every third
+		room.reward = RoomDefinitions.REWARD_MUTATION if i % 3 == 2 else RoomDefinitions.REWARD_UPGRADE
+		floors.append([room])
+	var last: int = ONSLAUGHT_ROOMS
+	var boss_room: RunData.RoomData = _room(rng, last, 2, biome, RoomDefinitions.RoomType.BOSS,
+		BASE_DIFFICULTY + 0.2 * float(last) + ASCENSION_STEP * float(ascension), players)
+	boss_room.boss_id = RUSH_BOSSES[rng.randi() % RUSH_BOSSES.size()]
+	floors.append([boss_room])
+	return floors
+
+
+## tempest: two acts where every fight has a condition, the ground is thick
+## with fields, and every reward is paid twice.
+static func _build_tempest(rng: RandomNumberGenerator, ascension: int, players: int) -> Array:
+	var floors: Array = _build_acts(rng, 2, ascension, players, false, false)
+	for options: Array in floors:
+		for room: RunData.RoomData in options:
+			if room.is_peaceful() or room.is_boss():
+				continue
+			RoomConditions.assign(room, 1.0, true)
+			room.metadata["dense_fields"] = true
+			room.metadata["double_reward"] = true
+	return floors
+
+
+## hunt: every fight is an elite. five floors of them, a rest half way, a boss.
+static func _build_hunt(rng: RandomNumberGenerator, ascension: int, players: int) -> Array:
+	var floors: Array = []
+	var floor_index: int = 0
+	var biome: StringName = Biome.pick(rng, 1)
+	for step: int in HUNT_FLOORS:
+		if step == 3:
+			biome = Biome.pick(rng, 2)
+			floors.append([
+				_room(rng, floor_index, 1, biome, RoomDefinitions.RoomType.RECOVERY, 1.0, players),
+				_room(rng, floor_index, 1, biome, RoomDefinitions.RoomType.SHOP, 1.0, players),
+			])
+			floor_index += 1
+		var act: int = 0 if step < 3 else 1
+		var diff: float = BASE_DIFFICULTY + 0.18 * float(step) + ASCENSION_STEP * float(ascension)
+		var options: Array = []
+		options.append(_room(rng, floor_index, act, biome, RoomDefinitions.RoomType.ELITE, diff, players))
+		options.append(_room(rng, floor_index, act, biome,
+			RoomDefinitions.RoomType.ELITE_CHAMBER if step >= 1 else RoomDefinitions.RoomType.ELITE, diff, players))
+		floors.append(options)
+		floor_index += 1
+	var boss_room: RunData.RoomData = _room(rng, floor_index, 1, biome, RoomDefinitions.RoomType.BOSS,
+		BASE_DIFFICULTY + 0.18 * float(HUNT_FLOORS) + 0.2 + ASCENSION_STEP * float(ascension), players)
+	var pool: Array = [&"stalker", &"matriarch", &"choir", &"harrower"]
+	boss_room.boss_id = pool[rng.randi() % pool.size()]
+	floors.append([boss_room])
+	return floors
+
+
+## draft: build first, fight after. an armory that hands out the whole build,
+## then one hard act whose rooms pay only essence.
+static func _build_draft(rng: RandomNumberGenerator, ascension: int, players: int) -> Array:
+	var biome: StringName = Biome.pick(rng, 2)
+	var armory: RunData.RoomData = _room(rng, 0, 0, biome, RoomDefinitions.RoomType.RECOVERY, 1.0, players)
+	armory.reward = RoomDefinitions.REWARD_NONE
+	armory.metadata["draft"] = DRAFT_PICKS
+	var floors: Array = [[armory]]
+	for options: Array in _build_acts(rng, 1, ascension, players, true, false):
+		for room: RunData.RoomData in options:
+			room.floor_index += 1
+			room.biome = biome
+			if room.is_peaceful():
+				continue
+			room.difficulty += 0.7
+			room.enemy_budget = RoomDefinitions.enemy_budget_for(room.type, room.difficulty, players)
+			if not room.is_boss():
+				room.reward = RoomDefinitions.REWARD_ESSENCE
+		floors.append(options)
 	return floors
 
 

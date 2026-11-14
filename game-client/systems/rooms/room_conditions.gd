@@ -97,15 +97,15 @@ static func color(id: StringName) -> Color:
 	return DEFS.get(id, {}).get("color", Color.WHITE)
 
 
-## decides this room's condition from its own seed. fights only, never the
-## opening floor, never a boss.
-static func assign(room: RunData.RoomData) -> void:
+## decides this room's condition from its own seed. fights only, never a
+## boss, and (unless `any_floor`) never the opening floor.
+static func assign(room: RunData.RoomData, chance: float = CHANCE, any_floor: bool = false) -> void:
 	room.metadata.erase(KEY)
-	if room.is_peaceful() or room.is_boss() or room.floor_index <= 0:
+	if room.is_peaceful() or room.is_boss() or (room.floor_index <= 0 and not any_floor):
 		return
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = hash(room.seed_value) ^ 0x51ab3
-	if rng.randf() >= CHANCE:
+	if rng.randf() >= chance:
 		return
 	var ids: Array = DEFS.keys()
 	room.metadata[KEY] = String(ids[rng.randi() % ids.size()])

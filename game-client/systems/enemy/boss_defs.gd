@@ -24,6 +24,16 @@ const DEFS: Dictionary = {
 		"radius": 1.3, "height": 6.0, "health": 2500, "speed": 3.1, "damage": 24,
 		"intro": "the hive's last answer.",
 	},
+	&"harrower": {
+		"name": "the harrower", "script": "harrower", "model": "harrower",
+		"radius": 1.25, "height": 2.7, "health": 1100, "speed": 4.6, "damage": 17,
+		"intro": "it has never once gone around anything.",
+	},
+	&"choir": {
+		"name": "the choir", "script": "choir", "model": "choir",
+		"radius": 1.4, "height": 5.2, "health": 2300, "speed": 3.0, "damage": 22,
+		"intro": "three mouths, and none of them for eating.",
+	},
 	&"core": {
 		"name": "fracture core", "script": "core", "model": "core",
 		"radius": 1.5, "height": 6.5, "health": 2200, "speed": 0.0, "damage": 22,

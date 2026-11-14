@@ -7,7 +7,9 @@ extends SceneTree
 # options (after the bare "--"):
 #   --runs=N          how many runs to play back to back (default 1)
 #   --god=0|1         keep the bot at full health (default 1, so a run reaches the end)
-#   --mode=NAME       standard | sprint | endless | boss_rush | daily (default standard)
+#   --mode=NAME       standard | sprint | endless | boss_rush | daily | onslaught | tempest |
+#                     hunt | draft | deadline (default standard)
+#   --difficulty=NAME gentle | standard | brutal | nightmare (default standard)
 #   --ascension=N     difficulty tier (default 0)
 #   --seed=N          fixed run seed (default random)
 #   --rooms=N         end each run after N cleared rooms (for endless)
@@ -37,6 +39,7 @@ func _initialize() -> void:
 	mode_node.run_mode = StringName(String(opts.get("mode", "standard")))
 	mode_node.ascension = int(opts.get("ascension", 0))
 	mode_node.custom_seed = int(opts.get("seed", 0))
+	mode_node.difficulty = Difficulty.valid(opts.get("difficulty", ""))
 	root.add_child(mode_node)
 
 	if opts.has("loadout"):

@@ -20,6 +20,8 @@ var current_mode: GameMode = GameMode.COOP
 ## the shape of the run itself (RunData.MODE_*)
 var run_mode: StringName = RunData.MODE_STANDARD
 var ascension: int = 0
+## how hard the brood hits and how much it takes (see Difficulty)
+var difficulty: StringName = Difficulty.DEFAULT
 ## 0 = pick a random seed
 var custom_seed: int = 0
 var pvp_active: bool = false
@@ -80,6 +82,11 @@ static func run_mode_name(mode: StringName) -> String:
 		RunData.MODE_BOSS_RUSH: return "boss rush"
 		RunData.MODE_DAILY: return "daily run"
 		RunData.MODE_VERSUS: return "versus"
+		RunData.MODE_ONSLAUGHT: return "onslaught"
+		RunData.MODE_TEMPEST: return "tempest"
+		RunData.MODE_HUNT: return "the hunt"
+		RunData.MODE_DRAFT: return "draft"
+		RunData.MODE_DEADLINE: return "deadline"
 	return String(mode)
 
 
@@ -90,7 +97,28 @@ static func run_mode_description(mode: StringName) -> String:
 		RunData.MODE_ENDLESS: return "acts never stop. how deep can you get?"
 		RunData.MODE_BOSS_RUSH: return "every boss, back to back, with an armory stop between."
 		RunData.MODE_DAILY: return "today's seed. the same run for everyone."
+		RunData.MODE_ONSLAUGHT: return "eight fights in a row, no choices and no rest, then whatever is behind them."
+		RunData.MODE_TEMPEST: return "two acts where every room has a condition, the ground is thick with fields, and every reward is paid twice."
+		RunData.MODE_HUNT: return "every fight is an elite. five of them, then a boss."
+		RunData.MODE_DRAFT: return "pick your whole build before the first fight, then survive one hard act that pays only essence."
+		RunData.MODE_DEADLINE: return "one act against a clock. kills and cleared rooms buy time. run out and it is over."
 	return ""
+
+
+## the glyph that stands for a run mode on the title screen.
+static func run_mode_glyph(mode: StringName) -> StringName:
+	match mode:
+		RunData.MODE_STANDARD: return &"claw"
+		RunData.MODE_SPRINT: return &"dash"
+		RunData.MODE_ENDLESS: return &"orbit"
+		RunData.MODE_BOSS_RUSH: return &"horns"
+		RunData.MODE_DAILY: return &"gem"
+		RunData.MODE_ONSLAUGHT: return &"waves"
+		RunData.MODE_TEMPEST: return &"bolt"
+		RunData.MODE_HUNT: return &"crown"
+		RunData.MODE_DRAFT: return &"dice"
+		RunData.MODE_DEADLINE: return &"hourglass"
+	return &"claw"
 
 
 ## the seed every player gets for today's daily run.

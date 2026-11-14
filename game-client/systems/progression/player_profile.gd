@@ -46,6 +46,7 @@ var skin: StringName = &"default"
 # difficulty tiers: highest unlocked, and the one currently selected
 var ascension_unlocked: int = 0
 var ascension_selected: int = 0
+var difficulty_selected: String = "standard"
 
 # achievements earned (id -> true)
 var achievements: Dictionary = {}
@@ -77,6 +78,7 @@ static func load_profile() -> PlayerProfile:
 	profile.fracture_shards = maxi(0, _safe_int(config, "currency", "fracture_shards", 0))
 	profile.ascension_unlocked = clampi(_safe_int(config, "ascension", "unlocked", 0), 0, MetaProgression.MAX_ASCENSION)
 	profile.ascension_selected = clampi(_safe_int(config, "ascension", "selected", 0), 0, profile.ascension_unlocked)
+	profile.difficulty_selected = String(Difficulty.valid(_safe_string(config, "ascension", "difficulty", "standard")))
 
 	for key: String in _safe_strings(config, "meta", "upgrade_keys"):
 		profile.meta_upgrades[key] = maxi(0, _safe_int(config, "meta", "upgrade_%s" % key, 0))
@@ -153,6 +155,7 @@ func save() -> void:
 	config.set_value("currency", "fracture_shards", fracture_shards)
 	config.set_value("ascension", "unlocked", ascension_unlocked)
 	config.set_value("ascension", "selected", ascension_selected)
+	config.set_value("ascension", "difficulty", difficulty_selected)
 
 	var upgrade_keys: PackedStringArray = PackedStringArray()
 	for key: String in meta_upgrades:

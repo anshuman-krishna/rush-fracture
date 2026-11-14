@@ -55,6 +55,7 @@ func _initialize() -> void:
 	mode_node.run_mode = StringName(String(opts.get("mode", "standard")))
 	mode_node.ascension = int(opts.get("ascension", 0))
 	mode_node.custom_seed = int(opts.get("seed", 0))
+	mode_node.difficulty = Difficulty.valid(opts.get("difficulty", ""))
 	root.add_child(mode_node)
 	if opts.has("loadout"):
 		var profile: PlayerProfile = PlayerProfile.load_profile()

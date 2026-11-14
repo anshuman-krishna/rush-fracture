@@ -17,12 +17,18 @@ const MODE_ENDLESS: StringName = &"endless"
 const MODE_BOSS_RUSH: StringName = &"boss_rush"
 const MODE_DAILY: StringName = &"daily"
 const MODE_VERSUS: StringName = &"versus"
+const MODE_ONSLAUGHT: StringName = &"onslaught"
+const MODE_TEMPEST: StringName = &"tempest"
+const MODE_HUNT: StringName = &"hunt"
+const MODE_DRAFT: StringName = &"draft"
+const MODE_DEADLINE: StringName = &"deadline"
 
 var run_id: String = ""
 var status: RunStatus = RunStatus.ACTIVE
 var mode: StringName = MODE_STANDARD
 var seed_value: int = 0
 var ascension: int = 0
+var difficulty: StringName = &"standard"
 
 ## floors[i] is the list of rooms you may choose between on floor i
 var floors: Array = []

@@ -34,6 +34,7 @@ func start_run_with_floors(floors: Array, cfg: Dictionary = {}) -> void:
 	data.mode = cfg.get("mode", RunData.MODE_STANDARD)
 	data.seed_value = int(cfg.get("seed", 0))
 	data.ascension = int(cfg.get("ascension", 0))
+	data.difficulty = Difficulty.valid(cfg.get("difficulty", ""))
 	data.floors = floors
 	data.room_sequence.clear()
 	for options: Array in floors:

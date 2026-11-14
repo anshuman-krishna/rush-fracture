@@ -73,6 +73,24 @@ const PALETTES: Dictionary = {
 		"membrane": Color(0.5, 0.12, 0.5), "glow": Color(1.0, 0.3, 0.85),
 		"steel": Color(0.34, 0.3, 0.44), "accent": Color(1.0, 0.35, 0.85), "glow_energy": 2.3,
 	},
+	&"strain_bloom": {
+		"name": "bloom strain",
+		"chitin": Color(0.5, 0.36, 0.4), "bone": Color(0.97, 0.92, 0.88),
+		"membrane": Color(0.9, 0.5, 0.6), "glow": Color(1.0, 0.72, 0.8),
+		"steel": Color(0.7, 0.62, 0.64), "accent": Color(1.0, 0.7, 0.78), "glow_energy": 1.9,
+	},
+	&"strain_deep": {
+		"name": "drowned strain",
+		"chitin": Color(0.08, 0.2, 0.22), "bone": Color(0.55, 0.74, 0.72),
+		"membrane": Color(0.1, 0.42, 0.4), "glow": Color(0.25, 1.0, 0.85),
+		"steel": Color(0.26, 0.4, 0.42), "accent": Color(0.25, 1.0, 0.85), "glow_energy": 2.2,
+	},
+	&"strain_ash": {
+		"name": "ash strain",
+		"chitin": Color(0.17, 0.14, 0.13), "bone": Color(0.7, 0.6, 0.52),
+		"membrane": Color(0.6, 0.2, 0.08), "glow": Color(1.0, 0.5, 0.15),
+		"steel": Color(0.38, 0.32, 0.3), "accent": Color(1.0, 0.5, 0.15), "glow_energy": 2.3,
+	},
 	&"strain_elite": {
 		"name": "elite strain",
 		"chitin": Color(0.3, 0.06, 0.05), "bone": Color(0.9, 0.75, 0.5),

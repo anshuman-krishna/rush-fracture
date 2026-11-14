@@ -17,6 +17,9 @@ const BOSS_HEAL_RATIO: float = 0.3
 const READY_TIMEOUT: float = 8.0
 ## fresh hands of upgrade cards a player may ask for in one run
 const REROLLS_PER_RUN: int = 3
+const DEADLINE_START: float = 80.0
+const DEADLINE_PER_KILL: float = 1.5
+const DEADLINE_PER_ROOM: float = 12.0
 
 const SHOP_PRICES: Dictionary = {
 	UpgradeDefinitions.RARITY_COMMON: 35,
@@ -68,6 +71,9 @@ var _reward_queue: Array[StringName] = []
 ## which kind of upgrade reward is on screen, so a reroll deals the same kind
 var _reward_kind: StringName = &""
 var _rerolls_left: int = 0
+## deadline mode: seconds left, or -1 when the run has no clock
+var _deadline: float = -1.0
+var _deadline_sync: float = 0.0
 var _shop_items: Array[Dictionary] = []
 var _shared_enemy_speed_bonus: float = 0.0
 var _pvp_active: bool = false
@@ -311,6 +317,37 @@ func _process(delta: float) -> void:
 		if _fracture_delay < 0.0:
 			_try_start_fracture()
 
+	_tick_deadline(delta)
+
+
+## deadline mode: the clock only runs while there is something to fight. the
+## host keeps it and tells everyone else what it reads.
+func _tick_deadline(delta: float) -> void:
+	if _deadline < 0.0 or not is_host_or_solo() or not room_controller.room_active:
+		return
+	_deadline = maxf(0.0, _deadline - delta)
+	if _is_online():
+		_deadline_sync -= delta
+		if _deadline_sync <= 0.0:
+			_deadline_sync = 0.5
+			_rpc_deadline.rpc(_deadline)
+	if _deadline <= 0.0:
+		_deadline = -1.0
+		room_announce.show_text("out of time", Color(1.0, 0.3, 0.2))
+		run_manager.fail_run()
+		if _is_online():
+			_rpc_fail_run.rpc()
+
+
+@rpc("authority", "call_remote", "unreliable")
+func _rpc_deadline(seconds: float) -> void:
+	_deadline = seconds
+
+
+## seconds left on the deadline clock, or -1 when this run has none.
+func deadline_left() -> float:
+	return _deadline
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if awaiting_transition and event.is_action_pressed("jump"):
@@ -345,6 +382,7 @@ func _build_run_config() -> Dictionary:
 		"mode": mode,
 		"seed": seed_value,
 		"ascension": game_mode.ascension if mode != RunData.MODE_VERSUS else 0,
+		"difficulty": String(game_mode.difficulty) if mode != RunData.MODE_VERSUS else String(Difficulty.DEFAULT),
 		"players": maxi(1, player_manager.get_player_count()),
 	}
 
@@ -385,6 +423,11 @@ func _do_start_run(cfg: Dictionary) -> void:
 
 	player.stats.clear_modifiers()
 	_apply_profile_bonuses()
+	var difficulty: StringName = Difficulty.valid(cfg.get("difficulty", ""))
+	Difficulty.apply_to_player(difficulty, player.stats)
+	room_controller.enemy_health_scale = Difficulty.value(difficulty, "enemy_health")
+	room_controller.set_enemy_speed_mod(&"difficulty", Difficulty.value(difficulty, "enemy_speed"))
+	_deadline = DEADLINE_START if cfg.get("mode", RunData.MODE_STANDARD) == RunData.MODE_DEADLINE else -1.0
 	player.reset_for_run(Vector3(0, 2, 0))
 
 	if cfg.get("mode", RunData.MODE_STANDARD) == RunData.MODE_DAILY:
@@ -396,7 +439,11 @@ func _do_start_run(cfg: Dictionary) -> void:
 	else:
 		run_manager.start_run(cfg)
 	# the first room has already asked for its own track; line up the rest
-	for place: StringName in Biome.ACT_ORDER:
+	var places: Dictionary = {}
+	for options: Array in run_manager.data.floors:
+		for r: RunData.RoomData in options:
+			places[r.biome] = true
+	for place: StringName in places:
 		audio.prepare_music(place)
 
 
@@ -548,6 +595,8 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 	_fracture_delay = -1.0
 	difficulty_tracker.on_room_cleared()
 	audio.set_music_state(AudioManager.MusicState.CALM)
+	if _deadline >= 0.0 and is_host_or_solo() and not room.is_peaceful():
+		_deadline += DEADLINE_PER_ROOM
 	if not room.is_peaceful():
 		room_announce.show_room_clear()
 		Game.sfx(&"room_clear", -3.0)
@@ -569,6 +618,12 @@ func _on_room_cleared(room: RunData.RoomData) -> void:
 
 func _rewards_for(room: RunData.RoomData) -> Array[StringName]:
 	var q: Array[StringName] = []
+	# draft mode's armory: the whole build, one pick after another
+	var draft: int = int(room.metadata.get("draft", 0))
+	if draft > 0:
+		for i: int in draft:
+			q.append(&"rare" if i >= draft - 2 else &"upgrade")
+		return q
 	match room.reward:
 		RoomDefinitions.REWARD_UPGRADE:
 			q.append(&"upgrade")
@@ -869,6 +924,8 @@ func _on_room_enemy_died(enemy: Node3D, _info: DamageInfo) -> void:
 		_bosses_killed.append((enemy as BossBase).boss_id)
 	if not is_host_or_solo():
 		return
+	if _deadline >= 0.0 and enemy.get("counts_for_room") == true:
+		_deadline += DEADLINE_PER_KILL
 	if fracture_manager.is_active and fracture_manager.active_fracture == FractureDefinitions.FractureType.ENEMY_DUPLICATION:
 		if enemy.get("counts_for_room") == true and randf() < 0.3:
 			room_controller.spawn_duplicate_enemy()
@@ -1104,7 +1161,7 @@ func _show_summary(data: RunData, combo_best: int, pvp_won: bool) -> void:
 	_profile.update_from_run(data, combo_best, pvp_won)
 
 	var shard_data: Dictionary = MetaProgression.calculate_shards(data, combo_best, pvp_won)
-	var total_shards: int = int(shard_data.total * MetaProgression.get_shard_multiplier(_profile))
+	var total_shards: int = int(shard_data.total * MetaProgression.get_shard_multiplier(_profile) * Difficulty.value(data.difficulty, "shards"))
 	_profile.fracture_shards += total_shards
 	var earned: Array[Dictionary] = MetaProgression.check_achievements(_profile, data, combo_best,
 		{"bosses_killed": _bosses_killed, "flawless_boss": _flawless_boss})

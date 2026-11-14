@@ -583,10 +583,102 @@ function props(THREE, c, root) {
   }
 }
 
+// the inside of an open tube or bell: the same wall, facing inward
+function innerWall(geo) {
+  geo.scale(1, 1, -1);
+  const n = geo.attributes.normal;
+  for (let i = 0; i < n.count; i++) n.setXYZ(i, -n.getX(i), -n.getY(i), -n.getZ(i));
+  return geo;
+}
+
+function harrower(THREE, c, root) {
+  const { M, add, grp, spur, limb, segTail } = c;
+  // "The Harrower" — 2.7 m at the shoulder, 5 m long. Everything forward of the shoulders is one bone plough.
+  const body = grp(root, 'body', [0, 1.75, 0.3]);
+  add(body, new THREE.SphereGeometry(1.0, 28, 20), M.chitin, 'barrel', [0, 0, 0], [0, 0, 0], [1.15, 0.95, 1.9]);
+  for (let i = 0; i < 5; i++) band(THREE, c, body, `rib_band_${i + 1}`, M.bone, 1.1 - Math.abs(i - 2) * 0.11, 0.06, [0, 0, -1.0 + i * 0.5], 'z');
+  for (let i = 0; i < 6; i++) {
+    add(body, new THREE.ConeGeometry(0.24, 0.8 - Math.abs(i - 2.5) * 0.09, 4), M.bone, `saw_fin_${i + 1}`,
+      [0, 1.0 - Math.abs(i - 2.5) * 0.05, -1.15 + i * 0.46], [0.25, 0, 0], [0.3, 1, 1]);
+  }
+  add(body, new THREE.SphereGeometry(0.52, 22, 16), M.membrane, 'chest_sac', [0, -0.3, -1.3], [0, 0, 0], [1, 0.8, 0.8]);
+  add(body, new THREE.SphereGeometry(0.3, 22, 16), M.glow, 'phase_core', [0, -0.3, -1.52]);
+  [-1, 1].forEach((s) => {
+    add(body, new THREE.SphereGeometry(0.55, 20, 16), M.chitin, `shoulder_${side(s)}`, [s * 0.95, 0.2, -1.0], [0, 0, 0], [0.9, 1, 1.1]);
+    add(body, new THREE.BoxGeometry(0.06, 0.14, 1.6), M.glow, `flank_seam_${side(s)}`, [s * 1.13, -0.05, 0.3]);
+  });
+
+  const head = grp(root, 'head', [0, 1.85, -2.0], [0.2, 0, 0]);
+  add(head, new THREE.BoxGeometry(1.6, 0.75, 1.15), M.bone, 'plough_plate', [0, 0.28, -0.22], [0.5, 0, 0]);
+  add(head, new THREE.BoxGeometry(1.15, 0.42, 0.85), M.chitin, 'jaw_block', [0, -0.32, 0.0]);
+  [-1, 1].forEach((s) => {
+    const horn = grp(head, `horn_${side(s)}`, [s * 0.74, 0.5, -0.05], [-1.05, 0, s * -0.6]);
+    add(horn, new THREE.ConeGeometry(0.2, 1.5, 6), M.bone, `horn_shaft_${side(s)}`, [0, 0.75, 0]);
+    add(head, new THREE.SphereGeometry(0.1, 14, 10), M.glow, `eye_${side(s)}`, [s * 0.46, 0.02, -0.66]);
+    for (let i = 0; i < 3; i++) {
+      spur(head, `plough_tooth_${side(s)}_${i + 1}`, M.bone, [s * (0.18 + i * 0.24), -0.14, -0.74], [-HALF_PI, 0, 0], 0.07, 0.42);
+    }
+  });
+
+  limb(root, 'foreleg_l', M.chitin, { at: [-0.9, 1.7, -0.85], upper: 0.78, lower: 0.72, r: 0.23, a1: 0.3, a2: -0.6, claw: 0.32, spread: 0.14 });
+  limb(root, 'foreleg_r', M.chitin, { at: [0.9, 1.7, -0.85], upper: 0.78, lower: 0.72, r: 0.23, a1: 0.12, a2: -0.4, claw: 0.32, spread: -0.14 });
+  limb(root, 'hindleg_l', M.chitin, { at: [-0.85, 1.65, 1.35], upper: 0.8, lower: 0.7, r: 0.25, a1: -0.3, a2: 0.6, claw: 0.32, spread: 0.12 });
+  limb(root, 'hindleg_r', M.chitin, { at: [0.85, 1.65, 1.35], upper: 0.8, lower: 0.7, r: 0.25, a1: -0.12, a2: 0.4, claw: 0.32, spread: -0.12 });
+  segTail(root, 'tail', { at: [0, 1.95, 2.1], pitch: 0.2, curl: 0.1, count: 5, len: 0.4, shrink: 0.88, w0: 0.44, w1: 0.17, h0: 0.3, h1: 0.12, fin: 0.42 });
+  grp(root, 'anchor_muzzle', [0, 1.6, -2.7]);
+}
+
+function choir(THREE, c, root) {
+  const { M, add, grp, spur } = c;
+  // "The Choir" — 5.4 m, never touches the ground. One great bell and three lesser ones on arms; each is a mouth.
+  const crown = grp(root, 'crown', [0, 4.9, 0]);
+  add(crown, new THREE.SphereGeometry(0.7, 24, 18), M.chitin, 'crown_mass', [0, 0, 0], [0, 0, 0], [1.2, 0.7, 1.2]);
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    spur(crown, `crown_spine_${i + 1}`, M.bone, [Math.cos(a) * 0.72, 0.32, Math.sin(a) * 0.72], [Math.sin(a) * 0.55, 0, -Math.cos(a) * 0.55], 0.08, 0.85);
+  }
+  band(THREE, c, crown, 'crown_band', M.bone, 0.86, 0.08, [0, -0.12, 0], 'y');
+
+  const bell = grp(root, 'great_bell', [0, 3.6, 0]);
+  add(bell, new THREE.CylinderGeometry(0.55, 1.5, 1.9, 28, 1, true), M.membrane, 'bell_wall', [0, 0, 0]);
+  add(bell, innerWall(new THREE.CylinderGeometry(0.5, 1.45, 1.9, 28, 1, true)), M.chitin, 'bell_lining', [0, 0, 0]);
+  band(THREE, c, bell, 'bell_lip', M.bone, 1.5, 0.11, [0, -0.95, 0], 'y');
+  band(THREE, c, bell, 'bell_shoulder', M.bone, 0.58, 0.08, [0, 0.95, 0], 'y');
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const rib = grp(bell, `bell_rib_grp_${i + 1}`, [0, 0, 0], [0, -a, 0]);
+    add(rib, new THREE.BoxGeometry(0.1, 2.1, 0.14), M.chitin, `bell_rib_${i + 1}`, [1.05, 0, 0], [0, 0, 0.46]);
+    spur(rib, `lip_tooth_${i + 1}`, M.bone, [1.52, -1.2, 0], [Math.PI, 0, 0], 0.08, 0.4);
+  }
+  add(bell, new THREE.SphereGeometry(0.46, 24, 18), M.glow, 'phase_core', [0, -0.5, 0]);
+
+  for (let i = 0; i < 3; i++) {
+    const a = (i / 3) * Math.PI * 2 + HALF_PI;
+    const arm = grp(root, `voice_${i + 1}`, [0, 4.55, 0], [0, -a, 0]);
+    add(arm, new THREE.BoxGeometry(1.7, 0.16, 0.2), M.chitin, `voice_arm_${i + 1}`, [1.55, -0.1, 0], [0, 0, -0.22]);
+    const pod = grp(arm, `voice_pod_${i + 1}`, [2.45, -0.75, 0]);
+    add(pod, new THREE.CylinderGeometry(0.22, 0.58, 0.85, 18, 1, true), M.membrane, `voice_bell_${i + 1}`, [0, 0, 0]);
+    add(pod, innerWall(new THREE.CylinderGeometry(0.19, 0.54, 0.85, 18, 1, true)), M.chitin, `voice_lining_${i + 1}`, [0, 0, 0]);
+    band(THREE, c, pod, `voice_lip_${i + 1}`, M.bone, 0.58, 0.06, [0, -0.42, 0], 'y');
+    add(pod, new THREE.SphereGeometry(0.2, 16, 12), M.glow, `voice_core_${i + 1}`, [0, -0.2, 0]);
+    add(pod, new THREE.SphereGeometry(0.28, 16, 12), M.chitin, `voice_cap_${i + 1}`, [0, 0.44, 0], [0, 0, 0], [1, 0.6, 1]);
+  }
+
+  // trailing tendrils: thin, tapering to nothing, of uneven length
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2;
+    const len = 1.5 + (i % 3) * 0.55;
+    add(root, new THREE.CylinderGeometry(0.075, 0.015, len, 8), M.chitin, `tendril_${i + 1}`,
+      [Math.cos(a) * 0.95, 2.65 - len / 2, Math.sin(a) * 0.95], [Math.sin(a) * 0.12, 0, -Math.cos(a) * 0.12]);
+    add(root, new THREE.SphereGeometry(0.06, 10, 8), M.glow, `tendril_node_${i + 1}`, [Math.cos(a) * 0.95, 2.6, Math.sin(a) * 0.95]);
+  }
+  grp(root, 'anchor_muzzle', [0, 3.1, 0]);
+}
+
 const EXT = {
   rail_lance: railLance, spore_launcher: sporeLauncher, needler, arc_caster: arcCaster, ripper,
   spitter, shielder, leaper, swarmling, drone, broodmother,
-  matriarch, stalker, core,
+  matriarch, stalker, core, harrower, choir,
   host, props,
 };
 

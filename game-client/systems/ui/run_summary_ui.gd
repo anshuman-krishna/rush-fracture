@@ -27,6 +27,8 @@ func show_summary(data: RunData, extras: Dictionary = {}) -> void:
 	if data.is_endless():
 		heading = "depth %d" % data.rooms_cleared
 	var sub: String = String(extras.get("mode_name", ""))
+	if data.difficulty != Difficulty.DEFAULT:
+		sub += "  ·  %s" % Difficulty.display_name(data.difficulty)
 	if data.ascension > 0:
 		sub += "  ·  ascension %d" % data.ascension
 	if data.seed_value != 0:

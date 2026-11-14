@@ -80,6 +80,8 @@ func build(p_room: RunData.RoomData, p_rng: RandomNumberGenerator, arena_root: N
 		&"boss_stalker": _layout_boss_stalker()
 		&"boss_titan": _layout_boss_titan()
 		&"boss_core": _layout_boss_core()
+		&"boss_harrower": _layout_boss_harrower()
+		&"boss_choir": _layout_boss_choir()
 		_: _layout_open()
 
 	_build_walls()
@@ -96,6 +98,8 @@ func _choose_template() -> StringName:
 				&"matriarch": return &"boss_matriarch"
 				&"stalker": return &"boss_stalker"
 				&"core": return &"boss_core"
+				&"harrower": return &"boss_harrower"
+				&"choir": return &"boss_choir"
 			return &"boss_titan"
 		RoomDefinitions.RoomType.RECOVERY, RoomDefinitions.RoomType.SHOP, RoomDefinitions.RoomType.TRANSITION:
 			return &"sanctum"
@@ -291,6 +295,39 @@ func _layout_boss_core() -> void:
 	for i: int in 4:
 		var a: float = TAU * float(i) / 4.0
 		_jump_pad(Vector3(cos(a), 0, sin(a)) * 28.0, Vector3(-sin(a), 0, cos(a)) * 12.0 + Vector3(0, 19, 0))
+
+
+func _layout_boss_harrower() -> void:
+	# wide and nearly bare: room to run, and a few trunks to put between you and it
+	shape = ArenaShape.disc(38.0)
+	player_spawn = Vector3(0, 2, 24.0)
+	boss_spawn = Vector3(0, 0.2, -16.0)
+	_claim(player_spawn, 4.0, 4.0)
+	_claim(boss_spawn, 7.0, 7.0)
+	for i: int in 5:
+		var a: float = TAU * float(i) / 5.0 + PI * 0.1
+		_trunk(Vector3(cos(a), 0, sin(a)) * 19.0, 1.5)
+	for i: int in 4:
+		var a: float = TAU * float(i) / 4.0 + PI * 0.25
+		_jump_pad(Vector3(cos(a), 0, sin(a)) * 31.0, Vector3(-cos(a), 0, -sin(a)) * 13.0 + Vector3(0, 19, 0))
+
+
+func _layout_boss_choir() -> void:
+	# cover in rings: the patterns come from the middle, so what matters is what you can stand behind
+	shape = ArenaShape.disc(36.0)
+	player_spawn = Vector3(0, 2, 24.0)
+	boss_spawn = Vector3(0, 0.2, -8.0)
+	_claim(player_spawn, 4.0, 4.0)
+	_claim(boss_spawn, 7.0, 7.0)
+	for i: int in 5:
+		var a: float = TAU * float(i) / 5.0 + PI * 0.3
+		_barrier_arc(Vector3(cos(a), 0, sin(a)) * 21.0, atan2(-cos(a), -sin(a)))
+	for i: int in 3:
+		var a: float = TAU * float(i) / 3.0 + PI * 0.5
+		_deck(Vector3(cos(a), 0, sin(a)) * 29.0, Vector3(6.0, DECK_HEIGHT * 0.8, 6.0), [0, 1, 2, 3])
+	for i: int in 4:
+		var a: float = TAU * float(i) / 4.0 + PI * 0.25
+		_jump_pad(Vector3(cos(a), 0, sin(a)) * 13.0, Vector3(cos(a), 0, sin(a)) * 11.0 + Vector3(0, 18, 0))
 
 
 func _cover_count(lo: int, hi: int) -> int:
@@ -873,6 +910,8 @@ func _place_fields() -> void:
 	var count: int = 0 if roll < 0.3 else (1 if roll < 0.75 else 2)
 	if room.type == RoomDefinitions.RoomType.GAUNTLET:
 		count = maxi(count, 1)
+	if room.metadata.get("dense_fields", false):
+		count = 3
 	var kinds: Array = FieldZone.KINDS.keys()
 	var placed: Array[Vector3] = []
 	var used: Array = []
