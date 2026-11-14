@@ -18,6 +18,7 @@ var _weapons: WeaponManager
 var _run: RunManager
 var _combo: ComboTracker
 var _fracture: FractureManager
+var _upgrades: UpgradeManager
 var _network: NetworkManager
 var _pvp: PvPManager
 var _boss: BossBase
@@ -49,6 +50,10 @@ func bind(player: CharacterBody3D, weapons: WeaponManager, run: RunManager, comb
 	_run = run
 	_combo = combo
 	_fracture = fracture
+
+
+func bind_upgrades(manager: UpgradeManager) -> void:
+	_upgrades = manager
 
 
 func bind_network(manager: NetworkManager) -> void:
@@ -251,6 +256,19 @@ func _draw_vitals(anchor: Vector2, k: float) -> void:
 		_diamond(centre, 11.0 * k, Color(0, 0, 0, 0.55))
 		if fill_ratio > 0.0:
 			_diamond(centre, 11.0 * k * (0.35 + 0.65 * fill_ratio), Color(0.4, 0.9, 1.0, 1.0 if fill_ratio >= 1.0 else 0.5))
+
+	# bone plates: a block each, the next one filling from the bottom as it regrows
+	if is_instance_valid(_upgrades) and _upgrades.plates_max() > 0:
+		var have: int = _upgrades.plates_ready()
+		var side: float = 16.0 * k
+		var left: float = anchor.x + w + 28.0 * k + float(charges) * 30.0 * k + 6.0 * k
+		for i: int in _upgrades.plates_max():
+			var box: Rect2 = Rect2(left + float(i) * (side + 6.0 * k), anchor.y - h * 0.5 - side * 0.5, side, side)
+			draw_rect(box, Color(0, 0, 0, 0.55))
+			var grown: float = 1.0 if i < have else (_upgrades.plate_regrow_ratio() if i == have else 0.0)
+			if grown > 0.0:
+				draw_rect(Rect2(box.position.x, box.position.y + side * (1.0 - grown), side, side * grown),
+						Color(0.95, 0.9, 0.75, 1.0 if grown >= 1.0 else 0.45))
 
 	if _run and _run.data:
 		var pop: float = 1.0 + _essence_pop * 1.2

@@ -39,9 +39,14 @@ func _configure() -> void:
 	fire_volume = -9.0
 
 
+## the coil's full charge, with its upgrade.
+func _capacity() -> float:
+	return max_battery * (1.5 if has_flag(&"capacity") else 1.0)
+
+
 func reset_state() -> void:
 	super.reset_state()
-	battery = max_battery
+	battery = _capacity()
 	_depleted = false
 
 
@@ -72,8 +77,8 @@ func _recharge(delta: float) -> void:
 	_idle += delta
 	if _idle < RECHARGE_DELAY:
 		return
-	battery = minf(max_battery, battery + RECHARGE_PER_SECOND * delta)
-	if _depleted and battery >= max_battery * 0.35:
+	battery = minf(_capacity(), battery + RECHARGE_PER_SECOND * delta)
+	if _depleted and battery >= _capacity() * 0.35:
 		_depleted = false
 
 
@@ -105,6 +110,8 @@ func _discharge() -> void:
 		})
 		if is_instance_valid(current) and current.has_method("apply_status"):
 			current.apply_status(&"slow", 0.6, 0.3, owner_player)
+			if n == 0 and has_flag(&"searing"):
+				current.apply_status(&"burn", 2.5, 12.0, owner_player)
 		hit.append(current)
 		from = to
 		damage *= JUMP_FALLOFF
@@ -147,7 +154,7 @@ func _first_target(origin: Vector3, aim: Vector3) -> Node3D:
 
 func hud_state() -> Dictionary:
 	return {
-		"meter": battery / max_battery,
+		"meter": battery / _capacity(),
 		"meter_color": Color(1.0, 0.3, 0.2) if _depleted else tracer_color,
 		"warn": _depleted,
 		"label": "depleted" if _depleted else "charge",

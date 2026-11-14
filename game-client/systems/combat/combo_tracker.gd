@@ -41,7 +41,7 @@ func _process(delta: float) -> void:
 
 func register_kill() -> void:
 	combo_count += 1
-	combo_timer = combo_window
+	combo_timer = _window()
 	var new_mult: int = 1
 	for threshold: Array in THRESHOLDS:
 		if combo_count >= threshold[0]:
@@ -57,7 +57,14 @@ func register_kill() -> void:
 func time_ratio() -> float:
 	if combo_count <= 0:
 		return 0.0
-	return clampf(combo_timer / combo_window, 0.0, 1.0)
+	return clampf(combo_timer / _window(), 0.0, 1.0)
+
+
+## how long a kill keeps the chain alive, with the player's upgrades.
+func _window() -> float:
+	if is_instance_valid(_player) and "stats" in _player:
+		return combo_window * _player.stats.value(&"combo_time")
+	return combo_window
 
 
 func get_time_remaining() -> float:

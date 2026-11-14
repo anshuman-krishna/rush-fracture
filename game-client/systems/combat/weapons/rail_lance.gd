@@ -45,7 +45,8 @@ func _on_holster() -> void:
 func _tick(delta: float, held: bool, _pressed: bool, released: bool) -> void:
 	if _charging:
 		if held:
-			charge = minf(1.0, charge + delta / CHARGE_TIME * maxf(0.1, _stat(&"fire_rate")))
+			var haste: float = 1.4 if has_flag(&"quick_charge") else 1.0
+			charge = minf(1.0, charge + delta / CHARGE_TIME * haste * maxf(0.1, _stat(&"fire_rate")))
 			_set_zoom(charge)
 			_hum_timer -= delta
 			if _hum_timer <= 0.0:
@@ -84,6 +85,8 @@ func _fire() -> void:
 		var body: CharacterBody3D = result.collider as CharacterBody3D
 		# each body it passes through costs it a little
 		_resolve_hit(body, result.position, result.normal, dir, damage * pow(0.88, n), {"knockback": 6.0 * power})
+		if charge >= 0.95 and has_flag(&"pinning") and body.has_method("stun"):
+			body.stun(1.5)
 		if overpen and combat and charge >= 0.95:
 			var radius: float = 2.6 * _stat(&"blast_radius")
 			Vfx.blast(result.position, radius, tracer_color, false)

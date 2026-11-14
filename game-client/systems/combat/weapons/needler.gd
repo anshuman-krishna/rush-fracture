@@ -86,7 +86,9 @@ func _add_stack(enemy: CharacterBody3D, at: Vector3) -> void:
 	if entry.expires < _clock:
 		entry.count = 0
 	entry.count += 1
-	entry.expires = _clock + STACK_LIFETIME
+	entry.expires = _clock + STACK_LIFETIME * (2.0 if has_flag(&"barbed") else 1.0)
+	if has_flag(&"barbed") and enemy.has_method("apply_status"):
+		enemy.apply_status(&"slow", 1.5, 0.2, owner_player)
 	var needed: int = stacks_to_detonate - (2 if has_flag(&"hair_trigger") else 0)
 	if entry.count >= needed:
 		_stacks.erase(id)
@@ -105,11 +107,17 @@ func _detonate(enemy: CharacterBody3D, at: Vector3) -> void:
 	var combat: Combat = Game.combat()
 	if not combat:
 		return
-	var radius: float = detonate_radius * _stat(&"blast_radius")
+	var caustic: bool = has_flag(&"caustic")
+	var radius: float = detonate_radius * _stat(&"blast_radius") * (1.4 if caustic else 1.0)
 	var centre: Vector3 = enemy.aim_point() if enemy.has_method("aim_point") else at
 	Vfx.blast(centre, radius, tracer_color)
 	Game.sfx_at(&"explosion_small", centre, -5.0, 0.2)
 	Game.shake(3.0, centre, 25.0)
+	if caustic:
+		# before the blast, so anything it leaves alive is already burning
+		for e: Node3D in Combat.enemies_in_radius(get_tree(), centre, radius):
+			if e.has_method("apply_status"):
+				e.apply_status(&"burn", 3.0, 16.0, owner_player)
 	combat.blast(centre, radius, detonate_damage, {"weapon": weapon_id})
 
 

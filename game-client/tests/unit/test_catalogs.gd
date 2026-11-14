@@ -33,7 +33,7 @@ func test_upgrade_ids_are_unique_and_complete() -> void:
 		check(UpgradeDefinitions.max_stacks(u) >= 1, "%s can be taken at least once" % id)
 		var does_something: bool = not (u.get("mods", []) as Array).is_empty() or u.has("special") or u.has("flag")
 		check(does_something, "%s has at least one effect" % id)
-	check(seen.size() >= 50, "catalogue has the expected breadth (%d)" % seen.size())
+	check(seen.size() >= 90, "catalogue has the expected breadth (%d)" % seen.size())
 
 
 func test_upgrade_mods_target_real_stats() -> void:
@@ -256,3 +256,130 @@ func test_skins() -> void:
 		check(Skins.exists(b.strain), "biome %s uses a real strain palette" % biome_id)
 		check(Skins.exists(b.obstacle_skin), "biome %s uses a real obstacle palette" % biome_id)
 		check((b.props as Array).size() > 0, "biome %s has set dressing" % biome_id)
+
+
+func test_every_upgrade_applies_and_resets() -> void:
+	var player: Node = (load(PLAYER_SCRIPT) as Script).new()
+	var manager: UpgradeManager = UpgradeManager.new()
+	manager.bind(player, null)
+	for u: Dictionary in UpgradeDefinitions.CATALOG:
+		for i: int in UpgradeDefinitions.max_stacks(u):
+			manager.apply(u)
+		eq(manager.stacks(u.id), UpgradeDefinitions.max_stacks(u), "%s taken to its maximum" % u.id)
+	# the ongoing effects, with every one of them owned at once
+	manager._tick_timers(0.1)
+	manager._tick_conditions()
+	check(player.stats.value(&"damage") > 1.0, "a full build hits harder")
+	eq(manager.plates_max(), 2, "two stacks of bone plating are two plates")
+	eq(manager.get_child_count(), 2, "two brood familiars exist")
+
+	manager.reset()
+	for stat: StringName in [&"damage", &"fire_rate", &"damage_taken", &"orb_heal", &"combo_time", &"dash_charges", &"essence_gain"]:
+		near(player.stats.value(stat), 1.0, "reset restores %s" % stat)
+	near(player.stats.value(&"max_health"), 100.0, "reset restores max health")
+	near(player.stats.value(&"air_jumps"), 0.0, "reset removes air jumps")
+	check(player.damage_filters.is_empty(), "reset removes the incoming damage filter")
+	eq(manager.plates_max(), 0, "reset removes the plates")
+	eq(manager.get_child_count(), 0, "reset removes the familiars")
+	manager.free()
+	player.free()
+
+
+func test_bone_plating_soaks_one_hit_and_regrows() -> void:
+	var player: Node = (load(PLAYER_SCRIPT) as Script).new()
+	var manager: UpgradeManager = UpgradeManager.new()
+	manager.bind(player, null)
+	manager.apply(UpgradeDefinitions.find(&"bone_plating"))
+	eq(manager.plates_ready(), 1, "the plate arrives ready")
+
+	player.health = 100
+	# your own blast goes straight through the plate
+	player.take_damage(10, DamageInfo.make(10, DamageInfo.KIND_SELF))
+	eq(player.health, 90, "self damage is not soaked")
+	eq(manager.plates_ready(), 1, "and does not cost the plate")
+
+	player._invuln_timer = 0.0
+	player.take_damage(30, DamageInfo.make(30, DamageInfo.KIND_MELEE))
+	eq(player.health, 90, "the plate soaked the whole hit")
+	eq(manager.plates_ready(), 0, "and was spent")
+	check(player.is_invulnerable(), "a soaked hit leaves a moment of grace")
+
+	player._invuln_timer = 0.0
+	player.take_damage(30, DamageInfo.make(30, DamageInfo.KIND_MELEE))
+	eq(player.health, 60, "the next hit lands")
+
+	manager._tick_timers(UpgradeManager.PLATE_REGROW * 0.5)
+	eq(manager.plates_ready(), 0, "half way through, no plate yet")
+	manager._tick_timers(UpgradeManager.PLATE_REGROW * 0.5 + 0.01)
+	eq(manager.plates_ready(), 1, "the plate grew back")
+	manager.free()
+	player.free()
+
+
+func test_timed_buffs_run_out() -> void:
+	var player: Node = (load(PLAYER_SCRIPT) as Script).new()
+	var manager: UpgradeManager = UpgradeManager.new()
+	manager.bind(player, null)
+	manager.apply(UpgradeDefinitions.find(&"adrenal_rush"))
+	manager.apply(UpgradeDefinitions.find(&"bloodlust"))
+	near(player.stats.value(&"fire_rate"), 1.0, "nothing yet")
+
+	manager.on_player_damaged(5, null)
+	near(player.stats.value(&"fire_rate"), 1.3, "adrenal rush after a hit")
+	near(player.stats.value(&"move_speed"), 12.0 * 1.3, "and the speed with it")
+	manager._tick_timers(UpgradeManager.RUSH_TIME + 0.1)
+	near(player.stats.value(&"fire_rate"), 1.0, "adrenal rush ran out")
+
+	for i: int in 14:
+		manager.on_enemy_killed(null, null)
+	near(player.stats.value(&"fire_rate"), 1.4, "bloodlust stops at +40%")
+	manager._tick_timers(UpgradeManager.LUST_TIME + 0.1)
+	near(player.stats.value(&"fire_rate"), 1.0, "bloodlust ran out")
+	manager.free()
+	player.free()
+
+
+func test_reroll_leaves_out_what_was_on_screen() -> void:
+	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
+	rng.seed = 11
+	for i: int in 40:
+		var shown: Array = []
+		for p: Dictionary in UpgradeDefinitions.pick_choices(3, {}, WeaponDefs.DEFAULT_LOADOUT, false, rng):
+			shown.append(p.id)
+		var fresh: Array[Dictionary] = UpgradeDefinitions.pick_choices(3, {}, WeaponDefs.DEFAULT_LOADOUT, false, rng, shown)
+		eq(fresh.size(), 3, "a reroll still deals three")
+		for p: Dictionary in fresh:
+			check(not shown.has(p.id), "a reroll does not repeat %s" % p.id)
+
+
+func test_every_weapon_has_upgrades_of_its_own() -> void:
+	var per_weapon: Dictionary = {}
+	for u: Dictionary in UpgradeDefinitions.CATALOG:
+		var weapon: StringName = u.get("weapon", &"")
+		if weapon != &"":
+			per_weapon[weapon] = int(per_weapon.get(weapon, 0)) + 1
+	for id: StringName in WeaponDefs.ORDER:
+		check(int(per_weapon.get(id, 0)) >= 3, "%s has at least three upgrades (%d)" % [id, int(per_weapon.get(id, 0))])
+
+
+func test_dash_refund_and_combo_window() -> void:
+	var player: Node = (load(PLAYER_SCRIPT) as Script).new()
+	player.dash_charges_ready = 0
+	player._dash_recharge = player.stats.value(&"dash_cooldown")
+	player.refund_dash(0.5)
+	eq(player.dash_charges_ready, 0, "half a cooldown is not a charge")
+	player.refund_dash(0.5)
+	eq(player.dash_charges_ready, 1, "two halves are")
+	player.refund_dash(0.5)
+	eq(player.dash_charges_ready, 1, "a full dash is not overfilled")
+
+	var combo: ComboTracker = ComboTracker.new()
+	combo.bind(player)
+	combo.register_kill()
+	near(combo.get_time_remaining(), ComboTracker.COMBO_WINDOW, "the plain combo window")
+	player.stats.set_mul(&"combo_time", &"test", 1.3)
+	combo.register_kill()
+	near(combo.get_time_remaining(), ComboTracker.COMBO_WINDOW * 1.3, "a longer window with the upgrade")
+	near(combo.time_ratio(), 1.0, "and the hud bar is full at the start of it")
+	combo.free()
+	player.free()

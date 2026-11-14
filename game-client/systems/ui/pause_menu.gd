@@ -54,8 +54,12 @@ func _show() -> void:
 	var run: RunManager = Game.run()
 	if run and run.data:
 		var lines: PackedStringArray = PackedStringArray()
+		var taken: Dictionary = {}
 		for u: Dictionary in run.data.chosen_upgrades:
-			lines.append(String(u.get("name", "")))
+			var label: String = String(u.get("name", ""))
+			taken[label] = int(taken.get(label, 0)) + 1
+		for label: String in taken:
+			lines.append(label if taken[label] == 1 else "%s x%d" % [label, taken[label]])
 		for m: Dictionary in run.data.chosen_mutations:
 			lines.append("%s (mutation)" % m.get("name", ""))
 		if not lines.is_empty():

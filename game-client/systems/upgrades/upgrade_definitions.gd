@@ -64,6 +64,16 @@ const CATALOG: Array[Dictionary] = [
 	{"id": &"quick_hands", "name": "quick hands", "rarity": RARITY_COMMON, "max": 2,
 		"description": "switch weapons 40% faster, -25% recoil",
 		"mods": [[&"swap_speed", "mul", 1.4], [&"recoil", "mul", 0.75]]},
+	{"id": &"corrosive_glands", "name": "corrosive glands", "rarity": RARITY_COMMON, "max": 3,
+		"description": "+30% burn and bleed damage", "mods": [[&"dot_damage", "mul", 1.3]]},
+	{"id": &"long_stride", "name": "long stride", "rarity": RARITY_COMMON, "max": 3,
+		"description": "dashes carry you 15% further", "mods": [[&"dash_force", "mul", 1.15]]},
+	{"id": &"hollow_bones", "name": "hollow bones", "rarity": RARITY_COMMON, "max": 2,
+		"description": "steer 35% harder in the air", "mods": [[&"air_acceleration", "mul", 1.35]]},
+	{"id": &"marrow_feast", "name": "marrow feast", "rarity": RARITY_COMMON, "max": 2,
+		"description": "health orbs heal 50% more", "mods": [[&"orb_heal", "mul", 1.5]]},
+	{"id": &"killing_rhythm", "name": "killing rhythm", "rarity": RARITY_COMMON, "max": 2,
+		"description": "combos last 30% longer before they drop", "mods": [[&"combo_time", "mul", 1.3]]},
 
 	# --- rare -------------------------------------------------------------
 	{"id": &"twin_dash", "name": "twin dash", "rarity": RARITY_RARE, "max": 2,
@@ -103,6 +113,38 @@ const CATALOG: Array[Dictionary] = [
 		"description": "+40% damage to enemies below 30% health", "special": &"executioner"},
 	{"id": &"phase_dash", "name": "phase dash", "rarity": RARITY_RARE,
 		"description": "stay untouchable for longer after a dash", "special": &"phase_dash"},
+	{"id": &"ignition", "name": "ignition", "rarity": RARITY_RARE,
+		"description": "critical hits set enemies alight", "special": &"ignition"},
+	{"id": &"cryo_rounds", "name": "numbing venom", "rarity": RARITY_RARE,
+		"description": "hits have a 25% chance to slow the enemy by 35% for 2 seconds", "special": &"cryo_rounds"},
+	{"id": &"hunter_mark", "name": "hunter's mark", "rarity": RARITY_RARE,
+		"description": "a weak-point hit marks the enemy: it takes 25% more damage for 4 seconds", "special": &"hunter_mark"},
+	{"id": &"pyromaniac", "name": "pyromaniac", "rarity": RARITY_RARE,
+		"description": "+30% damage to burning enemies", "special": &"pyromaniac"},
+	{"id": &"opening_shot", "name": "opening shot", "rarity": RARITY_RARE,
+		"description": "+60% damage to enemies at full health", "special": &"opening_shot"},
+	{"id": &"elite_hunter", "name": "giant killer", "rarity": RARITY_RARE,
+		"description": "+30% damage to elites and bosses", "special": &"elite_hunter"},
+	{"id": &"shrapnel", "name": "bone shrapnel", "rarity": RARITY_RARE, "max": 2,
+		"description": "kills have a 35% chance to throw shards at up to three nearby enemies", "special": &"shrapnel"},
+	{"id": &"bloodlust", "name": "bloodlust", "rarity": RARITY_RARE,
+		"description": "each kill adds +4% fire rate for 5 seconds, up to +40%", "special": &"bloodlust"},
+	{"id": &"predator_reflex", "name": "predator reflex", "rarity": RARITY_RARE,
+		"description": "every kill recharges half a dash", "special": &"predator_reflex"},
+	{"id": &"sky_hunter", "name": "sky hunter", "rarity": RARITY_RARE,
+		"description": "+25% damage while you are in the air", "special": &"sky_hunter"},
+	{"id": &"full_bloom", "name": "full bloom", "rarity": RARITY_RARE,
+		"description": "+20% damage while at full health", "special": &"full_bloom"},
+	{"id": &"gilded_marrow", "name": "gilded marrow", "rarity": RARITY_RARE,
+		"description": "+1% damage for every 5 essence you are holding, up to +30%", "special": &"gilded_marrow"},
+	{"id": &"bone_plating", "name": "bone plating", "rarity": RARITY_RARE, "max": 2,
+		"description": "a plate soaks one whole hit, then regrows after 12 seconds", "special": &"bone_plating"},
+	{"id": &"thorns", "name": "spined hide", "rarity": RARITY_RARE, "max": 2,
+		"description": "an enemy that hits you from close range takes 40 damage and is thrown back", "special": &"thorns"},
+	{"id": &"adrenal_rush", "name": "adrenal rush", "rarity": RARITY_RARE,
+		"description": "taking damage gives +30% movement speed and fire rate for 3 seconds", "special": &"adrenal_rush"},
+	{"id": &"recoil_pulse", "name": "shock reflex", "rarity": RARITY_RARE,
+		"description": "when you are hit, a pulse stuns and throws back everything nearby (8 second cooldown)", "special": &"recoil_pulse"},
 
 	# --- weapon-specific --------------------------------------------------
 	{"id": &"burst_protocol", "name": "burst protocol", "rarity": RARITY_RARE, "weapon": &"pulse_rifle",
@@ -125,18 +167,34 @@ const CATALOG: Array[Dictionary] = [
 		"description": "+50% stinger heat capacity", "flag": [&"beam_emitter", &"capacity", true]},
 	{"id": &"hair_trigger", "name": "hair trigger", "rarity": RARITY_RARE, "weapon": &"needler",
 		"description": "needle hive detonates with two fewer quills", "flag": [&"needler", &"hair_trigger", true]},
+	{"id": &"barbed_quills", "name": "barbed quills", "rarity": RARITY_RARE, "weapon": &"needler",
+		"description": "quills stay in twice as long and each one slows its target", "flag": [&"needler", &"barbed", true]},
+	{"id": &"caustic_hive", "name": "caustic hive", "rarity": RARITY_RARE, "weapon": &"needler",
+		"description": "hive detonations are 40% larger and leave everything burning", "flag": [&"needler", &"caustic", true]},
 	{"id": &"cluster_spores", "name": "cluster spores", "rarity": RARITY_RARE, "weapon": &"spore_launcher",
 		"description": "mortar blasts scatter three bomblets", "flag": [&"spore_launcher", &"cluster", true]},
 	{"id": &"insulated", "name": "insulated", "rarity": RARITY_RARE, "weapon": &"spore_launcher",
 		"description": "your own mortar blasts no longer hurt you", "flag": [&"spore_launcher", &"insulated", true]},
+	{"id": &"napalm_spores", "name": "bile fire", "rarity": RARITY_RARE, "weapon": &"spore_launcher",
+		"description": "mortar blasts set everything they touch alight", "flag": [&"spore_launcher", &"napalm", true]},
 	{"id": &"overpenetrate", "name": "overpenetration", "rarity": RARITY_RARE, "weapon": &"rail_lance",
 		"description": "a fully charged lance detonates in every enemy it passes through", "flag": [&"rail_lance", &"overpenetrate", true]},
+	{"id": &"quick_charge", "name": "taut sinew", "rarity": RARITY_RARE, "weapon": &"rail_lance",
+		"description": "marrow lance charges 40% faster", "flag": [&"rail_lance", &"quick_charge", true]},
+	{"id": &"pinning_shot", "name": "pinning shot", "rarity": RARITY_RARE, "weapon": &"rail_lance",
+		"description": "a fully charged lance stuns everything it passes through", "flag": [&"rail_lance", &"pinning", true]},
 	{"id": &"long_chain", "name": "long chain", "rarity": RARITY_RARE, "weapon": &"arc_caster",
 		"description": "synapse coil jumps to two more enemies", "flag": [&"arc_caster", &"extra_jumps", 2]},
+	{"id": &"deep_cells", "name": "deep cells", "rarity": RARITY_RARE, "weapon": &"arc_caster",
+		"description": "+50% synapse coil charge", "flag": [&"arc_caster", &"capacity", true]},
+	{"id": &"searing_arc", "name": "searing arc", "rarity": RARITY_RARE, "weapon": &"arc_caster",
+		"description": "synapse coil sets the first enemy it strikes alight", "flag": [&"arc_caster", &"searing", true]},
 	{"id": &"hard_bounce", "name": "hard bounce", "rarity": RARITY_RARE, "weapon": &"ripper",
 		"description": "ripper discs bounce two more times", "flag": [&"ripper", &"extra_bounces", 2]},
 	{"id": &"serrated", "name": "serrated discs", "rarity": RARITY_RARE, "weapon": &"ripper",
 		"description": "ripper discs leave enemies bleeding", "flag": [&"ripper", &"serrated", true]},
+	{"id": &"twin_discs", "name": "twin discs", "rarity": RARITY_RARE, "weapon": &"ripper",
+		"description": "ripper throws two discs side by side, each dealing 65% damage", "flag": [&"ripper", &"twin", true]},
 
 	# --- epic ---------------------------------------------------------------
 	{"id": &"glass_engine", "name": "glass engine", "rarity": RARITY_EPIC,
@@ -149,6 +207,16 @@ const CATALOG: Array[Dictionary] = [
 	{"id": &"perpetual_motion", "name": "perpetual motion", "rarity": RARITY_EPIC,
 		"description": "dash recharges twice as fast, +10% movement speed",
 		"mods": [[&"dash_cooldown", "mul", 0.5], [&"move_speed", "mul", 1.1]]},
+	{"id": &"storm_caller", "name": "storm caller", "rarity": RARITY_EPIC,
+		"description": "every sixth hit calls lightning onto the target, and it jumps to two more", "special": &"storm_caller"},
+	{"id": &"brood_familiar", "name": "brood familiar", "rarity": RARITY_EPIC, "max": 2,
+		"description": "a spore circles you and spits at the nearest enemy", "special": &"brood_familiar"},
+	{"id": &"juggernaut", "name": "juggernaut", "rarity": RARITY_EPIC,
+		"description": "+40 max health and take 15% less damage",
+		"mods": [[&"max_health", "add", 40.0], [&"damage_taken", "mul", 0.85]], "special": &"heal_40"},
+	{"id": &"evolved_frame", "name": "evolved frame", "rarity": RARITY_EPIC,
+		"description": "+1 dash charge and +1 jump in mid-air",
+		"mods": [[&"dash_charges", "add", 1.0], [&"air_jumps", "add", 1.0]]},
 
 	# --- cursed: real power, real cost ---------------------------------------
 	{"id": &"power_surge", "name": "power surge", "rarity": RARITY_CURSED,
@@ -166,6 +234,15 @@ const CATALOG: Array[Dictionary] = [
 	{"id": &"tunnel_vision", "name": "tunnel vision", "rarity": RARITY_CURSED,
 		"description": "+25% critical chance, but your view narrows",
 		"mods": [[&"crit_chance", "add", 0.25], [&"fov_bias", "add", -22.0]]},
+	{"id": &"borrowed_time", "name": "borrowed time", "rarity": RARITY_CURSED,
+		"description": "survive two killing blows this run, but -40% max health",
+		"mods": [[&"max_health", "mul", 0.6]], "special": &"borrowed_time"},
+	{"id": &"starving_brood", "name": "starving brood", "rarity": RARITY_CURSED,
+		"description": "double essence, but health orbs heal half as much",
+		"mods": [[&"essence_gain", "mul", 2.0], [&"orb_heal", "mul", 0.5]]},
+	{"id": &"frenzy_gland", "name": "frenzy gland", "rarity": RARITY_CURSED,
+		"description": "+45% fire rate, but take 20% more damage",
+		"mods": [[&"fire_rate", "mul", 1.45], [&"damage_taken", "mul", 1.2]]},
 ]
 
 
@@ -189,12 +266,13 @@ static func rarity_color(upgrade: Dictionary) -> Color:
 ## owned     id -> stacks already taken
 ## loadout   weapon ids equipped, so weapon upgrades only show for held weapons
 ## rare_only true for rare rewards: no commons in the pool
+## exclude   ids to leave out, so a reroll does not deal the same cards again
 static func pick_choices(count: int, owned: Dictionary = {}, loadout: Array = [], rare_only: bool = false,
-		rng: RandomNumberGenerator = null) -> Array[Dictionary]:
+		rng: RandomNumberGenerator = null, exclude: Array = []) -> Array[Dictionary]:
 	var pool: Array[Dictionary] = []
 	var weights: Array[float] = []
 	for u: Dictionary in CATALOG:
-		if int(owned.get(u.id, 0)) >= max_stacks(u):
+		if int(owned.get(u.id, 0)) >= max_stacks(u) or exclude.has(u.id):
 			continue
 		var weapon: StringName = u.get("weapon", &"")
 		if weapon != &"" and not loadout.has(weapon):

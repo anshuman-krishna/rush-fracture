@@ -72,6 +72,10 @@ func _explode(at: Vector3, damage: float, radius: float, spawn_cluster: bool) ->
 	Game.sfx_at(&"explosion", at, -2.0, 0.12)
 	Game.shake(6.0, at, 30.0)
 	combat.blast(at, radius, damage, {"weapon": weapon_id, "knockback": 9.0})
+	if has_flag(&"napalm"):
+		for e: Node3D in Combat.enemies_in_radius(get_tree(), at, radius):
+			if e.has_method("apply_status"):
+				e.apply_status(&"burn", 4.0, damage * 0.2, owner_player)
 
 	# the blast does not care whose it is
 	if is_instance_valid(owner_player):

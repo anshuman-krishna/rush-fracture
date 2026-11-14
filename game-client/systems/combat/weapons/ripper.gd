@@ -6,6 +6,8 @@ extends BaseWeapon
 
 const SPEED: float = 42.0
 const MAX_DISCS: int = 3
+const TWIN_ANGLE: float = 0.07
+const TWIN_DAMAGE: float = 0.65
 
 var bounces: int = 4
 var _live: int = 0
@@ -34,13 +36,22 @@ func reset_state() -> void:
 
 
 func _tick(_delta: float, held: bool, _pressed: bool, _released: bool) -> void:
-	if not held or not _can_fire() or _live >= MAX_DISCS:
+	if not held or not _can_fire() or _live >= _max_live() - (1 if has_flag(&"twin") else 0):
 		return
 	var pm: ProjectileManager = Game.projectiles()
 	if not pm:
 		return
 	_start_cooldown()
-	var dir: Vector3 = _aim_dir()
+	if has_flag(&"twin"):
+		var aim: Vector3 = _aim_dir()
+		_throw(pm, aim.rotated(Vector3.UP, TWIN_ANGLE), TWIN_DAMAGE)
+		_throw(pm, aim.rotated(Vector3.UP, -TWIN_ANGLE), TWIN_DAMAGE)
+	else:
+		_throw(pm, _aim_dir(), 1.0)
+	_after_shot()
+
+
+func _throw(pm: ProjectileManager, dir: Vector3, damage_scale: float) -> void:
 	var shot: ProjectileManager.Shot = pm.fire_player({
 		"position": _aim_origin() + dir * 0.7,
 		"velocity": dir * SPEED,
@@ -54,16 +65,16 @@ func _tick(_delta: float, held: bool, _pressed: bool, _released: bool) -> void:
 		"source": owner_player,
 		"on_hit": _on_hit,
 		"on_expire": _on_expire,
+		"data": {"scale": damage_scale},
 	})
 	if shot:
 		_live += 1
-	_after_shot()
 
 
 ## returns false so the disc keeps flying through the body it just cut.
 func _on_hit(shot: ProjectileManager.Shot, collider: Object, pos: Vector3, normal: Vector3) -> bool:
 	var dir: Vector3 = shot.velocity.normalized()
-	var info: DamageInfo = _resolve_hit(collider, pos, normal, dir, base_damage, {"kind": DamageInfo.KIND_PROJECTILE})
+	var info: DamageInfo = _resolve_hit(collider, pos, normal, dir, base_damage * float(shot.data.get("scale", 1.0)), {"kind": DamageInfo.KIND_PROJECTILE})
 	if info:
 		Game.sfx_at(&"disc_hit", pos, -8.0, 0.15)
 		if has_flag(&"serrated") and collider.has_method("apply_status"):
@@ -77,4 +88,10 @@ func _on_expire(_shot: ProjectileManager.Shot, at: Vector3) -> void:
 
 
 func hud_state() -> Dictionary:
-	return {"meter": float(MAX_DISCS - _live) / float(MAX_DISCS), "meter_color": tracer_color, "label": "discs", "invert": true}
+	var limit: int = _max_live()
+	return {"meter": float(limit - mini(_live, limit)) / float(limit), "meter_color": tracer_color, "label": "discs", "invert": true}
+
+
+## how many discs may be in the air at once: two throws' worth when they come in pairs.
+func _max_live() -> int:
+	return MAX_DISCS + 1 if has_flag(&"twin") else MAX_DISCS

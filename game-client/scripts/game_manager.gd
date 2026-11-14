@@ -15,6 +15,8 @@ const CONTINUE_PROMPT: String = "press %s to continue"
 const HEAL_ROOM_RATIO: float = 0.4
 const BOSS_HEAL_RATIO: float = 0.3
 const READY_TIMEOUT: float = 8.0
+## fresh hands of upgrade cards a player may ask for in one run
+const REROLLS_PER_RUN: int = 3
 
 const SHOP_PRICES: Dictionary = {
 	UpgradeDefinitions.RARITY_COMMON: 35,
@@ -63,6 +65,9 @@ var _profile: PlayerProfile
 var _settings: GameSettings
 var _run_cfg: Dictionary = {}
 var _reward_queue: Array[StringName] = []
+## which kind of upgrade reward is on screen, so a reroll deals the same kind
+var _reward_kind: StringName = &""
+var _rerolls_left: int = 0
 var _shop_items: Array[Dictionary] = []
 var _shared_enemy_speed_bonus: float = 0.0
 var _pvp_active: bool = false
@@ -159,6 +164,7 @@ func _ready() -> void:
 	upgrade_manager.enemy_speed_bonus_changed.connect(_on_enemy_speed_bonus_changed)
 
 	upgrade_ui.upgrade_selected.connect(_on_upgrade_selected)
+	upgrade_ui.reroll_requested.connect(_on_upgrade_reroll)
 	mutation_ui.mutation_selected.connect(_on_mutation_selected)
 	mutation_ui.mutation_skipped.connect(_on_mutation_skipped)
 	path_ui.path_chosen.connect(_on_path_chosen)
@@ -177,6 +183,7 @@ func _ready() -> void:
 	fracture_manager.bind(player)
 	combo_tracker.bind(player)
 	hud.bind(player, weapon_manager, run_manager, combo_tracker, fracture_manager)
+	hud.bind_upgrades(upgrade_manager)
 	hud.accent = Skins.accent(_profile.skin)
 	if network_manager:
 		hud.bind_network(network_manager)
@@ -366,6 +373,7 @@ func _do_start_run(cfg: Dictionary) -> void:
 	game_feel.reset()
 	fracture_manager.end_fracture()
 	upgrade_manager.reset()
+	_rerolls_left = REROLLS_PER_RUN
 	mutation_manager.reset()
 	combo_tracker.reset_run()
 	difficulty_tracker.reset()
@@ -593,7 +601,8 @@ func _next_reward() -> void:
 				_next_reward()
 				return
 			awaiting_upgrade = true
-			upgrade_ui.show_choices(choices, "rare upgrade" if kind == &"rare" else "choose an upgrade")
+			_reward_kind = kind
+			_show_upgrade_choices(choices)
 		&"mutation":
 			var options: Array[Dictionary] = MutationDefinitions.pick_choices(2, mutation_manager.owned_types())
 			if options.is_empty():
@@ -671,6 +680,28 @@ func _on_upgrade_selected(upgrade: Dictionary) -> void:
 	run_manager.apply_upgrade(upgrade)
 	Game.sfx(&"upgrade_pick", -3.0)
 	_next_reward()
+
+
+func _show_upgrade_choices(choices: Array[Dictionary]) -> void:
+	upgrade_ui.show_choices(choices, "rare upgrade" if _reward_kind == &"rare" else "choose an upgrade",
+			upgrade_manager.owned, _rerolls_left)
+
+
+## deals a fresh hand in place of the one on screen. a run gets a few of these.
+func _on_upgrade_reroll() -> void:
+	if not awaiting_upgrade or _rerolls_left <= 0:
+		return
+	var shown: Array = []
+	for u: Dictionary in upgrade_ui.choices:
+		shown.append(u.id)
+	var fresh: Array[Dictionary] = UpgradeDefinitions.pick_choices(3, upgrade_manager.owned, _loadout_ids(),
+			_reward_kind == &"rare", null, shown)
+	if fresh.is_empty():
+		Game.sfx(&"ui_deny", -8.0)
+		return
+	_rerolls_left -= 1
+	Game.sfx(&"ui_select", -6.0)
+	_show_upgrade_choices(fresh)
 
 
 func _on_mutation_selected(mutation: Dictionary) -> void:
@@ -786,7 +817,7 @@ func _on_pickup_collected(kind: StringName, value: int) -> void:
 		run_manager.add_essence(maxi(1, int(round(value * player.stats.value(&"essence_gain")))))
 		Game.sfx(&"pickup", -12.0, 0.2)
 	elif kind == Pickup.KIND_HEALTH:
-		player.heal(value)
+		player.heal(maxi(1, int(round(value * player.stats.value(&"orb_heal")))))
 		Game.sfx(&"heal", -8.0, 0.1)
 
 
@@ -871,6 +902,7 @@ func _on_player_damaged(amount: int, info: DamageInfo) -> void:
 	_room_flawless = false
 	if run_manager.data:
 		run_manager.data.damage_taken += amount
+	upgrade_manager.on_player_damaged(amount, info)
 	difficulty_tracker.on_player_damaged(amount)
 	mutation_manager.on_player_damaged(amount, info)
 	Game.sfx(&"player_damage", -2.0, 0.1)

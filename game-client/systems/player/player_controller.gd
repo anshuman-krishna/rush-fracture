@@ -18,6 +18,8 @@ signal slide_started
 signal slammed(impact_position: Vector3, fall_speed: float)
 signal death_defied
 signal dodged
+## a hit was soaked whole by something (a bone plate)
+signal absorbed
 
 const INTERP_SPEED: float = 18.0
 const STAND_HEIGHT: float = 1.8
@@ -166,6 +168,8 @@ func _init_stats() -> void:
 		&"swap_speed": 1.0,
 		&"pickup_radius": 3.5,
 		&"essence_gain": 1.0,
+		&"orb_heal": 1.0,
+		&"combo_time": 1.0,
 		&"ability_charge": 1.0,
 		&"fov_bias": 0.0,
 	}
@@ -545,6 +549,12 @@ func _recharge_dash(delta: float) -> void:
 			_dash_recharge = maxf(0.05, stats.value(&"dash_cooldown"))
 
 
+## takes `ratio` of a full cooldown off the dash charge that is recharging.
+func refund_dash(ratio: float) -> void:
+	if dash_charges_ready < dash_charges():
+		_recharge_dash(maxf(0.05, stats.value(&"dash_cooldown")) * ratio)
+
+
 func _on_landed() -> void:
 	var speed: float = _fall_speed
 	_fall_speed = 0.0
@@ -646,6 +656,11 @@ func _apply_damage_local(amount: int, info: DamageInfo) -> void:
 	for filter: Callable in damage_filters:
 		if filter.is_valid():
 			mult *= float(filter.call(info))
+	if mult <= 0.0:
+		# soaked whole. a moment of grace, so one swing cannot take the plate and the health under it
+		_invuln_timer = maxf(_invuln_timer, 0.35)
+		absorbed.emit()
+		return
 	var actual: int = maxi(1, int(round(amount * mult)))
 
 	if actual >= health and lethal_guards > 0:
