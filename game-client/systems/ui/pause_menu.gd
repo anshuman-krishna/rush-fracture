@@ -15,7 +15,7 @@ var _settings_panel: SettingsPanel
 
 
 func _ready() -> void:
-	panel_width = 420.0
+	panel_width = 680.0
 	super._ready()
 	process_mode = Node.PROCESS_MODE_ALWAYS
 
@@ -49,24 +49,23 @@ func _can_open() -> bool:
 
 func _show() -> void:
 	_clear_content()
-	_title("paused" if not Game.is_online() else "menu", UiKit.TEXT, 32)
+	_heading("paused" if not Game.is_online() else "menu", UiKit.BONE)
 
 	var run: RunManager = Game.run()
 	if run and run.data:
-		var lines: PackedStringArray = PackedStringArray()
-		var taken: Dictionary = {}
-		for u: Dictionary in run.data.chosen_upgrades:
-			var label: String = String(u.get("name", ""))
-			taken[label] = int(taken.get(label, 0)) + 1
-		for label: String in taken:
-			lines.append(label if taken[label] == 1 else "%s x%d" % [label, taken[label]])
-		for m: Dictionary in run.data.chosen_mutations:
-			lines.append("%s (mutation)" % m.get("name", ""))
-		if not lines.is_empty():
-			_note("build: " + ", ".join(lines), UiKit.TEXT_DIM, 14)
+		var strip: BuildStrip = BuildStrip.new()
+		strip.set_build(run.data.chosen_upgrades, run.data.chosen_mutations)
+		if strip.is_empty():
+			strip.free()
+		else:
+			_content.add_child(strip)
+			_note(", ".join(strip.names()), UiKit.TEXT_DIM, 14)
+			_rule()
 
 	_buttons = VBoxContainer.new()
 	_buttons.add_theme_constant_override("separation", 10)
+	_buttons.custom_minimum_size = Vector2(380, 0)
+	_buttons.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 	_content.add_child(_buttons)
 	_add("resume", _resume)
 	_add("settings", _open_settings)

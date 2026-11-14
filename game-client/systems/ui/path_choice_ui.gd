@@ -1,35 +1,56 @@
 extends UiModal
 
-# between rooms: choose where to go next. each option shows what kind of room
-# it is, how dangerous, and what it pays.
+# between rooms: choose where to go next. each card shows what kind of room
+# it is, how dangerous, what it pays, and anything strange about the place.
 
 signal path_chosen(index: int)
 
-const DANGER_COLORS: Array[Color] = [Color(0.4, 1.0, 0.5), Color(0.9, 0.9, 0.9), Color(1.0, 0.72, 0.2), Color(1.0, 0.3, 0.22)]
+const DANGER_COLORS: Array[Color] = [Color(0.45, 1.0, 0.5), Color(0.86, 0.8, 0.68), Color(1.0, 0.72, 0.2), Color(1.0, 0.33, 0.26)]
+const DANGER_WORDS: PackedStringArray = ["safe", "low threat", "dangerous", "deadly"]
 
 var options: Array = []
-var _cards: VBoxContainer
+var _cards: HBoxContainer
+
+
+func _init() -> void:
+	framed = false
 
 
 func show_options(room_options: Array, floor_number: int, total_floors: int) -> void:
 	options = room_options
 	_clear_content()
-	_title("choose your path", UiKit.TEXT)
-	_note("floor %d of %d" % [floor_number, total_floors])
-	_cards = VBoxContainer.new()
-	_cards.add_theme_constant_override("separation", 10)
-	_content.add_child(_cards)
+	_heading("choose your path", UiKit.BONE, "floor %d of %d" % [floor_number, total_floors])
+	_cards = _card_row()
 
-	for i: int in options.size():
+	var count: int = options.size()
+	for i: int in count:
 		var room: RunData.RoomData = options[i]
 		var danger: int = clampi(RoomDefinitions.danger(room.type), 0, 3)
-		var edge: Color = DANGER_COLORS[danger]
-		var threat: String = ["safe", "danger: low", "danger: medium", "danger: high"][danger]
-		var footer: String = "%s   ·   reward: %s" % [threat, RoomDefinitions.reward_name(room.reward)]
-		var card: Button = UiKit.card(room.title(), RoomDefinitions.blurb(room.type), edge, footer, "[%d]" % (i + 1))
+		var card: ChoiceCard = ChoiceCard.new()
+		card.title = room.title()
+		card.body = RoomDefinitions.blurb(room.type)
+		card.tint = DANGER_COLORS[danger]
+		card.frame = &"rare" if danger >= 2 else &"common"
+		card.tag = DANGER_WORDS[danger]
+		card.glyph = UiGlyphs.for_room(room.type)
+		card.hotkey = str(i + 1)
+		card.pips = danger
+		card.pips_max = 3
+		card.pips_label = "threat"
+		card.footer = "pays: %s" % RoomDefinitions.reward_name(room.reward)
+		var condition: StringName = RoomConditions.of(room)
+		if condition != &"":
+			card.chips.append(["%s: %s" % [RoomConditions.display_name(condition), RoomConditions.text(condition)], RoomConditions.color(condition)])
+		card.tilt = (float(i) - float(count - 1) * 0.5) * 0.028
+		card.appear_delay = 0.07 * float(i)
 		var index: int = i
 		card.pressed.connect(func() -> void: _choose(index))
 		_cards.add_child(card)
+
+	var keys: Array = []
+	for i: int in count:
+		keys.append(str(i + 1))
+	_hints([[keys, "go"]])
 
 	_open()
 	_focus_first(_cards)

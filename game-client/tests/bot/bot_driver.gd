@@ -63,6 +63,11 @@ var grant_upgrades: PackedStringArray = PackedStringArray()
 ## a room condition to put on every fight room of the run, or "all" to deal
 ## them out in turn, so one run meets each of them.
 var force_condition: String = ""
+## how long a choice panel must have been open before the bot answers it.
+## the screenshot runner raises this so a panel is fully drawn when captured.
+var panel_think: float = 0.0
+var _panel_seen: float = 0.0
+var _panel_which: String = ""
 var _granted: bool = false
 var _perf_clock: int = 0
 var _perf_frames: int = 0
@@ -272,7 +277,14 @@ func _grant(gm: Node) -> void:
 
 
 func _handle_panels(main: Node, gm: Node) -> void:
-	if _panel_delay > 0.0:
+	# which panel is up. the clock restarts whenever that changes, so each
+	# panel gets its own thinking time even when one follows another directly
+	var which: String = "%s%s%s%s" % [gm.get("awaiting_upgrade"), gm.get("awaiting_mutation"), gm.get("awaiting_shop"), gm.get("awaiting_path")]
+	if which != _panel_which:
+		_panel_which = which
+		_panel_seen = 0.0
+	_panel_seen += get_process_delta_time()
+	if _panel_delay > 0.0 or _panel_seen < panel_think:
 		return
 	if gm.get("awaiting_upgrade"):
 		var ui: Control = main.get_node_or_null("UI/UpgradeSelection") as Control

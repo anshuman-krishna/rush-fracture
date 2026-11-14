@@ -24,6 +24,7 @@ var _pending: String = ""
 var _last_room: int = -1
 var _room_shot_delay: float = -1.0
 var _seen: Dictionary = {}
+var _shown: Dictionary = {}
 var _quit_after: float = -1.0
 var _hide_ui: bool = false
 var _menu_tab: String = ""
@@ -44,6 +45,7 @@ func _initialize() -> void:
 	_driver.room_limit = int(opts.get("rooms", 0))
 	_driver.grant_upgrades = String(opts.get("upgrades", "")).split(",", false)
 	_driver.force_condition = String(opts.get("condition", ""))
+	_driver.panel_think = 1.3
 	_menu_tab = String(opts.get("menu-tab", ""))
 	_driver.finished.connect(_on_finished)
 	root.add_child(_driver)
@@ -72,6 +74,9 @@ func _initialize() -> void:
 func _process(delta: float) -> bool:
 	if _quit_after >= 0.0:
 		_quit_after -= delta
+		if _quit_after <= 0.7 and not _seen.has("final"):
+			_seen["final"] = true
+			_request("final")
 		if _quit_after <= 0.0 and _pending.is_empty():
 			return true
 		return false
@@ -120,7 +125,12 @@ func _process(delta: float) -> bool:
 
 func _once(main: Node, path: String, label: String) -> void:
 	var node: Control = main.get_node_or_null(path) as Control
-	if node and node.visible and node.modulate.a > 0.95 and not _seen.has(label):
+	if not node or not node.visible or _seen.has(label):
+		_shown.erase(label)
+		return
+	# give the panel's cards time to deal themselves in
+	_shown[label] = float(_shown.get(label, 0.0)) + root.get_process_delta_time()
+	if _shown[label] >= 0.9 and _pending.is_empty():
 		_seen[label] = true
 		_request(label)
 
@@ -147,8 +157,7 @@ func _on_frame_drawn() -> void:
 
 func _on_finished(passed: bool, reason: String) -> void:
 	print("[shot] bot finished passed=%s %s" % [passed, reason])
-	_request("final")
-	_quit_after = 0.5
+	_quit_after = 1.8
 
 
 func _parse_args() -> Dictionary:
