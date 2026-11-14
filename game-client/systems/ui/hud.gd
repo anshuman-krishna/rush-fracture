@@ -19,6 +19,7 @@ var _run: RunManager
 var _combo: ComboTracker
 var _fracture: FractureManager
 var _upgrades: UpgradeManager
+var _fields: Array[StringName] = []
 var _network: NetworkManager
 var _pvp: PvPManager
 var _boss: BossBase
@@ -125,6 +126,7 @@ func _process(delta: float) -> void:
 	if _refresh <= 0.0:
 		_refresh = 0.1
 		_scan_enemies()
+		_scan_fields()
 	queue_redraw()
 
 
@@ -155,8 +157,9 @@ func _draw() -> void:
 	_draw_crosshair(s * 0.5, k)
 	_draw_damage_arcs(s * 0.5, k)
 	_draw_vitals(Vector2(56, s.y - 56) , k)
+	_draw_fields(Vector2(56, s.y - 150), k)
 	_draw_weapons(Vector2(s.x - 56, s.y - 56), k)
-	_draw_top(Vector2(s.x * 0.5, 34), k)
+	_draw_top(Vector2(s.x * 0.5, 50), k)
 	_draw_combo(Vector2(56, 150), k)
 	_draw_radar(Vector2(s.x - 56 - RADAR_RADIUS * k, 56 + RADAR_RADIUS * k), k)
 	_draw_boss(Vector2(s.x * 0.5, 150), k)
@@ -326,6 +329,9 @@ func _draw_top(c: Vector2, k: float) -> void:
 	_text(c + Vector2(0, 26 * k), line, int(22 * k), Color.WHITE, HORIZONTAL_ALIGNMENT_CENTER, true)
 	if _enemy_count > 0:
 		_text(c + Vector2(0, 50 * k), "%d remaining" % _enemy_count, int(15 * k), Color(1.0, 0.6, 0.4, 0.9), HORIZONTAL_ALIGNMENT_CENTER)
+	var condition: StringName = RoomConditions.of(room)
+	if condition != &"":
+		_text(c + Vector2(0, -22 * k), RoomConditions.display_name(condition), int(15 * k), RoomConditions.color(condition), HORIZONTAL_ALIGNMENT_CENTER, true)
 
 	if is_instance_valid(_fracture) and _fracture.is_active:
 		var fy: float = c.y + 74.0 * k
@@ -333,6 +339,27 @@ func _draw_top(c: Vector2, k: float) -> void:
 		var col: Color = Color(0.95, 0.3, 1.0)
 		_text(Vector2(c.x, fy), "fracture: %s" % _fracture.get_active_name(), int(17 * k), col, HORIZONTAL_ALIGNMENT_CENTER, true)
 		_bar(Rect2(c.x - bw * 0.5, fy + 8.0 * k, bw, 5.0 * k), _fracture.get_time_ratio(), col)
+
+
+## the fields this player is standing in right now.
+func _scan_fields() -> void:
+	_fields.clear()
+	if not is_instance_valid(_player) or not is_inside_tree():
+		return
+	for node: Node in get_tree().get_nodes_in_group(FieldZone.GROUP):
+		var zone: FieldZone = node as FieldZone
+		if zone and zone.holds(_player) and not _fields.has(zone.kind):
+			_fields.append(zone.kind)
+
+
+func _draw_fields(anchor: Vector2, k: float) -> void:
+	var y: float = anchor.y
+	for kind: StringName in _fields:
+		var tint: Color = FieldZone.color_of(kind)
+		draw_rect(Rect2(anchor.x, y - 13.0 * k, 4.0 * k, 16.0 * k), tint)
+		var w: float = _text(Vector2(anchor.x + 12.0 * k, y), FieldZone.display_name(kind), int(16 * k), tint, HORIZONTAL_ALIGNMENT_LEFT, true)
+		_text(Vector2(anchor.x + 22.0 * k + w, y), FieldZone.effect_text(kind), int(15 * k), Color(1, 1, 1, 0.75))
+		y -= 22.0 * k
 
 
 func _draw_combo(anchor: Vector2, k: float) -> void:

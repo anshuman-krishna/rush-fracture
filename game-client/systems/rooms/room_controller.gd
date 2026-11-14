@@ -69,6 +69,10 @@ var active_boss: BossBase
 var arena: ArenaShape
 var builder: ArenaBuilder
 var player_count: int = 1
+## what is true of the whole room while you are in it (see RoomConditions)
+var condition: StringName = &""
+var _storm_timer: float = 0.0
+var _regrow_timer: float = 0.0
 
 var _lib: ModelLibrary = ModelLibrary.new()
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
@@ -122,6 +126,7 @@ func _process(delta: float) -> void:
 	if _sight_timer <= 0.0:
 		_sight_timer = SIGHT_CHECK_INTERVAL
 		_rescue_unreachable_enemies()
+	_tick_condition(delta)
 
 	if _next_wave_delay >= 0.0:
 		_next_wave_delay -= delta
@@ -152,6 +157,12 @@ func enter_room(room: RunData.RoomData) -> void:
 	_collect_breakables()
 	_apply_biome(room.biome, room.is_boss())
 	_place_focus_prop(room)
+
+	condition = RoomConditions.of(room)
+	_storm_timer = RoomConditions.STORM_INTERVAL + 1.5
+	_regrow_timer = 0.0
+	if condition == &"haze" and _environment:
+		_environment.fog_density *= RoomConditions.HAZE_FOG
 
 	_spawn_timer = BOSS_SPAWN_DELAY if room.is_boss() else SPAWN_DELAY
 
@@ -332,9 +343,12 @@ func _create_enemy(type_id: StringName, node_name: String, at: Vector3, affix: V
 	enemy.counts_for_room = counts
 	for key: Variant in _enemy_speed_mods:
 		enemy.stats.set_mul(&"move_speed", StringName("room:%s" % key), _enemy_speed_mods[key])
+	RoomConditions.apply_to_enemy(condition, enemy.stats)
 	enemy.position = at
 	enemy_root.add_child(enemy)
 	enemy.begin_spawn()
+	if condition == &"brittle" and Game.is_host_or_solo():
+		enemy.apply_status(&"brittle", 100000.0, RoomConditions.BRITTLE_BONUS)
 	enemy.health.died.connect(_on_enemy_died.bind(enemy))
 	_setup_enemy_multiplayer(enemy)
 	return enemy
@@ -455,6 +469,8 @@ func _on_enemy_died(info: DamageInfo, enemy: Node3D) -> void:
 		elif info and info.source != null and info.source == Game.local_player():
 			killer = multiplayer.get_unique_id()
 		_rpc_enemy_died.rpc(String(enemy.name), killer)
+	if condition == &"volatile" and enemy is EnemyBase and not enemy is BossBase and (enemy as EnemyBase).affix != &"volatile":
+		_condition_burst(enemy as EnemyBase)
 	if not enemy.get("counts_for_room"):
 		return
 	enemies_alive = maxi(0, enemies_alive - 1)
@@ -501,6 +517,8 @@ func on_enemy_dropped(enemy: EnemyBase, _info: DamageInfo) -> void:
 	if not enemy.counts_for_room:
 		# summoned adds pay a fraction, so a spawner can't be farmed
 		essence = 1 if _spawn_rng.randf() < 0.3 else 0
+		orbs = 0
+	if condition == &"famine":
 		orbs = 0
 	if essence <= 0 and orbs <= 0:
 		return
@@ -631,6 +649,9 @@ func _do_fx(kind: StringName, a: Vector3, b: Vector3, f1: float, f2: float, colo
 			Vfx.blast(a, f1, color)
 		&"ring":
 			Vfx.ring(a, f1, color, f2)
+		&"bolt":
+			Vfx.lightning(a + Vector3(0, 26.0, 0), a, color, 0.22, 1.4, 0.07)
+			Vfx.blast(a + Vector3(0, 0.4, 0), f1, color)
 		&"wave":
 			Shockwave.spawn(hazard_root, a, f1, f2, int(b.x), color, b.z, b.y > 0.5)
 
@@ -787,6 +808,7 @@ func _clear_room() -> void:
 	active_boss = null
 	_focus_prop = null
 	builder = null
+	condition = &""
 
 
 ## clients normally see a death through the replicated health value, but
@@ -804,6 +826,92 @@ func _rpc_enemy_died(node_name: String, killer_peer: int) -> void:
 		var combat: Combat = Game.combat()
 		if combat:
 			combat.credit_kill(enemy)
+
+
+# --- room conditions ---------------------------------------------------------------
+
+## the parts of a condition that happen over time. host only.
+func _tick_condition(delta: float) -> void:
+	match condition:
+		&"overgrowth":
+			_regrow_timer -= delta
+			if _regrow_timer > 0.0:
+				return
+			_regrow_timer = 0.5
+			var now: int = Time.get_ticks_msec()
+			for node: Node in enemy_root.get_children():
+				var e: EnemyBase = node as EnemyBase
+				if not e or e.is_dying or not e.health or not e.health.is_alive():
+					continue
+				if e.health.current_health < e.health.max_health and now - e.health.last_damage_msec > RoomConditions.REGROW_QUIET_MSEC:
+					e.health.heal(maxi(1, int(e.health.max_health * RoomConditions.REGROW_PER_SECOND * 0.5)))
+		&"storm":
+			_storm_timer -= delta
+			if _storm_timer <= 0.0:
+				_storm_timer = RoomConditions.STORM_INTERVAL * _spawn_rng.randf_range(0.7, 1.3)
+				_storm_strike()
+
+
+## marks a spot, then hits whatever is still standing on it.
+func _storm_strike() -> void:
+	if not arena:
+		return
+	var at: Vector3 = arena.random_point(_spawn_rng, 3.0)
+	var pm: PlayerManager = Game.players()
+	var living: Array[CharacterBody3D] = []
+	if pm:
+		living = pm.get_living_players()
+	if not living.is_empty() and _spawn_rng.randf() < 0.6:
+		# near someone, not on them: stand still and it finds you
+		var who: CharacterBody3D = living[_spawn_rng.randi() % living.size()]
+		var off: float = _spawn_rng.randf() * TAU
+		at = clamp_to_arena(who.global_position + Vector3(cos(off), 0, sin(off)) * _spawn_rng.randf_range(0.0, 4.0), 1.0)
+	at.y = 0.0
+	var tint: Color = RoomConditions.color(&"storm")
+	net_fx(&"circle", at, Vector3.ZERO, RoomConditions.STORM_RADIUS, RoomConditions.STORM_WARNING, tint)
+	var difficulty: float = active_room.difficulty if active_room else 1.0
+	_delayed_area_hit(at, RoomConditions.STORM_RADIUS, RoomConditions.STORM_WARNING,
+		int(14.0 + difficulty * 4.0), int(60.0 * difficulty), tint, &"bolt")
+
+
+## volatile brood: a body bursts a moment after it drops.
+func _condition_burst(enemy: EnemyBase) -> void:
+	var at: Vector3 = enemy.global_position
+	at.y = 0.0
+	var tint: Color = RoomConditions.color(&"volatile")
+	net_fx(&"circle", at, Vector3.ZERO, RoomConditions.BURST_RADIUS, RoomConditions.BURST_DELAY, tint)
+	_delayed_area_hit(at, RoomConditions.BURST_RADIUS, RoomConditions.BURST_DELAY,
+		enemy.damage(0.9), int(35.0 * enemy.difficulty), tint, &"blast")
+
+
+## after `delay`, damages every player and every enemy within `radius` of
+## `at`. does nothing if the room has changed or the fight is over by then.
+func _delayed_area_hit(at: Vector3, radius: float, delay: float, player_damage: int, enemy_damage: int,
+		tint: Color, fx: StringName) -> void:
+	var token: int = room_token
+	get_tree().create_timer(delay).timeout.connect(func() -> void:
+		if room_token != token or not room_active:
+			return
+		if fx == &"bolt":
+			net_fx(&"bolt", at, Vector3.ZERO, radius, 0.0, tint)
+		else:
+			net_fx(&"blast", at + Vector3(0, 0.6, 0), Vector3.ZERO, radius, 0.0, tint)
+		Game.sfx_at(&"explosion_small", at, -4.0, 0.15)
+		var pm: PlayerManager = Game.players()
+		if pm:
+			for p: CharacterBody3D in pm.get_living_players():
+				if is_instance_valid(p) and Vector2(p.global_position.x - at.x, p.global_position.z - at.z).length() <= radius + 0.4 \
+						and p.global_position.y < 3.5:
+					var info: DamageInfo = DamageInfo.make(player_damage, DamageInfo.KIND_HAZARD)
+					info.position = at
+					p.take_damage(player_damage, info)
+		for node: Node in enemy_root.get_children():
+			var e: EnemyBase = node as EnemyBase
+			if not e or e.is_dying or e is BossBase or not e.health or not e.health.is_alive():
+				continue
+			if e.global_position.distance_to(at) <= radius + e.body_radius:
+				e.health.take_damage(enemy_damage, DamageInfo.make(enemy_damage, DamageInfo.KIND_HAZARD))
+	)
 
 
 # --- what a client does to an enemy ----------------------------------------------

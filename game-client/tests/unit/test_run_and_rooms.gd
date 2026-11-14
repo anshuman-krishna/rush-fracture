@@ -250,3 +250,83 @@ func test_combo_buffs_are_stat_modifiers() -> void:
 	eq(combo.best_combo, 0, "a new run starts clean")
 	combo.free()
 	player.free()
+
+
+func test_room_conditions_are_backed_by_something() -> void:
+	var player: Node = (load("res://systems/player/player_controller.gd") as Script).new()
+	var enemy: EnemyBase = EnemyTypes.create(&"chaser", 1.0)
+	var controller_src: String = (load("res://systems/rooms/room_controller.gd") as Script).source_code
+	for id: StringName in RoomConditions.DEFS:
+		var def: Dictionary = RoomConditions.DEFS[id]
+		check(String(def.get("name", "")).length() > 0 and String(def.get("text", "")).length() > 0, "%s is named and explained" % id)
+		for mod: Array in def.get("player", []):
+			check(player.stats.has(mod[0]), "%s changes a stat the player has (%s)" % [id, mod[0]])
+		for mod: Array in def.get("enemy", []):
+			check(enemy.stats.has(mod[0]), "%s changes a stat enemies have (%s)" % [id, mod[0]])
+		var has_mods: bool = def.has("player") or def.has("enemy")
+		check(has_mods or controller_src.contains("&\"%s\"" % id), "%s does something" % id)
+
+	RoomConditions.apply_to_player(&"tailwind", player.stats)
+	near(player.stats.value(&"move_speed"), 12.0 * 1.2, "tailwind speeds the player up")
+	RoomConditions.apply_to_player(&"thin_air", player.stats)
+	near(player.stats.value(&"move_speed"), 12.0, "a new condition replaces the old one")
+	near(player.stats.value(&"gravity_scale"), 0.55, "thin air weakens gravity")
+	RoomConditions.clear_player(player.stats)
+	near(player.stats.value(&"gravity_scale"), 1.0, "clearing restores the player")
+	RoomConditions.apply_to_enemy(&"frenzy", enemy.stats)
+	check(enemy.damage() > 0, "an enemy under frenzy still reports damage")
+	enemy.free()
+	player.free()
+
+
+func test_room_conditions_come_from_the_seed() -> void:
+	var with_condition: int = 0
+	var fights: int = 0
+	for seed_value: int in [1, 2, 3, 4, 5, 6]:
+		var a: Array = RoomGenerator.generate({"seed": seed_value, "mode": RunData.MODE_STANDARD})
+		var b: Array = RoomGenerator.generate({"seed": seed_value, "mode": RunData.MODE_STANDARD})
+		for f: int in a.size():
+			for r: int in (a[f] as Array).size():
+				var room: RunData.RoomData = a[f][r]
+				eq(RoomConditions.of(room), RoomConditions.of(b[f][r]), "the same seed gives the same condition")
+				if room.is_peaceful() or room.is_boss() or room.floor_index <= 0:
+					eq(RoomConditions.of(room), &"", "no condition on %s (floor %d)" % [room.title(), room.floor_index])
+				else:
+					fights += 1
+					if RoomConditions.of(room) != &"":
+						with_condition += 1
+	check(with_condition > fights / 5 and with_condition < fights * 4 / 5, "some fights have a condition and some do not (%d of %d)" % [with_condition, fights])
+
+
+func test_fields_use_real_stats_and_statuses() -> void:
+	var player: Node = (load("res://systems/player/player_controller.gd") as Script).new()
+	var enemy_src: String = (load("res://systems/enemy/enemy_base.gd") as Script).source_code
+	for id: StringName in FieldZone.KINDS:
+		var def: Dictionary = FieldZone.KINDS[id]
+		check(String(def.get("name", "")).length() > 0 and String(def.get("text", "")).length() > 0, "%s is named and explained" % id)
+		if def.has("stat"):
+			check(player.stats.has(def.stat), "%s changes a stat the player has" % id)
+			check(not is_equal_approx(float(def.factor), 1.0), "%s changes it by something" % id)
+		if def.has("enemy"):
+			check(enemy_src.contains("&\"%s\"" % def.enemy[0]), "%s uses a status enemies understand (%s)" % [id, def.enemy[0]])
+		check(def.has("stat") or def.has("heal"), "%s does something to the player" % id)
+	player.free()
+
+	# the statuses a field puts on an enemy change what they are meant to
+	var enemy: EnemyBase = EnemyTypes.create(&"chaser", 1.0)
+	var base_damage: int = enemy.damage()
+	enemy.apply_status(&"empower", 1.0, 0.3)
+	check(enemy.damage() > base_damage, "empower raises enemy damage")
+	enemy.apply_status(&"weaken", 1.0, 0.5)
+	check(enemy.damage() < int(base_damage * 1.3), "weaken lowers it again")
+	var hc: HealthComponent = enemy.get_node("HealthComponent")
+	enemy.health = hc
+	enemy._refresh_status_mods()
+	near(hc.damage_scale, 1.0, "no change to damage taken yet")
+	enemy.apply_status(&"frail", 1.0, 0.3)
+	near(hc.damage_scale, 1.3, "frail raises damage taken")
+	enemy.apply_status(&"mark", 1.0, 0.25)
+	near(hc.damage_scale, 1.55, "a mark adds to it")
+	enemy.apply_status(&"ward", 1.0, 0.3)
+	near(hc.damage_scale, 1.55 * 0.7, "a ward cuts it")
+	enemy.free()

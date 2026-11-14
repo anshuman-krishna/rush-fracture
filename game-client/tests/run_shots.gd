@@ -43,6 +43,7 @@ func _initialize() -> void:
 	_driver.max_sim_seconds = float(opts.get("max-sim", 600.0))
 	_driver.room_limit = int(opts.get("rooms", 0))
 	_driver.grant_upgrades = String(opts.get("upgrades", "")).split(",", false)
+	_driver.force_condition = String(opts.get("condition", ""))
 	_menu_tab = String(opts.get("menu-tab", ""))
 	_driver.finished.connect(_on_finished)
 	root.add_child(_driver)

@@ -373,6 +373,7 @@ func _do_start_run(cfg: Dictionary) -> void:
 	game_feel.reset()
 	fracture_manager.end_fracture()
 	upgrade_manager.reset()
+	RoomConditions.clear_player(player.stats)
 	_rerolls_left = REROLLS_PER_RUN
 	mutation_manager.reset()
 	combo_tracker.reset_run()
@@ -496,6 +497,8 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 	room_controller.collect_all_pickups()
 	room_controller.set_enemy_speed_mod(&"cursed", 1.0 + _shared_enemy_speed_bonus)
 	room_controller.enter_room(room)
+	var condition: StringName = RoomConditions.of(room)
+	RoomConditions.apply_to_player(condition, player.stats)
 
 	if player.is_dead:
 		# a downed co-op player gets back up for the next room
@@ -517,7 +520,9 @@ func _on_room_entered(room: RunData.RoomData) -> void:
 		room_announce.show_boss_intro(BossDefs.display_name(room.boss_id), BossDefs.intro(room.boss_id))
 	else:
 		room_announce.show_room_enter(room, data.current_room_index + 1, data.total_rooms())
-		if data.current_room_index == 0 or data.room_sequence[data.current_room_index - 1].act != room.act:
+		if condition != &"":
+			room_announce.show_subtitle("%s: %s" % [RoomConditions.display_name(condition), RoomConditions.text(condition)], RoomConditions.color(condition))
+		elif data.current_room_index == 0 or data.room_sequence[data.current_room_index - 1].act != room.act:
 			room_announce.show_subtitle("act %d: %s" % [room.act + 1, Biome.display_name(room.biome)])
 
 	if not room.is_boss() and not room.is_peaceful():

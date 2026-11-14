@@ -213,6 +213,9 @@ func stun(seconds: float) -> void:
 
 ## timed effects: &"slow" (power = 0..1 speed loss), &"burn" (power = damage
 ## per second), &"mark" (power = extra damage taken, 0.25 = +25%).
+## the ground can add its own: &"haste", &"empower" and &"weaken" (damage
+## dealt, up or down), &"ward" (damage taken, down), &"frail" and &"brittle"
+## (damage taken, up; separate from a mark so they add to one).
 func apply_status(id: StringName, seconds: float, power: float, source: Node = null, from_peer: int = 0) -> void:
 	if is_dying:
 		return
@@ -620,8 +623,13 @@ func _refresh_status_mods() -> void:
 	var slow: float = _statuses.get(&"slow", {}).get("power", 0.0)
 	stats.set_mul(&"move_speed", &"slow", clampf(1.0 - slow, 0.2, 1.0))
 	stats.set_mul(&"move_speed", &"haste", 1.0 + _statuses.get(&"haste", {}).get("power", 0.0))
+	stats.set_mul(&"damage", &"status", (1.0 + _status_power(&"empower")) * (1.0 - _status_power(&"weaken")))
 	if health:
-		health.damage_scale = 1.0 + _statuses.get(&"mark", {}).get("power", 0.0)
+		health.damage_scale = (1.0 + _status_power(&"mark") + _status_power(&"frail") + _status_power(&"brittle")) * (1.0 - _status_power(&"ward"))
+
+
+func _status_power(id: StringName) -> float:
+	return _statuses.get(id, {}).get("power", 0.0)
 
 
 func _tick_affix(delta: float) -> void:

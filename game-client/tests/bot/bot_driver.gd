@@ -60,6 +60,9 @@ var perf: bool = false
 ## upgrade ids handed to the bot at the start of every run ("all" for the
 ## whole catalogue, each at its maximum), so one run exercises every effect.
 var grant_upgrades: PackedStringArray = PackedStringArray()
+## a room condition to put on every fight room of the run, or "all" to deal
+## them out in turn, so one run meets each of them.
+var force_condition: String = ""
 var _granted: bool = false
 var _perf_clock: int = 0
 var _perf_frames: int = 0
@@ -140,9 +143,12 @@ func _physics_process(delta: float) -> void:
 	if get_tree().paused:
 		return
 
-	if not grant_upgrades.is_empty() and not _granted and gm.run_manager.is_active:
+	if not _granted and gm.run_manager.is_active:
 		_granted = true
-		_grant(gm)
+		if not grant_upgrades.is_empty():
+			_grant(gm)
+		if not force_condition.is_empty():
+			_force_conditions(gm)
 
 	_handle_panels(main, gm)
 	_handle_transition(gm)
@@ -240,6 +246,18 @@ func _handle_summary(main: Node, gm: Node) -> bool:
 	else:
 		summary.emit_signal("restart_requested")
 	return true
+
+
+func _force_conditions(gm: Node) -> void:
+	var ids: Array = RoomConditions.DEFS.keys()
+	var next: int = 0
+	for options: Array in gm.run_manager.data.floors:
+		for room: RunData.RoomData in options:
+			if room.is_peaceful() or room.is_boss() or room.floor_index <= 0:
+				continue
+			room.metadata[RoomConditions.KEY] = String(ids[next % ids.size()]) if force_condition == "all" else force_condition
+			next += 1
+	print("[bot] forced condition '%s' on %d rooms" % [force_condition, next])
 
 
 func _grant(gm: Node) -> void:
@@ -442,10 +460,15 @@ func _track_progress(delta: float, gm: Node) -> void:
 		var room: Variant = data.current_room()
 		if room:
 			_perf_next_room("room %d %s" % [data.current_room_index + 1, room.title()])
-			print("[bot] room %d/%d %s act=%d biome=%s layout=%s diff=%.2f budget=%.1f reward=%s t=%.1fs" % [
+			var fields: PackedStringArray = PackedStringArray()
+			for zone: Node in get_tree().get_nodes_in_group(FieldZone.GROUP):
+				if not zone.is_queued_for_deletion():
+					fields.append(String(zone.get("kind")))
+			print("[bot] room %d/%d %s act=%d biome=%s layout=%s diff=%.2f budget=%.1f reward=%s condition=%s fields=%s t=%.1fs" % [
 				data.current_room_index + 1, data.total_rooms(), room.title(), room.act + 1, room.biome,
 				gm.room_controller.builder.template if gm.room_controller.builder else "?",
-				room.difficulty, room.enemy_budget, room.reward, _sim_time])
+				room.difficulty, room.enemy_budget, room.reward,
+				String(RoomConditions.of(room)) if RoomConditions.of(room) != &"" else "-", ",".join(fields) if not fields.is_empty() else "-", _sim_time])
 	if key != _progress_key:
 		_progress_key = key
 		_stall_time = 0.0

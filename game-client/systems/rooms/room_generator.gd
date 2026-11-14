@@ -169,4 +169,5 @@ static func _room(rng: RandomNumberGenerator, floor_index: int, act: int, biome:
 	room.reward = RoomDefinitions.default_reward(type)
 	if type == RoomDefinitions.RoomType.COMBAT and rng.randf() < 0.25:
 		room.reward = RoomDefinitions.REWARD_ESSENCE
+	RoomConditions.assign(room)
 	return room

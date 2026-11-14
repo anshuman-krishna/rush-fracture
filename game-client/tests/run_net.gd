@@ -82,6 +82,7 @@ func _initialize() -> void:
 	_driver.room_limit = int(_opts.get("rooms", 0)) if _role == "host" else 0
 	_driver.verbose = _opts.has("verbose")
 	_driver.grant_upgrades = String(_opts.get("upgrades", "")).split(",", false)
+	_driver.force_condition = String(_opts.get("condition", ""))
 	_driver.finished.connect(_on_finished)
 	root.add_child(_driver)
 

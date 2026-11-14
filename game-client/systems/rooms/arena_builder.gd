@@ -85,6 +85,7 @@ func build(p_room: RunData.RoomData, p_rng: RandomNumberGenerator, arena_root: N
 	_build_walls()
 	_decorate()
 	_place_hazards()
+	_place_fields()
 
 
 func _choose_template() -> StringName:
@@ -859,5 +860,36 @@ func _place_hazards() -> void:
 				zone.slows = true
 				zone.radius *= 1.2
 				zone.damage = maxi(2, tick_damage / 2)
+		zone.position = Vector3(p.x, 0.1, p.z)
+		_hazard_root.add_child(zone)
+
+
+## zero to two fields: marked ground that changes whoever stands on it, the
+## brood as much as the player. never on the opening floor, never with a boss.
+func _place_fields() -> void:
+	if room.is_peaceful() or room.is_boss() or room.floor_index <= 0:
+		return
+	var roll: float = rng.randf()
+	var count: int = 0 if roll < 0.3 else (1 if roll < 0.75 else 2)
+	if room.type == RoomDefinitions.RoomType.GAUNTLET:
+		count = maxi(count, 1)
+	var kinds: Array = FieldZone.KINDS.keys()
+	var placed: Array[Vector3] = []
+	var used: Array = []
+	for i: int in count:
+		var kind: StringName = kinds[rng.randi() % kinds.size()]
+		var radius: float = rng.randf_range(3.2, 4.4)
+		var p: Vector3 = _free_point(6.0, 3.0)
+		if p == Vector3.INF or used.has(kind):
+			continue
+		var crowded: bool = false
+		for other: Vector3 in placed:
+			if other.distance_to(p) < 11.0:
+				crowded = true
+		if crowded:
+			continue
+		used.append(kind)
+		placed.append(p)
+		var zone: FieldZone = FieldZone.create(kind, radius)
 		zone.position = Vector3(p.x, 0.1, p.z)
 		_hazard_root.add_child(zone)
