@@ -334,7 +334,6 @@ func _draw_top(c: Vector2, k: float) -> void:
 		_text(c + Vector2(0, -22 * k), RoomConditions.display_name(condition), int(15 * k), RoomConditions.color(condition), HORIZONTAL_ALIGNMENT_CENTER, true)
 
 	# deadline mode: the clock, large, turning red as it runs down
-	var clock_room: float = 0.0
 	var gm: Node = Game.manager()
 	if gm and gm.has_method("deadline_left") and gm.deadline_left() >= 0.0:
 		var left: float = gm.deadline_left()
@@ -342,11 +341,11 @@ func _draw_top(c: Vector2, k: float) -> void:
 		var tint: Color = Color(1.0, 0.3, 0.22) if urgent else Color(1.0, 0.86, 0.5)
 		if urgent:
 			tint = tint.lerp(Color.WHITE, 0.5 + 0.5 * sin(Time.get_ticks_msec() * 0.015))
-		_text(c + Vector2(0, 96 * k), "%d:%04.1f" % [int(left) / 60, fmod(left, 60.0)], int(40 * k), tint, HORIZONTAL_ALIGNMENT_CENTER, true)
-		clock_room = 50.0
+		_text(c + Vector2(236 * k, 4 * k), "deadline", int(13 * k), Color(tint.r, tint.g, tint.b, 0.8))
+		_text(c + Vector2(236 * k, 40 * k), "%d:%04.1f" % [int(left) / 60, fmod(left, 60.0)], int(40 * k), tint, HORIZONTAL_ALIGNMENT_LEFT, true)
 
 	if is_instance_valid(_fracture) and _fracture.is_active:
-		var fy: float = c.y + (74.0 + clock_room) * k
+		var fy: float = c.y + 74.0 * k
 		var bw: float = 300.0 * k
 		var col: Color = Color(0.95, 0.3, 1.0)
 		_text(Vector2(c.x, fy), "fracture: %s" % _fracture.get_active_name(), int(17 * k), col, HORIZONTAL_ALIGNMENT_CENTER, true)
