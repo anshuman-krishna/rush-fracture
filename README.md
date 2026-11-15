@@ -12,7 +12,7 @@ playable end to end, solo and multiplayer:
 - 10 run modes, 4 difficulty levels and 10 ascension tiers, co-op and two versus modes
 - 8 weapons, 14 enemy types with 5 elite variants, 7 bosses
 - 105 upgrades, 12 mutations, 9 fracture events
-- 6 biomes with their own look, enemy strain and music key; 16 arena layouts with decks, ramps, jump pads, cover and hazards
+- 6 biomes with their own look, enemy strain and music key; 19 arena layouts with decks, ramps, jump pads, cover and hazards
 - 9 room conditions and 7 kinds of field that change the fight for you and the enemy alike
 - persistent progression: shards, 12 meta upgrades, weapon and perk unlocks, 7 skins, 12 achievements
 - every sound and the soundtrack are generated at runtime; the game ships no audio files
@@ -135,7 +135,7 @@ room types: combat, swarm, elite, elite chamber, gauntlet, hazard, sanctuary, ti
 
 **biomes.** each act draws one of two: the hatchery or the bloom, marrow works or the drowned vault, the fracture or ashfall. each has its own palette, fog, enemy strain and music key.
 
-**layouts.** sixteen arenas, eleven for ordinary fights (open, tiers, hall, junction, orbit, lanes, grove, bridges, colosseum, warren, spires) and one for each boss.
+**layouts.** nineteen arenas: eleven for ordinary fights (open, tiers, hall, junction, orbit, lanes, grove, bridges, colosseum, warren, spires), one for each of the seven bosses, and the sanctuary.
 
 **room conditions.** about four fights in ten have something true of the whole room, shown on the path card before you choose it: thin air, tailwind, frenzy spores, brittle shells, spore haze, overgrowth, volatile brood, static storm, barren ground. most cut both ways.
 
